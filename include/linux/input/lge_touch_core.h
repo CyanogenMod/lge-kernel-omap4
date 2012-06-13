@@ -23,7 +23,7 @@
 #ifdef CONFIG_MACH_LGE_COSMO
 #define COSMO_TOUCHKEY_RANGE_TRIM
 #elif defined(CONFIG_MACH_LGE_CX2)
-#define CX2_TOUCHKEY_RANGE_TRIM^M
+#define CX2_TOUCHKEY_RANGE_TRIM
 #endif
 //mo2haewoon.you@lge.com <= [END]
 
@@ -400,6 +400,14 @@ enum{
 	DEBUG_TIME_PROFILE_ALL			= (1U << 5),	// 32
 };
 #endif
+
+enum{
+	WORK_POST_COMPLATE = 0,
+	WORK_POST_OUT,
+	WORK_POST_ERR_RETRY,
+	WORK_POST_ERR_CIRTICAL,
+	WORK_POST_MAX,
+};
 
 #define LGE_TOUCH_NAME		"lge_touch"
 
