@@ -576,6 +576,18 @@ void musb_g_tx(struct musb *musb, u8 epnum)
 
 		if (request->actual == request->length) {
 			musb_g_giveback(musb_ep, request, 0);
+<<<<<<< HEAD
+=======
+			/*
+			 * In the giveback function the MUSB lock is
+			 * released and acquired after sometime. During
+			 * this time period the INDEX register could get
+			 * changed by the gadget_queue function especially
+			 * on SMP systems. Reselect the INDEX to be sure
+			 * we are reading/modifying the right registers
+			 */
+			musb_ep_select(mbase, epnum);
+>>>>>>> 379ef79... Merge latest changes from google kernel/common.git
 			req = musb_ep->desc ? next_request(musb_ep) : NULL;
 			if (!req) {
 				dev_dbg(musb->controller, "%s idle now\n",

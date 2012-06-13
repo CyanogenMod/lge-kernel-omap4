@@ -45,6 +45,18 @@
 #include "epautoconf.c"
 #include "composite.c"
 
+<<<<<<< HEAD
+=======
+/* LGE_SJIT_S 10/21/2011 [mohamed.khadri@lge.com] 
+            LG Gadget driver - nmea and diag funcation extensions  */
+#if defined(CONFIG_LGE_ANDROID_USB)
+#include "f_lgserial.c"
+#endif
+/* LGE_SJIT_E 10/21/2011 [mohamed.khadri@lge.com]
+            LG Gadget driver - nmea and diag funcation extensions  */
+
+#include "f_audio_source.c"
+>>>>>>> 379ef79... Merge latest changes from google kernel/common.git
 #include "f_mass_storage.c"
 #include "u_serial.c"
 #include "f_acm.c"
@@ -643,6 +655,67 @@ static struct android_usb_function accessory_function = {
 	.ctrlrequest	= accessory_function_ctrlrequest,
 };
 
+static int audio_source_function_init(struct android_usb_function *f,
+			struct usb_composite_dev *cdev)
+{
+	struct audio_source_config *config;
+
+	config = kzalloc(sizeof(struct audio_source_config), GFP_KERNEL);
+	if (!config)
+		return -ENOMEM;
+	config->card = -1;
+	config->device = -1;
+	f->config = config;
+	return 0;
+}
+
+static void audio_source_function_cleanup(struct android_usb_function *f)
+{
+	kfree(f->config);
+}
+
+static int audio_source_function_bind_config(struct android_usb_function *f,
+						struct usb_configuration *c)
+{
+	struct audio_source_config *config = f->config;
+
+	return audio_source_bind_config(c, config);
+}
+
+static void audio_source_function_unbind_config(struct android_usb_function *f,
+						struct usb_configuration *c)
+{
+	struct audio_source_config *config = f->config;
+
+	config->card = -1;
+	config->device = -1;
+}
+
+static ssize_t audio_source_pcm_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct audio_source_config *config = f->config;
+
+	/* print PCM card and device numbers */
+	return sprintf(buf, "%d %d\n", config->card, config->device);
+}
+
+static DEVICE_ATTR(pcm, S_IRUGO | S_IWUSR, audio_source_pcm_show, NULL);
+
+static struct device_attribute *audio_source_function_attributes[] = {
+	&dev_attr_pcm,
+	NULL
+};
+
+static struct android_usb_function audio_source_function = {
+	.name		= "audio_source",
+	.init		= audio_source_function_init,
+	.cleanup	= audio_source_function_cleanup,
+	.bind_config	= audio_source_function_bind_config,
+	.unbind_config	= audio_source_function_unbind_config,
+	.attributes	= audio_source_function_attributes,
+};
 
 static struct android_usb_function *supported_functions[] = {
 	&adb_function,
@@ -652,6 +725,22 @@ static struct android_usb_function *supported_functions[] = {
 	&rndis_function,
 	&mass_storage_function,
 	&accessory_function,
+<<<<<<< HEAD
+=======
+///////////////////////////////////////
+	&cdrom_storage_function,
+//////////////////////////////////////////////////////////////
+/* LGE_SJIT_S 10/21/2011 [mohamed.khadri@lge.com]
+            LG Gadget driver - nmea and diag funcation extensions  */
+#if defined(CONFIG_LGE_ANDROID_USB)
+//	&cdrom_storage_function,
+        &nmea_function,
+        &diag_function,
+#endif
+/* LGE_SJIT_E 10/21/2011 [mohamed.khadri@lge.com]
+            LG Gadget driver - nmea and diag funcation extensions  */
+	&audio_source_function,
+>>>>>>> 379ef79... Merge latest changes from google kernel/common.git
 	NULL
 };
 
@@ -847,6 +936,7 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 		cdev->desc.bDeviceClass = device_desc.bDeviceClass;
 		cdev->desc.bDeviceSubClass = device_desc.bDeviceSubClass;
 		cdev->desc.bDeviceProtocol = device_desc.bDeviceProtocol;
+<<<<<<< HEAD
 		usb_add_config(cdev, &android_config_driver,
 					android_bind_config);
 		usb_gadget_connect(cdev->gadget);
@@ -856,6 +946,20 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 		/* Cancel pending control requests */
 		usb_ep_dequeue(cdev->gadget->ep0, cdev->req);
 		usb_remove_config(cdev, &android_config_driver);
+=======
+		list_for_each_entry(f, &dev->enabled_functions, enabled_list) {
+			if (f->enable)
+				f->enable(f);
+		}
+		android_enable(dev);
+		dev->enabled = true;
+	} else if (!enabled && dev->enabled) {
+		android_disable(dev);
+		list_for_each_entry(f, &dev->enabled_functions, enabled_list) {
+			if (f->disable)
+				f->disable(f);
+		}
+>>>>>>> 379ef79... Merge latest changes from google kernel/common.git
 		dev->enabled = false;
 	} else {
 		pr_err("android_usb: already %s\n",
@@ -919,10 +1023,7 @@ field ## _store(struct device *dev, struct device_attribute *attr,	\
 		const char *buf, size_t size)				\
 {									\
 	if (size >= sizeof(buffer)) return -EINVAL;			\
-	if (sscanf(buf, "%s", buffer) == 1) {				\
-		return size;						\
-	}								\
-	return -1;							\
+	return strlcpy(buffer, buf, sizeof(buffer));			\
 }									\
 static DEVICE_ATTR(field, S_IRUGO | S_IWUSR, field ## _show, field ## _store);
 
@@ -1106,6 +1207,11 @@ static void android_disconnect(struct usb_gadget *gadget)
 	unsigned long flags;
 
 	composite_disconnect(gadget);
+	/* accessory HID support can be active while the
+	   accessory function is not actually enabled,
+	   so we need to inform it when we are disconnected.
+	 */
+	acc_disconnect();
 
 	spin_lock_irqsave(&cdev->lock, flags);
 	dev->connected = 0;

@@ -551,13 +551,21 @@ static int __init omap2430_probe(struct platform_device *pdev)
 		goto err2;
 	}
 
+<<<<<<< HEAD
+=======
+	pm_runtime_enable(&pdev->dev);
+
+>>>>>>> 379ef79... Merge latest changes from google kernel/common.git
 	ret = platform_device_add(musb);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to register musb device\n");
 		goto err2;
 	}
+<<<<<<< HEAD
 
 	pm_runtime_enable(&pdev->dev);
+=======
+>>>>>>> 379ef79... Merge latest changes from google kernel/common.git
 
 	return 0;
 
