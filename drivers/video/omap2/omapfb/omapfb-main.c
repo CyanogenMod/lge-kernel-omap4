@@ -36,6 +36,9 @@
 
 #include "omapfb.h"
 
+//#define FB0_LOG printk // jeonghoon.cho for FB0 Read Test
+#define FB0_LOG(X, ...)
+
 #define MODULE_NAME     "omapfb"
 
 #define OMAPFB_PLANE_XRES_MIN		8
@@ -754,16 +757,23 @@ int check_fb_var(struct fb_info *fbi, struct fb_var_screeninfo *var)
  * fbdev framework callbacks
  * ---------------------------------------------------------------------------
  */
+ //[LGE_UPDATE_S] jeonghoon.cho for reading fb0 choosingly.
+ int use_fb0 = 0;
+
 static int omapfb_open(struct fb_info *fbi, int user)
 {
+	FB0_LOG("[dyotest]%s\n",__func__);
+	use_fb0 = 1; // for using fb0 to ETA2
 	return 0;
 }
 
 static int omapfb_release(struct fb_info *fbi, int user)
 {
+	FB0_LOG("[dyotest]%s\n",__func__);
+	use_fb0 = 0; // for using fb0 to ETA2
 	return 0;
 }
-
+ //[LGE_UPDATE_S] jeonghoon.cho for reading fb0 choosingly.
 static unsigned calc_rotation_offset_dma(const struct fb_var_screeninfo *var,
 		const struct fb_fix_screeninfo *fix, int rotation)
 {
@@ -1100,7 +1110,7 @@ static int omapfb_pan_display(struct fb_var_screeninfo *var,
 	struct omapfb_info *ofbi = FB2OFB(fbi);
 	struct fb_var_screeninfo new_var;
 	int r;
-
+	FB0_LOG("[dyotest]%s\n",__func__);
 	DBG("pan_display(%d)\n", FB2OFB(fbi)->id);
 
 	if (var->xoffset == fbi->var.xoffset &&
@@ -1125,7 +1135,7 @@ static int omapfb_pan_display(struct fb_var_screeninfo *var,
 static void mmap_user_open(struct vm_area_struct *vma)
 {
 	struct omapfb2_mem_region *rg = vma->vm_private_data;
-
+	FB0_LOG("[dyotest]%s\n",__func__);
 	omapfb_get_mem_region(rg);
 	atomic_inc(&rg->map_count);
 	omapfb_put_mem_region(rg);
@@ -1134,7 +1144,8 @@ static void mmap_user_open(struct vm_area_struct *vma)
 static void mmap_user_close(struct vm_area_struct *vma)
 {
 	struct omapfb2_mem_region *rg = vma->vm_private_data;
-
+	FB0_LOG("[dyotest]%s\n",__func__);
+	use_fb0 = 0;  // for using fb0 to OSP
 	omapfb_get_mem_region(rg);
 	atomic_dec(&rg->map_count);
 	omapfb_put_mem_region(rg);
@@ -1154,7 +1165,12 @@ static int omapfb_mmap(struct fb_info *fbi, struct vm_area_struct *vma)
 	unsigned long start;
 	u32 len;
 	int r = -EINVAL;
-
+	static int test=0;
+	FB0_LOG("[dyotest]%s\n",__func__);
+	if(!test)
+		test++; // prevent use_fb0=1 in booting complete
+	else
+		use_fb0 = 1; // for using fb0 to OSP
 	if (vma->vm_end - vma->vm_start == 0)
 		return 0;
 	if (vma->vm_pgoff > (~0UL >> PAGE_SHIFT))

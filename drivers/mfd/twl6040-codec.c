@@ -53,6 +53,11 @@ EXPORT_SYMBOL(twl6040_reg_read);
 int twl6040_reg_write(struct twl6040 *twl6040, unsigned int reg, u8 val)
 {
 	int ret;
+#if (  defined(ONFIG_MACH_LGE_P2_SU540) ||  defined(CONFIG_MACH_LGE_P2_KU5400) ||   defined(CONFIG_MACH_LGE_P2_LU5400)  ||  defined(CONFIG_MACH_LGE_P2_DCM)  )
+	/* enable handset/earpiece FIR */
+    if(reg == TWL6040_REG_EARCTL)
+		val &= ~0x20;
+#endif
 
 	mutex_lock(&twl6040->io_mutex);
 	ret = twl_i2c_write_u8(TWL_MODULE_AUDIO_VOICE, val, reg);
@@ -669,6 +674,15 @@ static int __devinit twl6040_probe(struct platform_device *pdev)
 	twl6040->dev = &pdev->dev;
 	mutex_init(&twl6040->mutex);
 	mutex_init(&twl6040->io_mutex);
+	
+	if (pdata->init) {
+		ret = pdata->init();
+		if (ret) {
+			dev_err(twl6040->dev, "Platform init failed %d\n",
+				ret);
+			goto init_err;
+		}
+	}		
 
 	if (pdata->init) {
 		ret = pdata->init();
@@ -812,6 +826,9 @@ static int __devexit twl6040_remove(struct platform_device *pdev)
 
 	if (pdata->put_ext_clk32k)
 		pdata->put_ext_clk32k();
+	
+	if (pdata->exit)
+		pdata->exit();
 
 	if (pdata->exit)
 		pdata->exit();

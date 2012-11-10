@@ -60,8 +60,11 @@ static void power_supply_changed_work(struct work_struct *work)
 		kobject_uevent(&psy->dev->kobj, KOBJ_CHANGE);
 		spin_lock_irqsave(&psy->changed_lock, flags);
 	}
-	if (!psy->changed)
-		wake_unlock(&psy->work_wake_lock);
+	if (!psy->changed){
+		if (wake_lock_active(&psy->work_wake_lock))
+			wake_unlock(&psy->work_wake_lock);
+	}
+
 	spin_unlock_irqrestore(&psy->changed_lock, flags);
 }
 
@@ -73,7 +76,10 @@ void power_supply_changed(struct power_supply *psy)
 
 	spin_lock_irqsave(&psy->changed_lock, flags);
 	psy->changed = true;
-	wake_lock(&psy->work_wake_lock);
+
+	if (wake_lock_active(&psy->work_wake_lock))
+		wake_lock(&psy->work_wake_lock);
+
 	spin_unlock_irqrestore(&psy->changed_lock, flags);
 	schedule_work(&psy->changed_work);
 }

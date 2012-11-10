@@ -67,8 +67,9 @@ static int _omap3_wait_dpll_status(struct clk *clk, u8 state)
 	int ret = -EINVAL;
 	bool first_time = true;
 	u32 reg;
-	u32 orig_cm_div_m2_dpll_usb;
-	u32 orig_cm_clkdcoldo_dpll_usb;
+	/* LGE_SJIT 2012-02-08 [dojip.kim@lge.com] fix the warning */
+	u32 orig_cm_div_m2_dpll_usb = 0;
+	u32 orig_cm_clkdcoldo_dpll_usb = 0;
 
 retry:
 	dd = clk->dpll_data;

@@ -1183,6 +1183,12 @@ try_again:
 				  &peeked, &err);
 	if (!skb)
 		goto out;
+#ifdef CONFIG_CCSECURITY
+	if (ccs_socket_post_recvmsg_permission(sk, skb, flags)) {
+		err = -EAGAIN; /* Hope less harmful than -EPERM. */
+		goto out;
+	}
+#endif
 
 	ulen = skb->len - sizeof(struct udphdr);
 	if (len > ulen)

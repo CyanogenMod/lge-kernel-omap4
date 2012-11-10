@@ -69,6 +69,8 @@ obj-$(CONFIG_SPI_TLE62X0)	+= tle62x0.o
 
 # SPI slave controller drivers (upstream link)
 # 	... add above this line ...
+obj-$(CONFIG_LGE_SPI_SLAVE)	+= omap2_mcspi_slave.o
+obj-$(CONFIG_LGE_SPI_SLAVE)	+= mdm6600_spi_slave.o
 
 # SPI slave drivers (protocol for that link)
 # 	... add above this line ...

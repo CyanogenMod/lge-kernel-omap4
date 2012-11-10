@@ -1,0 +1,15 @@
+#
+# 1Seg Broadcast Device Driver Support
+#
+
+#menu "1SEG_BROADCAST_DEVICE"
+
+config LGE_BROADCAST_ISDBT_MTV250
+	bool "1Seg broacast tuner chipset MTV250 device driver"
+	default y
+	depends on LGE_BROADCAST_1SEG
+	help
+	  Select this if you want to use Japanese 1Seg mobile broadcast service
+
+source "drivers/broadcast/oneseg/raon_mtv250/Kconfig"
+#endmenu

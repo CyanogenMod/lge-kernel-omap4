@@ -132,6 +132,12 @@ void __init omap44xx_voltagedomains_init(void)
 	struct voltagedomain *voltdm;
 	int i;
 
+// LGE_CHANGE_START [bk.shin@lge.com] 2012-04-25, TI patch : recommeded VP registers settings
+	omap4_voltdm_mpu.vp->vlimits->vddmax = OMAP4460_VP_MPU_VLIMITTO_VDDMAX;
+	omap4_voltdm_iva.vp->vlimits->vddmax = OMAP4460_VP_IVA_VLIMITTO_VDDMAX;
+	omap4_voltdm_core.vp->vlimits->vddmax = OMAP4460_VP_CORE_VLIMITTO_VDDMAX;
+// LGE_CHANGE_END [bk.shin@lge.com] 2012-04-25
+
 	/*
 	 * XXX Will depend on the process, validation, and binning
 	 * for the currently-running IC
@@ -149,6 +155,14 @@ void __init omap44xx_voltagedomains_init(void)
 		omap4_vdd_core_info.volt_data = omap443x_vdd_core_volt_data;
 		omap4_vdd_mpu_info.dep_vdd_info = omap443x_vddmpu_dep_info;
 		omap4_vdd_iva_info.dep_vdd_info = omap443x_vddiva_dep_info;
+// LGE_CHANGE_START [bk.shin@lge.com] 2012-04-25, TI patch : recommeded VP registers settings
+		omap4_voltdm_mpu.vp->vlimits->vddmax =
+									OMAP4430_VP_MPU_VLIMITTO_VDDMAX;
+		omap4_voltdm_iva.vp->vlimits->vddmax =
+									OMAP4430_VP_IVA_VLIMITTO_VDDMAX;
+		omap4_voltdm_core.vp->vlimits->vddmax =
+									OMAP4430_VP_CORE_VLIMITTO_VDDMAX;
+// LGE_CHANGE_END [bk.shin@lge.com] 2012-04-25
 	} else if (cpu_is_omap446x()) {
 		omap4_vdd_mpu_info.volt_data = omap446x_vdd_mpu_volt_data;
 		omap4_vdd_iva_info.volt_data = omap446x_vdd_iva_volt_data;

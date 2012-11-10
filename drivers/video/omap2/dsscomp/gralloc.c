@@ -12,6 +12,62 @@
 #endif
 static bool blanked;
 
+#ifdef CONFIG_DSSCOMP_COPY_FOR_ROT
+
+#include <linux/ion.h>
+#include <linux/omap_ion.h>
+#include <plat/dma.h>
+
+extern struct ion_device *omap_ion_device;
+
+struct dsscomp_gralloc_t;
+
+/**
+ * Purpose :
+ * 	When address is not tiler and rotation is requested,
+ * 	allocates tiler buffer and copy contents to it.
+ */
+struct tiler_2d_buffer {
+	int		width, height;
+	bool	allocated;	//allocation flag
+	bool	in_using;	//whether dss is using this buffer
+
+	int		bpp;			//byte per pixel
+
+	u32		mgr_mask;			//connected DSS manager mask. 1 << mgr_idx
+	struct dsscomp_gralloc_t	*gsync;	//gsync object
+
+	u32		src_phy_addr;	//source physical address
+	size_t	src_stride;		//source stride
+
+	struct omap_ion_tiler_alloc_data alloc_data;
+	ion_phys_addr_t phy;	//physical address of ION alloc
+	size_t	len;
+	struct tiler_view_t view;
+
+	wait_queue_head_t dma_wait_q;	//DMA wait queue
+	bool	dma_copying;			//flag for dma copy progress
+	int		dma_ch;					//DMA channel
+
+
+	struct timespec	last_use;
+};
+
+#define MAX_BUF_NUM_FOR_ROT	6
+struct tiler_2d_buffer_mgr {
+	struct mutex lock;
+	struct ion_client *ion;
+	struct tiler_2d_buffer buffers[MAX_BUF_NUM_FOR_ROT];
+};
+
+static struct tiler_2d_buffer_mgr rot_buf_mgr;
+
+static void dsscomp_rotbuf_mgr_check(struct dss2_ovl_info *oi, struct dsscomp_gralloc_t *gsync, u32 ch);
+static void dsscomp_rotbuf_mgr_put_buf(struct tiler_2d_buffer *buf);
+static int dsscomp_rotbuf_mgr_start_dma_copy_of_gralloc(struct dsscomp_gralloc_t *gsync, u32 ch);
+static int dsscomp_rotbuf_mgr_wait_dma_copy_of_gralloc(struct dsscomp_gralloc_t *gsymc, u32 ch);
+#endif
+
 #define NUM_TILER1D_SLOTS 2
 
 static struct tiler1d_slot {
@@ -36,6 +92,9 @@ struct dsscomp_gralloc_t {
 	atomic_t refs;
 	bool early_callback;
 	bool programmed;
+#ifdef CONFIG_DSSCOMP_COPY_FOR_ROT
+	struct tiler_2d_buffer *rot_bufs[MAX_BUF_NUM_FOR_ROT];
+#endif
 };
 
 /* queued gralloc compositions */
@@ -76,8 +135,20 @@ static void dsscomp_gralloc_cb(void *data, int status)
 
 	if (status & DSS_COMPLETION_RELEASED) {
 		if (atomic_dec_and_test(&gsync->refs))
+#ifdef CONFIG_DSSCOMP_COPY_FOR_ROT
+		{
+			int i;
+			for(i=0;i<MAX_BUF_NUM_FOR_ROT;i++)
+				if ( gsync->rot_bufs[i]!=NULL )
+				{
+					dsscomp_rotbuf_mgr_put_buf(gsync->rot_bufs[i]);
+					gsync->rot_bufs[i] = NULL;
+				}
+#endif
 			unpin_tiler_blocks(&gsync->slots);
-
+#ifdef CONFIG_DSSCOMP_COPY_FOR_ROT
+		}
+#endif
 		log_event(0, 0, gsync, "--refs=%d on %s",
 				atomic_read(&gsync->refs),
 				(u32) log_status_str(status));
@@ -315,6 +386,9 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 
 			oi->ba = d->ovls[j].ba;
 			oi->uv = d->ovls[j].uv;
+#ifdef CONFIG_DSSCOMP_COPY_FOR_ROT
+			dsscomp_rotbuf_mgr_check(oi, gsync, ch);
+#endif
 			goto skip_map1d;
 		} else if (oi->addressing == OMAP_DSS_BUFADDR_FB) {
 			/* get fb */
@@ -429,7 +503,10 @@ skip_map1d:
 		atomic_inc(&gsync->refs);
 		log_event(0, ms, gsync, "++refs=%d for [%p]",
 				atomic_read(&gsync->refs), (u32) comp[ch]);
-
+#ifdef CONFIG_DSSCOMP_COPY_FOR_ROT
+		dsscomp_rotbuf_mgr_start_dma_copy_of_gralloc(gsync, ch);
+		dsscomp_rotbuf_mgr_wait_dma_copy_of_gralloc(gsync, ch);
+#endif
 		r = dsscomp_delayed_apply(comp[ch]);
 		if (r)
 			dev_err(DEV(cdev), "failed to apply comp (%d)\n", r);
@@ -445,6 +522,7 @@ skip_comp:
 	return r;
 }
 EXPORT_SYMBOL(dsscomp_gralloc_queue);
+
 
 #ifdef CONFIG_EARLYSUSPEND
 static int blank_complete;
@@ -555,6 +633,558 @@ void dsscomp_dbg_gralloc(struct seq_file *s)
 #endif
 }
 
+#ifdef CONFIG_DSSCOMP_COPY_FOR_ROT
+
+/**
+ * free buffer
+ * this function must be called with lock
+ */
+static bool dsscomp_rotbuf_mgr_free_buf_withlock(int i)
+{
+	struct tiler_2d_buffer *buf;
+	if ( i<0 || i>=MAX_BUF_NUM_FOR_ROT )
+		return false;
+	buf = & (rot_buf_mgr.buffers[i]);
+	if ( buf->in_using )
+		return false;
+	if ( buf->allocated )
+	{
+		ion_free(rot_buf_mgr.ion, buf->alloc_data.handle);
+		buf->allocated = false;
+	}
+	return true;
+}
+
+/**
+ * find empty slot or victim
+ * this function must be called with lock
+ */
+static struct tiler_2d_buffer* dsscomp_rotbuf_mgr_find_avail_buf_withlock(void)
+{
+	int i;
+
+
+	//find not allocated buffer
+	for(i=0;i<MAX_BUF_NUM_FOR_ROT;i++)
+	{
+		if ( !rot_buf_mgr.buffers[i].allocated )
+			return &(rot_buf_mgr.buffers[i]);
+	}
+	//find not using buffer
+	for(i=0;i<MAX_BUF_NUM_FOR_ROT;i++)
+	{
+		if ( !rot_buf_mgr.buffers[i].in_using )
+		{
+			dsscomp_rotbuf_mgr_free_buf_withlock(i);
+			return &(rot_buf_mgr.buffers[i]);
+		}
+	}
+	return NULL;
+}
+
+/**
+ * put buffer when no more use
+ */
+static void dsscomp_rotbuf_mgr_put_buf(struct tiler_2d_buffer *buf)
+{
+	mutex_lock(&rot_buf_mgr.lock);
+	buf->in_using = false;
+	mutex_unlock(&rot_buf_mgr.lock);
+}
+
+/**
+ * get 2D tiler buffer
+ */
+static struct tiler_2d_buffer* dsscomp_rotbuf_mgr_get_buf(struct dss2_ovl_info *oi)
+{
+	int i, bpp;
+	int fmt;
+
+	struct tiler_2d_buffer* buf = NULL;
+	if ( oi==NULL )
+		return NULL;
+	switch ( oi->cfg.color_mode )
+	{
+	case OMAP_DSS_COLOR_CLUT8:		/* BITMAP 8 */
+		bpp = 1;
+		fmt = TILER_PIXEL_FMT_8BIT;
+		break;
+	case OMAP_DSS_COLOR_ARGB16:		/* ARGB16-4444 */
+	case OMAP_DSS_COLOR_RGB16:		/* RGB16-565 */
+		bpp = 2;
+		fmt = TILER_PIXEL_FMT_16BIT;
+		break;
+	case OMAP_DSS_COLOR_ARGB32:		/* ARGB32-8888 */
+	case OMAP_DSS_COLOR_RGBA32:		/* RGBA32-8888 */
+	case OMAP_DSS_COLOR_RGB24U:		/* xRGB24-8888 */
+	case OMAP_DSS_COLOR_RGB24P:		/* RGB24-888 */
+
+	case OMAP_DSS_COLOR_RGBX32:		/* RGBx32-8888 */
+		bpp = 4;
+		fmt = TILER_PIXEL_FMT_32BIT;
+		break;
+	case OMAP_DSS_COLOR_YUV2:		/* YUV2 4:2:2 co-sited */
+	case OMAP_DSS_COLOR_UYVY:		/* UYVY 4:2:2 co-sited */
+	case OMAP_DSS_COLOR_NV12:		/* NV12 format: YUV 4:2:0 */
+	case OMAP_DSS_COLOR_RGBA16:		/* RGBA16-4444 */
+
+	case OMAP_DSS_COLOR_RGBX16:		/* RGBx16-4444 */
+	case OMAP_DSS_COLOR_ARGB16_1555:	/* ARGB16-1555 */
+
+
+	default:
+		//not supported type
+		pr_warn("color mode(%d) is not supported color format in rotation buf manager\n", oi->cfg.color_mode);
+		goto Skip_Alloc;
+	}
+	mutex_lock(&rot_buf_mgr.lock);
+	for(i=0;i<MAX_BUF_NUM_FOR_ROT;i++)
+	{
+		struct tiler_2d_buffer* ith = &(rot_buf_mgr.buffers[i]);
+		if ( ith->allocated && !ith->in_using )
+		{
+			if ( ith->alloc_data.w >=oi->cfg.width
+				&& ith->alloc_data.h >=oi->cfg.height
+				&& ith->alloc_data.fmt == fmt )
+			{
+				buf = ith;
+				goto Skip_Alloc;
+			}
+		}
+	}
+	//find buffer & allocate
+	buf = dsscomp_rotbuf_mgr_find_avail_buf_withlock();
+	if ( buf!=NULL )
+	{
+		struct omap_ion_tiler_alloc_data* alloc_data = &(buf->alloc_data);
+
+		alloc_data->w = buf->width = oi->cfg.width;
+		alloc_data->h = buf->height = oi->cfg.height;
+		alloc_data->fmt = fmt;
+		alloc_data->flags = 0;
+
+		//clear manager mask
+		buf->mgr_mask = 0;
+		//create ion client
+		if ( rot_buf_mgr.ion==NULL )
+		{
+			rot_buf_mgr.ion = ion_client_create(omap_ion_device,
+					 1 << ION_HEAP_TYPE_CARVEOUT |
+					 1 << OMAP_ION_HEAP_TYPE_TILER,
+					 "dsscomp_rotbug_mgr");
+			if ( IS_ERR_OR_NULL(rot_buf_mgr.ion) )
+			{
+				buf = NULL;
+				goto Skip_Alloc;
+			}
+		}
+		//alloc ion buffer
+		if ( omap_ion_nonsecure_tiler_alloc(rot_buf_mgr.ion, alloc_data) )
+		{
+			buf = NULL;
+			goto Skip_Alloc;
+		}
+		buf->allocated = true;
+		buf->bpp = bpp;
+		ion_phys(rot_buf_mgr.ion, alloc_data->handle, &(buf->phy), &(buf->len));
+		//get view to get physical stride
+		tilview_create(&buf->view, buf->phy, buf->width, buf->height);
+#if 0
+		{
+			//test purpose
+			struct tiler_block_t block;
+			struct vm_struct *area;
+			u32 addr;
+
+			block.phys = buf->phy;
+			block.width = alloc_data->w;
+			block.height = alloc_data->h;
+			area = get_vm_area(buf->size, VM_IOREMAP);
+			if ( area==NULL )
+				BUG();
+			addr = area->addr;
+			if ( tiler_ioremap_blk(&block, 0, buf->size, addr, 0) )
+			{
+				BUG();
+			}
+			for(i=0;i<buf->alloc_data.h;i++)
+			{
+				memset(addr+i*buf->alloc_data.stride, (i*16)%0xff, buf->alloc_data.w * bpp);
+			}
+			vunmap(addr);
+		}
+#endif
+	}
+Skip_Alloc:
+	if ( buf!=NULL )
+	{
+		buf->in_using = true;
+		buf->last_use = CURRENT_TIME;
+		buf->src_phy_addr = oi->ba;
+		buf->src_stride = oi->cfg.stride;
+
+		oi->cfg.stride = buf->alloc_data.stride;
+		oi->ba = buf->phy;
+		oi->uv = 0;
+		//printk("Set rot buffer address %p\n", (void*)oi->ba);
+	}
+	mutex_unlock(&rot_buf_mgr.lock);
+	return buf;
+}
+
+/**
+ * find buffer connected with oi(overlay) & gsync
+ */
+static struct tiler_2d_buffer* dsscomp_rotbuf_mgr_already_in(struct dss2_ovl_info *oi, struct dsscomp_gralloc_t *gsync)
+{
+	int i;
+	struct tiler_2d_buffer* ret = NULL;
+	if ( oi==NULL || gsync==NULL )
+		return false;
+	mutex_lock(&rot_buf_mgr.lock);
+	for(i=0;i<MAX_BUF_NUM_FOR_ROT;i++)
+	{
+		struct tiler_2d_buffer *ith = &(rot_buf_mgr.buffers[i]);
+		if ( ith->gsync==gsync && ith->src_phy_addr==oi->ba && ith->allocated && ith->in_using )
+		{
+			ret = ith;
+			break;
+		}
+	}
+	mutex_unlock(&rot_buf_mgr.lock);
+	return ret;
+}
+
+/*
+ * If rotation & non-tiler alloc tiler
+ */
+static void dsscomp_rotbuf_mgr_check(struct dss2_ovl_info *oi, struct dsscomp_gralloc_t *gsync, u32 ch)
+{
+	if ( oi==NULL )
+	{
+		//printk("oi NULL\n");
+		return;
+	}
+	if ( gsync==NULL )
+	{
+		//printk("gsync NULL\n");
+		return;
+	}
+	if ( oi->cfg.rotation==0 )		//no rotation
+	{
+		//printk("no rotation\n");
+		return;
+	}
+	if ( is_tiler_addr(oi->ba) && tiler_fmt(oi->ba)!=TILFMT_PAGE )	//tiler
+	{
+		//printk("tiler address:0x%x\n", oi->ba);
+		return;
+	}
+	//already exist
+	{
+		struct tiler_2d_buffer *buf;
+		buf = dsscomp_rotbuf_mgr_already_in(oi, gsync);
+		if ( buf!=NULL )	//already exist
+		{
+			//printk("Already exist\n");
+
+			//set manager mask
+			mutex_lock(&rot_buf_mgr.lock);
+			buf->mgr_mask |= 1 << ch;
+			mutex_unlock(&rot_buf_mgr.lock);
+			return;
+		}
+	}
+	{
+		int i;
+		struct tiler_2d_buffer *buf;
+		for(i=0;i<MAX_BUF_NUM_FOR_ROT;i++)
+			if ( gsync->rot_bufs[i]==NULL )
+			{
+				buf = dsscomp_rotbuf_mgr_get_buf(oi);
+				gsync->rot_bufs[i] = buf;
+				break;
+			}
+		if ( i>=MAX_BUF_NUM_FOR_ROT )
+		{
+			pr_warning("Too many rotation can't support!!\n");
+			return;
+		}
+		//lock may be not needed. anyway
+		mutex_lock(&rot_buf_mgr.lock);
+		buf->gsync = gsync;
+		buf->mgr_mask |= 1 << ch;
+		mutex_unlock(&rot_buf_mgr.lock);
+	}
+}
+
+/**
+ * Callback when DMA complete
+ */
+static void dsscomp_rotbuf_mgr_dma_cb(int channel, u16 status, void *data)
+{
+	struct tiler_2d_buffer *buf = (struct tiler_2d_buffer*)data;
+	if ( buf==NULL )
+	{
+		pr_warning("No data in DMA callback\n");
+		return;
+	}
+	//may need status check???
+	//locking is needed??? But this can be called in IRQ context
+	//mutex lock cause problem in IRQ context
+	buf->dma_copying = false;
+	//awake
+	wake_up_interruptible(&buf->dma_wait_q);
+}
+
+/**
+ * start DMA copy
+ */
+static int dsscomp_rotbuf_mgr_start_dma_copy(struct tiler_2d_buffer *buf)
+{
+	int ret = 0;
+	int data_type;
+	int src_row_inc, dst_row_inc;
+	if ( buf==NULL )
+		return -EINVAL;
+
+	mutex_lock(&rot_buf_mgr.lock);
+
+	if ( buf->dma_copying )	//already started
+		goto Done;
+	ret = omap_request_dma(OMAP_DMA_NO_DEVICE, "dsscomp_rotbuf_dma",
+			dsscomp_rotbuf_mgr_dma_cb, buf, &buf->dma_ch);
+	if ( ret )
+	{
+		pr_warning("DMA request failed\n");
+		goto Done;
+	}
+	switch(buf->bpp)
+	{
+	case 1:
+		data_type = OMAP_DMA_DATA_TYPE_S8;
+		break;
+	case 2:
+		data_type = OMAP_DMA_DATA_TYPE_S16;
+		break;
+	case 4:
+		data_type = OMAP_DMA_DATA_TYPE_S32;
+		break;
+	default:
+		ret = -EINVAL;
+		goto Done;
+	}
+	//printk("DMA width:%d, height:%d\n", buf->width, buf->height);
+	omap_set_dma_transfer_params(buf->dma_ch, data_type,
+			buf->width, buf->height,
+			OMAP_DMA_SYNC_BLOCK,	//I don't know exact meaning of SYNC MOD
+			OMAP_DMA_NO_DEVICE,
+			OMAP_DMA_DST_SYNC);
+
+	src_row_inc = buf->src_stride - buf->width*buf->bpp + 1;
+	//printk("DMA src address:%p, row_inc:%d\n", buf->src_phy_addr, src_row_inc);
+	//source setting
+	omap_set_dma_src_params(buf->dma_ch, 0,
+			OMAP_DMA_AMODE_DOUBLE_IDX,	//2D. source can be contiguous, but for safe
+			buf->src_phy_addr,			//address of source
+			1, 							//column increment
+			src_row_inc					//row increment
+			);
+	omap_set_dma_src_data_pack(buf->dma_ch, 1);
+	omap_set_dma_src_burst_mode(buf->dma_ch, OMAP_DMA_DATA_BURST_16);
+
+	//destination setting
+	dst_row_inc = buf->view.v_inc - buf->width*buf->bpp + 1;
+	//printk("DMA dst address:%p, row_inc:%d\n", buf->phy, dst_row_inc);
+	omap_set_dma_dest_params(buf->dma_ch, 0,
+			OMAP_DMA_AMODE_DOUBLE_IDX,	//2D. Tiler is not contiguous
+			buf->phy,					//address of target
+			1,							//column increment
+			dst_row_inc					//row increment
+			);
+	omap_set_dma_dest_data_pack(buf->dma_ch, 1);
+	omap_set_dma_dest_burst_mode(buf->dma_ch, OMAP_DMA_DATA_BURST_16);
+
+	//high priority
+	omap_dma_set_prio_lch(buf->dma_ch, DMA_CH_PRIO_HIGH, DMA_CH_PRIO_HIGH);
+	//what's this????
+	omap_dma_set_global_params(DMA_DEFAULT_ARB_RATE, 0xFF, 0);
+	//dma start
+	buf->dma_copying = true;
+	omap_start_dma(buf->dma_ch);
+Done:
+	mutex_unlock(&rot_buf_mgr.lock);
+	return ret;
+}
+
+/**
+ * Wait DMA copy
+ * @param time_out_milli : timeout in milli second
+ */
+static int dsscomp_rotbuf_mgr_wait_dma_copy(struct tiler_2d_buffer *buf, u32 time_out_milli)
+{
+	int r;
+	r =  wait_event_interruptible_timeout(buf->dma_wait_q,
+			!buf->dma_copying, msecs_to_jiffies(time_out_milli));
+	mutex_lock(&rot_buf_mgr.lock);
+	if ( buf->dma_ch!=-1 )
+	{
+		omap_stop_dma(buf->dma_ch);
+		omap_free_dma(buf->dma_ch);
+		buf->dma_ch = -1;
+	}
+	mutex_unlock(&rot_buf_mgr.lock);
+	return 0;
+}
+
+/**
+ * Start DMA copy of buffers connected with ch(DSS manager channel) in gsync's buffer list
+ */
+static int dsscomp_rotbuf_mgr_start_dma_copy_of_gralloc(struct dsscomp_gralloc_t *gsync, u32 ch)
+{
+	int i, r=0;
+	u32 ch_flag;
+
+	if ( gsync==NULL )
+		return -EINVAL;
+	ch_flag = 1 << ch;
+
+	for(i=0;i<MAX_BUF_NUM_FOR_ROT;i++)
+	{
+		struct tiler_2d_buffer *buf = gsync->rot_bufs[i];
+		if ( buf==NULL )
+			continue;
+		if ( buf->mgr_mask & ch_flag )
+		{
+			int cr;
+			cr = dsscomp_rotbuf_mgr_start_dma_copy(buf);
+			if ( cr )
+			{
+				pr_warning("DMA copy start failed.\n");
+				r = -EIO;
+				//when one DMA fails, rest DMS should be started
+			}
+		}
+
+	}
+	return r;
+}
+
+/**
+ * Wait DMA copy buffers connected with ch(DSS manager channel) in gsync's buffer list
+ */
+static int dsscomp_rotbuf_mgr_wait_dma_copy_of_gralloc(struct dsscomp_gralloc_t *gsync, u32 ch)
+{
+	int i, r;
+	u32 ch_flag;
+	if ( gsync==NULL )
+		return -EINVAL;
+	ch_flag = 1 << ch;
+
+	for(i=0;i<MAX_BUF_NUM_FOR_ROT;i++)
+	{
+		struct tiler_2d_buffer *buf = gsync->rot_bufs[i];
+		if ( buf==NULL )
+			continue;
+		if ( buf->mgr_mask & ch_flag )
+		{
+			//wait for 1/60 second
+			r = dsscomp_rotbuf_mgr_wait_dma_copy(buf, (1000/60));
+			if ( r )
+				pr_warning("DMA wait failed\n");
+		}
+
+	}
+	return 0;
+}
+
+
+void dsscomp_dbg_rotbuf_mgr(struct seq_file *s)
+{
+#ifdef CONFIG_DEBUG_FS
+	int i;
+	mutex_lock(&dbg_mtx);
+	mutex_lock(&rot_buf_mgr.lock);
+
+	seq_printf(s, "ROTATION BUFFER STATUS\n");
+	//             12 12345 123 1234567 1234567 123456 123456789 123456789 12456789
+	seq_printf(s, "no Alloc Use   width  height    fmt       len    stride   offset   last\n");
+	for(i=0;i<MAX_BUF_NUM_FOR_ROT;i++)
+	{
+		struct tiler_2d_buffer *buf = &(rot_buf_mgr.buffers[i]);
+		seq_printf(s, "%2d ", i);
+		if ( buf->allocated )
+		{
+			char *fmt;
+			switch (buf->alloc_data.fmt)
+			{
+			case TILER_PIXEL_FMT_8BIT:
+				fmt = "8";
+				break;
+			case TILER_PIXEL_FMT_16BIT:
+				fmt = "16";
+				break;
+			case OMAP_DSS_COLOR_RGBX32:
+				fmt = "32";
+				break;
+			default:
+				fmt ="Unknown";
+				break;
+			}
+			seq_printf(s, "     y ");
+			seq_printf(s, "%3s %7d %7d %6s %9d %9d %9d %d\n",
+				buf->in_using ? "Y" : "N",
+				buf->alloc_data.w, buf->alloc_data.h,
+				fmt, buf->len,
+				buf->alloc_data.stride,
+				buf->alloc_data.offset,
+				(int)buf->last_use.tv_sec);
+		}
+		else
+		{
+			seq_printf(s, "    n\n");
+		}
+	}
+
+	mutex_unlock(&rot_buf_mgr.lock);
+	mutex_unlock(&dbg_mtx);
+#endif
+}
+
+void dsscomp_rotbuf_mgr_init(void)
+{
+	int i;
+	mutex_init(&rot_buf_mgr.lock);
+	rot_buf_mgr.ion = NULL;
+	for(i=0;i<MAX_BUF_NUM_FOR_ROT;i++)
+	{
+		rot_buf_mgr.buffers[i].allocated = false;
+		init_waitqueue_head( &(rot_buf_mgr.buffers[i].dma_wait_q) );
+	}
+	//defers ion client creation
+}
+
+void dsscomp_rotbuf_mgr_deinit(void)
+{
+	if ( rot_buf_mgr.ion!=NULL )
+	{
+		struct ion_client *ion = rot_buf_mgr.ion;
+		int i;
+		//free tiler buffers
+		for(i=0;i<MAX_BUF_NUM_FOR_ROT;i++)
+			if ( rot_buf_mgr.buffers[i].allocated )
+			{
+				ion_free(ion, rot_buf_mgr.buffers[i].alloc_data.handle);
+				rot_buf_mgr.buffers[i].allocated = false;
+			}
+		ion_client_destroy(ion);
+		rot_buf_mgr.ion = NULL;
+	}
+	mutex_destroy(&rot_buf_mgr.lock);
+}
+
+#endif
+
 void dsscomp_gralloc_init(struct dsscomp_dev *cdev_)
 {
 	int i;
@@ -604,6 +1234,7 @@ void dsscomp_gralloc_init(struct dsscomp_dev *cdev_)
 void dsscomp_gralloc_exit(void)
 {
 	struct tiler1d_slot *slot;
+
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	unregister_early_suspend(&early_suspend_info);

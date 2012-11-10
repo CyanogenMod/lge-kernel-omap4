@@ -102,6 +102,12 @@
 
 #include "musb_core.h"
 
+/* hunsoo.lee@lge.com
+ * USB is disconnect even if usb is pluged. Set wake_lock */
+#if defined(CONFIG_MACH_LGE)
+static struct wake_lock musb_wake_lock;
+#endif
+
 #define TA_WAIT_BCON(m) max_t(int, (m)->a_wait_bcon, OTG_TIME_A_WAIT_BCON)
 
 
@@ -120,6 +126,23 @@ MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:" MUSB_DRIVER_NAME);
 
+/* hunsoo.lee@lge.com
+ * USB is disconnect even if usb is pluged. Set wake_lock */
+#if defined(CONFIG_MACH_LGE)
+/* 
+ * No USB disconnect irq(twl-usb) when USB is unpluged during USB mode change.
+ * Should unlock musb_wake_lock from MUIC disconnect evenr for no sleep issue.
+ */
+void musb_wake_unlock_from_muic(void)
+{
+	if(wake_lock_active(&musb_wake_lock)) {
+		pr_info("** %s enters **\n", __func__);
+		wake_unlock(&musb_wake_lock);
+		wake_lock_timeout(&musb_wake_lock, HZ / 2);
+	}
+}
+EXPORT_SYMBOL(musb_wake_unlock_from_muic);
+#endif
 
 /*-------------------------------------------------------------------------*/
 
@@ -662,6 +685,12 @@ static irqreturn_t musb_stage0_irq(struct musb *musb, u8 int_usb,
 
 		musb->ep0_stage = MUSB_EP0_START;
 
+/* hunsoo.lee@lge.com
+ * USB is disconnect even if usb is pluged. Set wake_lock */
+#if defined(CONFIG_MACH_LGE)
+		wake_lock(&musb_wake_lock);
+#endif
+
 #ifdef CONFIG_USB_MUSB_OTG
 		/* flush endpoints when transitioning from Device Mode */
 		if (is_peripheral_active(musb)) {
@@ -726,6 +755,15 @@ b_host:
 				otg_state_string(musb->xceiv->state),
 				MUSB_MODE(musb), devctl);
 		handled = IRQ_HANDLED;
+
+/* hunsoo.lee@lge.com
+ * USB is disconnect even if usb is pluged. Set wake_lock */
+#if defined(CONFIG_MACH_LGE)
+		if(wake_lock_active(&musb_wake_lock)) {
+			wake_unlock(&musb_wake_lock);
+			wake_lock_timeout(&musb_wake_lock, HZ / 2);
+		}
+#endif
 
 		switch (musb->xceiv->state) {
 #ifdef CONFIG_USB_MUSB_HDRC_HCD
@@ -796,6 +834,13 @@ b_host:
 		} else if (is_peripheral_capable()) {
 			dev_dbg(musb->controller, "BUS RESET as %s\n",
 				otg_state_string(musb->xceiv->state));
+
+/* hunsoo.lee@lge.com
+ * USB is disconnect even if usb is pluged. Set wake_lock */
+#if defined(CONFIG_MACH_LGE)
+			wake_lock(&musb_wake_lock);
+#endif
+		
 			switch (musb->xceiv->state) {
 #ifdef CONFIG_USB_OTG
 			case OTG_STATE_A_SUSPEND:
@@ -2065,6 +2110,12 @@ musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 		wake_lock_init(&musb->musb_wakelock, WAKE_LOCK_SUSPEND,
 						"musb_autosuspend_wake_lock");
 
+/* hunsoo.lee@lge.com
+ * USB is disconnect even if usb is pluged. Set wake_lock */
+#if defined(CONFIG_MACH_LGE)
+	wake_lock_init(&musb_wake_lock, WAKE_LOCK_SUSPEND, "musb_wake_lock");
+#endif
+
 	pm_runtime_put(musb->controller);
 
 	status = musb_init_debugfs(musb);
@@ -2102,6 +2153,12 @@ fail4:
 
 	if (is_otg_enabled(musb) || is_host_enabled(musb))
 		wake_lock_destroy(&musb->musb_wakelock);
+
+/* hunsoo.lee@lge.com
+ * USB is disconnect even if usb is pluged. Set wake_lock */
+#if defined(CONFIG_MACH_LGE)
+	wake_lock_destroy(&musb_wake_lock);
+#endif
 
 fail3:
 	if (musb->irq_wake)
@@ -2182,6 +2239,12 @@ static int __exit musb_remove(struct platform_device *pdev)
 #endif
 	if (is_otg_enabled(musb) || is_host_enabled(musb))
 		wake_lock_destroy(&musb->musb_wakelock);
+
+/* hunsoo.lee@lge.com
+ * USB is disconnect even if usb is pluged. Set wake_lock */
+#if defined(CONFIG_MACH_LGE)
+	wake_lock_destroy(&musb_wake_lock);
+#endif
 
 	return 0;
 }

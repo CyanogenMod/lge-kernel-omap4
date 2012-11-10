@@ -552,7 +552,7 @@ static void omap_init_mcasp(void)
 static inline void omap_init_mcasp(void) {}
 #endif
 
-#if defined(CONFIG_SPI_OMAP24XX) || defined(CONFIG_SPI_OMAP24XX_MODULE)
+#if defined(CONFIG_SPI_OMAP24XX) || defined(CONFIG_SPI_OMAP24XX_MODULE) || defined(CONFIG_LGE_SPI_SLAVE)
 
 #include <plat/mcspi.h>
 
@@ -567,7 +567,11 @@ struct omap_device_pm_latency omap_mcspi_latency[] = {
 static int omap_mcspi_init(struct omap_hwmod *oh, void *unused)
 {
 	struct omap_device *od;
+#ifdef CONFIG_LGE_SPI_SLAVE
+	char *name = "omap2_mcspi_slave";
+#else
 	char *name = "omap2_mcspi";
+#endif /* CONFIG_LGE_SPI_SLAVE */
 	struct omap2_mcspi_platform_config *pdata;
 	static int spi_num;
 	struct omap2_mcspi_dev_attr *mcspi_attrib = oh->dev_attr;
@@ -591,7 +595,63 @@ static int omap_mcspi_init(struct omap_hwmod *oh, void *unused)
 			pr_err("Invalid McSPI Revision value\n");
 			return -EINVAL;
 	}
+#if defined(CONFIG_LGE_SPI_SLAVE)
+	switch (spi_num) {
+	case 0:
 
+#if defined(CONFIG_LGE_BROADCAST_TDMB)
+		pdata->num_cs = 4;
+		pdata->mode = OMAP2_MCSPI_MASTER;
+		pdata->dma_mode = 1;
+		pdata->force_cs_mode = 0;
+		pdata->fifo_depth = 0;
+#elif defined(CONFIG_LGE_BROADCAST_1SEG)
+		pdata->num_cs = 4;
+		pdata->force_cs_mode = 1;
+		pdata->mode = OMAP2_MCSPI_MASTER;		//from L-02D
+		pdata->dma_mode = 1;					//from L-02D
+		pdata->fifo_depth = 0;					//from L-02D
+#else /* CONFIG_LGE_BROADCAST */
+		pdata->num_cs = 4;
+		pdata->force_cs_mode = 1;
+#endif /* CONFIG_LGE_BROADCAST */
+
+		break;
+
+	case 1:
+		#if 0 //def ebs
+		pdata->num_cs = 2;
+		pdata->mode = OMAP2_MCSPI_SLAVE;
+		pdata->dma_mode = 1;
+		pdata->force_cs_mode = 0;
+		pdata->fifo_depth = 16;
+		#else
+		pdata->num_cs = 2;
+		#endif
+		break;
+
+	case 2:
+		pdata->num_cs = 3; // et.jo 2;
+		break;
+
+	case 3:
+		pdata->num_cs = 1;
+		printk("\n@@@@@  omap_mcspi_init - case '3' @@@@@\n");		
+		pdata->mode = OMAP2_MCSPI_SLAVE;
+		pdata->dma_mode = 1;
+		pdata->force_cs_mode = 0;
+		pdata->fifo_depth = 16;
+		// et.jo end
+		break;
+	}
+
+	if (cpu_is_omap44xx()){
+		pdata->regs_data = (unsigned short*)omap4_reg_map;
+	}	
+	else{
+		pdata->regs_data = (unsigned short*)omap2_reg_map;
+	}		
+#endif	/* CONFIG_LGE_SPI_SLAVE */	
 	spi_num++;
 	od = omap_device_build(name, spi_num, oh, pdata,
 				sizeof(*pdata),	omap_mcspi_latency,

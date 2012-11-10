@@ -48,6 +48,20 @@
 static struct pm_qos_request_list pm_qos_handle;
 #endif
 
+// by Joshua
+enum extension_edid_db {
+	DATABLOCK_AUDIO	= 1,
+	DATABLOCK_VIDEO	= 2,
+	DATABLOCK_VENDOR = 3,
+	DATABLOCK_SPEAKERS = 4,
+	DATABLOCK_VESA_DTC = 5,
+	DATABLOCK_RESERVED = 6,
+	DATABLOCK_VCDB = 7,  // by Joshua
+};
+
+// by Joshua
+#define HDMI_EDID_EX_DATABLOCK_TAG_MASK		0xE0
+#define HDMI_EDID_EX_DATABLOCK_LEN_MASK		0x1F
 #define HDMI_WP			0x0
 #define HDMI_CORE_SYS		0x400
 #define HDMI_CORE_AV		0x900
@@ -183,7 +197,8 @@ static int relaxed_fb_mode_is_equal(const struct fb_videomode *mode1,
 static int hdmi_set_timings(struct fb_videomode *vm, bool check_only)
 {
 	int i = 0;
-	DSSDBG("hdmi_get_code\n");
+	HDMIDBG("hdmi_set_timings\n");
+	DSSDBG("hdmi_set_timings\n");
 
 	if (!vm->xres || !vm->yres || !vm->pixclock)
 		goto fail;
@@ -223,6 +238,7 @@ fail:
 done:
 
 	DSSDBG("%s-%d\n", hdmi.cfg.cm.mode ? "CEA" : "VESA", hdmi.cfg.cm.code);
+	HDMIDBG("%s-%d\n", hdmi.cfg.cm.mode ? "CEA" : "VESA", hdmi.cfg.cm.code);
 	return i >= 0;
 }
 
@@ -298,6 +314,104 @@ u8 *hdmi_read_edid(struct omap_video_timings *dp)
 	return hdmi.edid;
 }
 
+
+
+
+// by Joshua
+int hdmi_get_datablock_offset(u8 *edid, enum extension_edid_db datablock, int *offset)
+{
+	int current_byte, disp, i = 0, length = 0;
+
+	if (edid[0x7e] == 0x00)
+		return 1;
+
+	disp = edid[(0x80) + 2];
+	printk(KERN_DEBUG "Extension block present db %d %x\n", datablock, disp);
+	if (disp == 0x4)
+		return 1;
+
+	i = 0x80 + 0x4;
+	printk(KERN_DEBUG "%x\n", i);
+	while (i < (0x80 + disp)) {
+		current_byte = edid[i];
+		printk(KERN_DEBUG "i = %x cur_byte = %x (cur_byte & EX_DATABLOCK_TAG_MASK) = %d\n",
+			i, current_byte, ( (current_byte & HDMI_EDID_EX_DATABLOCK_TAG_MASK) >> 5 ));  // by Joshua
+
+		if ((current_byte >> 5)	== datablock) {
+			*offset = i;
+			printk(KERN_DEBUG "datablock %d %d\n", datablock, *offset);
+			return 0;
+		} else {
+			length = (current_byte & HDMI_EDID_EX_DATABLOCK_LEN_MASK) + 1;
+			i += length;
+		}
+	}
+	return 1;
+}
+
+
+// by Joshua
+char hdmi_get_extended_vcdb(u8 *edid)
+{
+	char tag;
+	char extended_tag;
+	char current_byte;
+	int j;
+	int length, offset;
+	enum extension_edid_db vcdb =  DATABLOCK_VCDB;
+	char QS_VCDB;
+
+
+	printk(KERN_INFO "check VCDB..\n");
+
+	if (!hdmi_get_datablock_offset(edid, vcdb, &offset)) {
+
+EXTENDED_TAG_Lable:
+
+		current_byte = edid[offset];
+		tag = (current_byte & HDMI_EDID_EX_DATABLOCK_TAG_MASK) >> 5;
+		length = current_byte & HDMI_EDID_EX_DATABLOCK_LEN_MASK;
+		extended_tag = edid[offset+1];
+
+		if(tag != DATABLOCK_VCDB ){
+			printk(KERN_INFO "[1]No DATABLOCK_VCDB...\n");
+			return -1;
+		}
+
+		if(extended_tag == 0){
+			if( edid[offset+2] & 0x40)  // 0x40 : bit 6
+				QS_VCDB = 1;
+			else
+				QS_VCDB = 0;
+
+			printk(KERN_INFO "QS_VCDB = %d...\n",QS_VCDB);
+		}
+		else{
+			offset += (length + 1);
+			goto EXTENDED_TAG_Lable;
+		}
+
+		return QS_VCDB;
+	}
+	else
+		printk(KERN_INFO "[2]No DATABLOCK_VCDB...\n");
+
+
+	return -1;
+}
+
+
+// by Joshua
+void hdmi_avi_cfg_lr_fr()
+{
+	char qs_vcdb;
+
+	qs_vcdb = hdmi_get_extended_vcdb((u8 *)hdmi.edid);
+	hdmi_ti_4xxx_avi_dbq3(&hdmi.hdmi_data, &hdmi.cfg, qs_vcdb);
+}
+
+
+
 static void hdmi_compute_pll(struct omap_dss_device *dssdev, int phy,
 		struct hdmi_pll_info *pi)
 {
@@ -337,6 +451,43 @@ static void hdmi_compute_pll(struct omap_dss_device *dssdev, int phy,
 	DSSDBG("M = %d Mf = %d\n", pi->regm, pi->regmf);
 	DSSDBG("range = %d sd = %d\n", pi->dcofreq, pi->regsd);
 }
+
+// LGE_CHANGE_S [sungho.jung@lge.com] 2012-03-03. // Add GB code
+struct omap_dss_device *get_hdmi_device(void)
+{
+	int match(struct omap_dss_device *dssdev, void *arg) {
+		return sysfs_streq(dssdev->name , "hdmi");
+	}
+
+	return omap_dss_find_device(NULL, match);
+}
+EXPORT_SYMBOL(get_hdmi_device);
+
+void hdcp_send_uevent(u8 on)
+{
+	int ret = 0;
+
+	struct omap_dss_device *dssdev = get_hdmi_device();
+	if (dssdev == NULL) {
+		printk(KERN_INFO "DSS device(HDMI)is NULL..can't send HDCP events\n");
+		return;
+	}
+
+	switch (on) {
+		case 0: ret = kobject_uevent(&dssdev->dev.kobj, KOBJ_HDCP_OFF);
+			break;
+		case 1: ret = kobject_uevent(&dssdev->dev.kobj, KOBJ_HDCP_ON);
+			break;
+		default:
+			printk(KERN_INFO "error!! currently scenario is nothing!!! (HDCP) on = %d\n", on);
+	}
+
+	if (ret)
+		printk(KERN_INFO "hdcp_send_uevent uevent(%d) (%d)\n", on, ret);
+	return;
+}
+EXPORT_SYMBOL(hdcp_send_uevent);
+// LGE_CHANGE_E [sungho.jung@lge.com] 2012-03-03.
 
 static void hdmi_load_hdcp_keys(struct omap_dss_device *dssdev)
 {
@@ -392,6 +543,7 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 	struct omap_video_timings *p;
 	unsigned long phy;
 
+	HDMIDBG("Enter\n");
 	r = hdmi_runtime_get();
 	if (r)
 		return r;
@@ -410,10 +562,20 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 	DSSDBG("hdmi_power_on x_res= %d y_res = %d\n",
 		dssdev->panel.timings.x_res,
 		dssdev->panel.timings.y_res);
+	HDMIDBG("hdmi_power_on x_res= %d y_res = %d mode = %d\n",
+		dssdev->panel.timings.x_res,
+		dssdev->panel.timings.y_res, hdmi.mode);
 
 	if (!hdmi.custom_set) {
-		struct fb_videomode vesa_vga = vesa_modes[4];
-		hdmi_set_timings(&vesa_vga, false);
+        // wooho47.jung@lge.com 2012.04.19
+        // MOD : for default mode. p2 is not dvi, is hdmi.
+        #if 1
+	    struct fb_videomode vga = cea_modes[4];
+	    hdmi_set_timings(&vga, false);
+        #else
+	    struct fb_videomode vesa_vga = vesa_modes[4];
+	    hdmi_set_timings(&vesa_vga, false);
+        #endif
 	}
 
 	omapfb_fb2dss_timings(&hdmi.cfg.timings, &dssdev->panel.timings);
@@ -447,12 +609,14 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 	r = hdmi_ti_4xxx_pll_program(&hdmi.hdmi_data, &pll_data);
 	if (r) {
 		DSSDBG("Failed to lock PLL\n");
+		HDMIDBG("Failed to lock PLL\n");
 		goto err;
 	}
 
 	r = hdmi_ti_4xxx_phy_init(&hdmi.hdmi_data);
 	if (r) {
 		DSSDBG("Failed to start PHY\n");
+		HDMIDBG("Failed to start PHY\n");
 		goto err;
 	}
 
@@ -478,8 +642,15 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 	    !dispc_is_channel_enabled(OMAP_DSS_CHANNEL_LCD2))
 		dss_select_dispc_clk_source(dssdev->clocks.dispc.dispc_fclk_src);
 
+
 	/* bypass TV gamma table */
-	dispc_enable_gamma_table(0);
+// LGE_CHANGE_S [sungho.jung@lge.com] 2011-10-28, [SU540, LU5400]
+#if defined(CONFIG_P2_GAMMA) || defined(CONFIG_U2_GAMMA)
+        dispc_enable_gamma_table(1);
+#else
+        dispc_enable_gamma_table(0);
+#endif
+// LGE_CHANGE_E [sungho.jung@lge.com] 2011-10-28, [SU540, LU5400]
 
 	/* tv size */
 	dispc_set_digit_size(dssdev->panel.timings.x_res,
@@ -503,6 +674,7 @@ err:
 
 static void hdmi_power_off(struct omap_dss_device *dssdev)
 {
+	HDMIDBG("Enter\n");
 	enum hdmi_pwrchg_reasons reason = HDMI_PWRCHG_DEFAULT;
 	if (hdmi.hdmi_irq_cb)
 		hdmi.hdmi_irq_cb(HDMI_HPD_LOW);
@@ -589,10 +761,13 @@ int hdmi_get_current_hpd()
 
 static irqreturn_t hpd_irq_handler(int irq, void *ptr)
 {
+#if 1
 	int hpd = hdmi_get_current_hpd();
-	pr_info("hpd %d\n", hpd);
-
+	pr_info("HDMI : hpd %d\n", hpd);
 	hdmi_panel_hpd_handler(hpd);
+#else
+	hdmi_panel_hpd_handler(hdmi_get_current_hpd());
+#endif
 
 	return IRQ_HANDLED;
 }
@@ -663,6 +838,7 @@ int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
 {
 	int r = 0;
 
+	HDMIDBG("ENTER hdmi_display_enable\n");
 	DSSINFO("ENTER hdmi_display_enable\n");
 
 	mutex_lock(&hdmi.lock);
@@ -673,6 +849,7 @@ int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
 	r = omap_dss_start_device(dssdev);
 	if (r) {
 		DSSERR("failed to start device\n");
+		HDMIDBG("failed to start device\n");
 		goto err0;
 	}
 
@@ -680,6 +857,7 @@ int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
 		r = dssdev->platform_enable(dssdev);
 		if (r) {
 			DSSERR("failed to enable GPIO's\n");
+			HDMIDBG("failed to enable GPIO's\n");
 			goto err1;
 		}
 	}
@@ -687,6 +865,7 @@ int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
 	hdmi.hdmi_reg = regulator_get(NULL, "hdmi_vref");
 	if (IS_ERR_OR_NULL(hdmi.hdmi_reg)) {
 		DSSERR("Failed to get hdmi_vref regulator\n");
+		HDMIDBG("Failed to get hdmi_vref regulator\n");
 		r = PTR_ERR(hdmi.hdmi_reg) ? : -ENODEV;
 		goto err2;
 	}
@@ -694,12 +873,14 @@ int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
 	r = regulator_enable(hdmi.hdmi_reg);
 	if (r) {
 		DSSERR("failed to enable hdmi_vref regulator\n");
+		HDMIDBG("failed to enable hdmi_vref regulator\n");
 		goto err3;
 	}
 
 	r = hdmi_power_on(dssdev);
 	if (r) {
 		DSSERR("failed to power on device\n");
+		HDMIDBG("failed to power on device r:%d\n", r);
 		goto err4;
 	}
 
@@ -719,12 +900,14 @@ err1:
 	omap_dss_stop_device(dssdev);
 err0:
 	mutex_unlock(&hdmi.lock);
+	HDMIDBG("ENTER error:%d\n", r);
 	return r;
 }
 
 void omapdss_hdmi_display_disable(struct omap_dss_device *dssdev)
 {
 	DSSINFO("Enter hdmi_display_disable\n");
+	HDMIDBG("Enter hdmi_display_disable\n");
 
 	mutex_lock(&hdmi.lock);
 
@@ -792,11 +975,24 @@ static int omapdss_hdmihw_probe(struct platform_device *pdev)
 	struct resource *hdmi_mem;
 	struct omap_dss_board_info *board_data;
 	int r;
+	unsigned int volatile val;
 
 	hdmi.pdata = pdev->dev.platform_data;
 	hdmi.pdev = pdev;
 
 	mutex_init(&hdmi.lock);
+
+// LGE_CHANGE_S [sungho.jung@lge.com] 2012-03-28, Disable pull-up on DDC_SCL/SDA. Because the P2 uses Level-shift.
+	if (omap_rev() >= CHIP_IS_OMAP4430ES2_3)
+	{
+		val = omap_readl(0x4A100624);
+		val = val & 0xEEFFFFFF;
+		val = val | 0x11000000;
+		omap_writel(val, 0x4A100624);
+		val = omap_readl(0x4A100624);
+		printk(KERN_INFO " Disable pulls on DDC_SCL/SDA lines%x \n", val);
+	}
+// LGE_CHANGE_E [sungho.jung@lge.com] 2012-03-28
 
 	/* save reference to HDMI device */
 	board_data = hdmi.pdata->board_data;
@@ -841,13 +1037,16 @@ static int omapdss_hdmihw_probe(struct platform_device *pdev)
 	}
 
 	hdmi.hdmi_irq = platform_get_irq(pdev, 0);
-
+// LGE_CHANGE_S [sungho.jung@lge.com] 2012-02-20
+#if 0
 	r = request_irq(hdmi.hdmi_irq, hdmi_irq_handler, 0, "OMAP HDMI", NULL);
 	if (r < 0) {
 		pr_err("hdmi: request_irq %s failed\n",
 			pdev->name);
 		return -EINVAL;
 	}
+#endif
+// LGE_CHANGE_E [sungho.jung@lge.com] 2012-02-20
 
 	hdmi.hdmi_data.hdmi_core_sys_offset = HDMI_CORE_SYS;
 	hdmi.hdmi_data.hdmi_core_av_offset = HDMI_CORE_AV;
@@ -857,8 +1056,12 @@ static int omapdss_hdmihw_probe(struct platform_device *pdev)
 
 	hdmi_panel_init();
 
+// LGE_CHANGE_S [sungho.jung@lge.com] 2012-03-03. Remove unnessary code for hpd
+#if 0
 	if(hdmi_get_current_hpd())
 		hdmi_panel_hpd_handler(1);
+#endif
+// LGE_CHANGE_E [sungho.jung@lge.com] 2012-03-03.
 
 	return 0;
 }

@@ -47,6 +47,10 @@ static const char *kobject_actions[] = {
 	[KOBJ_MOVE] =		"move",
 	[KOBJ_ONLINE] =		"online",
 	[KOBJ_OFFLINE] =	"offline",
+// LGE_CHANGE_S [sungho.jung@lge.com] 2012-03-03.
+	[KOBJ_HDCP_ON] =	"hdcp_on",
+	[KOBJ_HDCP_OFF] =	"hdcp_off",
+// LGE_CHANGE_E [sungho.jung@lge.com] 2012-03-03.
 };
 
 /**

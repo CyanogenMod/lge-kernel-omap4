@@ -1,0 +1,7 @@
+#
+# Include the specific Kconfig file for the different LGE board
+#
+source "arch/arm/mach-omap2/lge/iff/Kconfig"
+source "arch/arm/mach-omap2/lge/p2/Kconfig"
+source "arch/arm/mach-omap2/lge/u2/Kconfig"
+source "arch/arm/mach-omap2/lge/lghdk/Kconfig"

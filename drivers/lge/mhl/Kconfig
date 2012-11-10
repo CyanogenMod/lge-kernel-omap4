@@ -1,0 +1,42 @@
+config MHL_TX_SII9244
+	bool "SII9244 MHL TX"
+	default n
+	help
+	  Support for SII9244 MHL driver.
+	  This driver is came from GED device.
+		
+config MHL_TX_SII9244_LEGACY
+	bool "SII9244 MHL TX Legacy"
+	default n
+	help
+	  Support for SII9244 MHL Legacy driver
+	  This driver was used in P2 GB version.
+
+config MHL_LG_MOTION_CTL
+	bool "Use input event for LGE Motion remocon"
+	default n
+	depends on MHL_TX_SII9244_LEGACY
+	help
+	  Support for LGE Motion remocon.
+
+config MHL_TX_MUIC_BUG_FIX
+	bool "TSU5611 MUIC bug fix for MHL"
+	default n
+	depends on MHL_TX_SII9244 || MHL_TX_SII9244_LEGACY
+	help
+	  TSU5611 300ms delay side effect bug fixed
+
+config SII9244_HDCP
+	bool "SII9244 HDCP"
+	default n
+	depends on MHL_TX_SII9244_LEGACY
+	help
+	  Support for SII9244 MHL driver and HDCP.
+
+config MHL_INPUT_RCP
+	bool "Use input event for MHL RCP"
+	default n
+	depends on MHL_TX_SII9244_LEGACY
+	help
+	  Use input event for MHL RCP
+

@@ -211,7 +211,12 @@ static struct mm_struct *mm_access(struct task_struct *task, unsigned int mode)
 
 	mm = get_task_mm(task);
 	if (mm && mm != current->mm &&
+#if defined(CONFIG_MACH_LGE)
+			!ptrace_may_access(task, mode) &&
+			!capable(CAP_SYS_RESOURCE)) {
+#else
 			!ptrace_may_access(task, mode)) {
+#endif
 		mmput(mm);
 		mm = ERR_PTR(-EACCES);
 	}
@@ -1883,7 +1888,7 @@ static int proc_fd_info(struct inode *inode, struct path *path, char *info)
 
 			fdt = files_fdtable(files);
 			f_flags = file->f_flags & ~O_CLOEXEC;
-			if (FD_ISSET(fd, fdt->close_on_exec))
+			if (close_on_exec(fd, fdt))
 				f_flags |= O_CLOEXEC;
 
 			if (path) {

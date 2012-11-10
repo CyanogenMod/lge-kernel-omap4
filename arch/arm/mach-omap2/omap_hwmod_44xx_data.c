@@ -2021,6 +2021,13 @@ static struct omap_hwmod_ocp_if *omap44xx_dss_dsi2_slaves[] = {
 	&omap44xx_l4_per__dss_dsi2,
 };
 
+/* LGE_SJIT_S 2011-11-02 [choongryeol.lee@lge.com] Support DSI2 I/F */
+static struct omap_hwmod_opt_clk dsi2_opt_clks[] = {
+	{ .role = "dss_clk", .clk = "dss_dss_clk" },
+	{ .role = "sys_clk", .clk = "dss_sys_clk" },
+};
+/* LGE_SJIT_E 2011-11-02 [choongryeol.lee@lge.com] Support DSI2 I/F */
+
 static struct omap_hwmod omap44xx_dss_dsi2_hwmod = {
 	.name		= "dss_dsi2",
 	.class		= &omap44xx_dsi_hwmod_class,
@@ -2037,6 +2044,10 @@ static struct omap_hwmod omap44xx_dss_dsi2_hwmod = {
 			.clkctrl_reg = OMAP4430_CM_DSS_DSS_CLKCTRL,
 		},
 	},
+/* LGE_SJIT_S 2011-11-02 [choongryeol.lee@lge.com] Support DSI2 I/F  */
+	.opt_clks	= dsi2_opt_clks,
+	.opt_clks_cnt	= ARRAY_SIZE(dsi2_opt_clks),	
+/* LGE_SJIT_E 2011-11-02 [choongryeol.lee@lge.com] Support DSI2 I/F  */
 	.slaves		= omap44xx_dss_dsi2_slaves,
 	.slaves_cnt	= ARRAY_SIZE(omap44xx_dss_dsi2_slaves),
 	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
@@ -2558,6 +2569,9 @@ static struct omap_hwmod_opt_clk gpio1_opt_clks[] = {
 static struct omap_hwmod omap443x_gpio1_hwmod = {
 	.name		= "gpio1",
 	.class		= &omap44xx_gpio_hwmod_class,
+#if defined(CONFIG_MACH_LGE)
+	.flags		= HWMOD_INIT_NO_RESET,
+#endif
 	.mpu_irqs	= omap44xx_gpio1_irqs,
 	.mpu_irqs_cnt	= ARRAY_SIZE(omap44xx_gpio1_irqs),
 	.main_clk	= "gpio1_ick",
@@ -2740,7 +2754,12 @@ static struct omap_hwmod_opt_clk gpio4_opt_clks[] = {
 static struct omap_hwmod omap44xx_gpio4_hwmod = {
 	.name		= "gpio4",
 	.class		= &omap44xx_gpio_hwmod_class,
+#if defined(CONFIG_MACH_LGE)
+	/* [LGE_SJIT] 2011-10-31 [jongrak.kwon@lge.com] Disalbe GPIO RESET for LCD_CP_EN */
+	.flags          = HWMOD_INIT_NO_RESET, 
+#else
 	.flags		= HWMOD_CONTROL_OPT_CLKS_IN_RESET,
+#endif /* #if defined(CONFIG_MACH_LGE) */
 	.mpu_irqs	= omap44xx_gpio4_irqs,
 	.mpu_irqs_cnt	= ARRAY_SIZE(omap44xx_gpio4_irqs),
 	.main_clk	= "gpio4_ick",
@@ -3019,11 +3038,14 @@ static struct omap_hwmod omap44xx_gpu_hwmod = {
  * 'i2c' class
  * multimaster high-speed i2c controller
  */
-
+/* LGE_SJIT 2012-02-01 [dojip.kim@lge.com]
+ * FIXME: If using audo idle, unexpected exception occurs when i2c timeout
+ * we do not use auto idle in i2c
+ */
 static struct omap_hwmod_class_sysconfig omap44xx_i2c_sysc = {
 	.sysc_offs	= 0x0010,
 	.syss_offs	= 0x0090,
-	.sysc_flags	= (SYSC_HAS_AUTOIDLE | SYSC_HAS_CLOCKACTIVITY |
+	.sysc_flags	= (/*SYSC_HAS_AUTOIDLE |*/ SYSC_HAS_CLOCKACTIVITY |
 			   SYSC_HAS_ENAWAKEUP | SYSC_HAS_SIDLEMODE |
 			   SYSC_HAS_SOFTRESET | SYSS_HAS_RESET_STATUS),
 	.idlemodes	= (SIDLE_FORCE | SIDLE_NO | SIDLE_SMART |
@@ -3373,7 +3395,7 @@ static struct omap_hwmod_class_sysconfig omap44xx_iss_sysc = {
 	 *
 	 * TODO: Indicate errata when available.
 	 */
-	.srst_udelay	= 2,
+	.srst_udelay	= 8, /* LGE_CHANGE 2012-05-16, increase 2->8 for safty */
 	.sysc_flags	= (SYSC_HAS_MIDLEMODE | SYSC_HAS_RESET_STATUS |
 			   SYSC_HAS_SIDLEMODE | SYSC_HAS_SOFTRESET),
 	.idlemodes	= (SIDLE_FORCE | SIDLE_NO | SIDLE_SMART |
@@ -4896,10 +4918,13 @@ static struct omap_hwmod_class omap44xx_timer_hwmod_class = {
 	.rev	= OMAP_TIMER_IP_VERSION_2,
 };
 
+/* LGE_SJIT 2012-02-08 [dojip.kim@lge.com] fix the warning */
 /* secure timer can assign this to .dev_attr field */
+/*
 static struct omap_secure_timer_dev_attr secure_timer_dev_attr = {
 	.is_secure_timer        = true,
 };
+*/
 
 /* timer1 */
 static struct omap_hwmod omap44xx_timer1_hwmod;
@@ -5609,6 +5634,9 @@ static struct omap_hwmod omap44xx_uart2_hwmod = {
 	.slaves		= omap44xx_uart2_slaves,
 	.slaves_cnt	= ARRAY_SIZE(omap44xx_uart2_slaves),
 	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
+	/* LGE_CHANGE_S  [bk.shin@lge.com] 2012-02-29, fix does not go to sidle when use dma(from dojip.kim@lge.com) */
+	.flags          = HWMOD_SWSUP_SIDLE,
+	/* LGE_CHANGE_E  [bk.shin@lge.com] 2012-02-29 */
 };
 
 /* uart3 */
@@ -5648,7 +5676,10 @@ static struct omap_hwmod_ocp_if *omap44xx_uart3_slaves[] = {
 static struct omap_hwmod omap44xx_uart3_hwmod = {
 	.name		= "uart3",
 	.class		= &omap44xx_uart_hwmod_class,
+// LGE_SJIT 2011-10-11 [jongrak.kwon@lge.com] remove boot warning message and reduce suspend power current
+#if !defined(CONFIG_MACH_LGE)
 	.flags		= (HWMOD_INIT_NO_IDLE | HWMOD_INIT_NO_RESET),
+#endif /* #if !defined(CONFIG_MACH_LGE) */
 	.mpu_irqs	= omap44xx_uart3_irqs,
 	.mpu_irqs_cnt	= ARRAY_SIZE(omap44xx_uart3_irqs),
 	.sdma_reqs	= omap44xx_uart3_sdma_reqs,

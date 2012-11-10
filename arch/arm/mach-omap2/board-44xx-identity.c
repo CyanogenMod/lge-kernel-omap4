@@ -29,6 +29,9 @@
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 
+/* LGE_SJIT 2011-12-07 [dojip.kim@lge.com] LGE board rev */
+#include <lge/board_rev.h>
+
 #include "control.h"
 
 static ssize_t omap4_soc_family_show(struct kobject *kobj,
@@ -58,6 +61,20 @@ static ssize_t omap4_soc_type_show(struct kobject *kobj,
 	return sprintf(buf, "%s\n", omap_types[omap_type()]);
 }
 
+/* LGE_SJIT 2011-12-07 [dojip.kim@lge.com] LGE board rev */
+#if defined(CONFIG_MACH_LGE)
+static const char *app_board_rev_types[] = {
+	[LGE_PCB_EVB]			= "EVB",
+	[LGE_PCB_A]			= "A",
+	[LGE_PCB_B]			= "B",
+	[LGE_PCB_C]			= "C",
+	[LGE_PCB_D]			= "D",
+	[LGE_PCB_E]			= "E",
+	[LGE_PCB_1_0]			= "1.0",
+	[LGE_PCB_1_1]			= "1.1",
+	[LGE_PCB_MAX]			= "Unknown",
+};
+#else
 static const char *app_board_rev_types[] = {
 	[OMAP4_TABLET_1_0_ID]		= "Tablet 1.0",
 	[OMAP4_TABLET_1_1_ID]		= "Tablet 1.1",
@@ -69,6 +86,7 @@ static const char *app_board_rev_types[] = {
 	[OMAP4_PANDA_ID]		= "Panda",
 	[OMAP4_MAX_ID]			= "Unknown",
 };
+#endif /* CONFIG_MACH_LGE */
 
 static ssize_t omap4_prod_id_show(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
@@ -83,10 +101,30 @@ static ssize_t omap4_die_id_show(struct kobject *kobj,
 {
 	struct  omap_die_id opi;
 	omap_get_die_id(&opi);
+	/* LGE_SJIT 2012-01-19 [dojip.kim@lge.com] change the format */
+#ifdef CONFIG_MACH_LGE
+	return sprintf(buf, "%08x%08x%08x%08x", opi.id_3,
+						opi.id_2, opi.id_1, opi.id_0);
+#else
 	return sprintf(buf, "%08X-%08X-%08X-%08X\n", opi.id_3,
 						opi.id_2, opi.id_1, opi.id_0);
+#endif
 }
 
+/* LGE_SJIT 2011-12-07 [dojip.kim@lge.com] LGE board rev */
+#if defined(CONFIG_MACH_LGE)
+static ssize_t omap4_board_rev_show(struct kobject *kobj,
+				 struct kobj_attribute *attr, char *buf)
+{
+	if (system_rev < 0)
+		return -EINVAL;
+
+	if (system_rev > LGE_PCB_MAX)
+		system_rev = LGE_PCB_MAX;
+
+	return sprintf(buf, "%s\n", app_board_rev_types[system_rev]);
+}
+#else
 static ssize_t omap4_board_rev_show(struct kobject *kobj,
 				 struct kobj_attribute *attr, char *buf)
 {
@@ -102,6 +140,7 @@ static ssize_t omap4_board_rev_show(struct kobject *kobj,
 
 	return sprintf(buf, "%s\n", app_board_rev_types[apps_brd_rev]);
 }
+#endif /* CONFIG_MACH_LGE */
 
 static ssize_t omap4_soc_type_max_freq(struct kobject *kobj,
 				 struct kobj_attribute *attr, char *buf)
@@ -171,7 +210,13 @@ static OMAP4_SOC_ATTR_RO(max_freq, omap4_soc_type_max_freq);
 static OMAP4_SOC_ATTR_RO(dpll_trimmed, omap4_soc_dpll_trimmed);
 static OMAP4_SOC_ATTR_RO(rbb_trimmed, omap4_soc_rbb_trimmed);
 static OMAP4_SOC_ATTR_RO(production_id, omap4_prod_id_show);
+/* LGE_SJIT 2012-01-19 [dojip.kim@lge.com] only read for user and group */
+#ifdef CONFIG_MACH_LGE
+static struct kobj_attribute omap4_soc_prop_attr_die_id =
+	__ATTR(die_id, (S_IRUSR|S_IRGRP), omap4_die_id_show, NULL);
+#else
 static OMAP4_SOC_ATTR_RO(die_id, omap4_die_id_show);
+#endif
 
 static OMAP4_BOARD_ATTR_RO(board_rev, omap4_board_rev_show);
 

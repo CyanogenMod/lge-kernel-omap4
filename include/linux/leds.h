@@ -22,6 +22,13 @@ struct device;
  * LED Core
  */
 
+#if defined(CONFIG_MAX8971_CHARGER)&&  defined(CONFIG_MACH_LGE_P2_DCM)
+/* LGE_CHANGE_S, dukwung.kim, 2012-03-20, LED ON/OFF */
+#define PW_LED_ON       1
+#define PW_LED_OFF      0
+void set_pw_led_on_off(int value);
+/* LGE_CHANGE_E, dukwung.kim, 2012-03-20,  LED ON/OFF */
+#endif
 enum led_brightness {
 	LED_OFF		= 0,
 	LED_HALF	= 127,
@@ -33,6 +40,9 @@ struct led_classdev {
 	int			 brightness;
 	int			 max_brightness;
 	int			 flags;
+	/* 20120224 sangjae.han@lge.com Add sysfile to maintain the backlight on[LGE_START]*/
+	bool			 br_maintain_trigger;
+	/* 20120224 sangjae.han@lge.com Add sysfile to maintain the backlight on[LGE_END]*/
 
 	/* Lower 16 bits reflect status */
 #define LED_SUSPENDED		(1 << 0)

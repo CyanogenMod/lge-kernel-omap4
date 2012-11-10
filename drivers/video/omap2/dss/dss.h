@@ -27,34 +27,58 @@
 #define DEBUG
 #endif
 
+/* LGE_S jongho3.lee@lge.com add additional debug info */
+#ifndef MHL_ADDITIONAL_CODE_INFO
+#define MHL_ADDITIONAL_CODE_INFO
+#endif
+
+#if defined(MHL_ADDITIONAL_CODE_INFO)
+//#define D(fmt, args...) printk(fmt " :: file=%s, func=%s, line=%d\n", ##args, __FILE__, __func__, __LINE__ )
+#define MHL_CODE_LINE_INFO1 "\n :: , func=%s, line=%d"
+#define MHL_CODE_LINE_INFO2 , __func__, __LINE__
+#else
+#define MHL_CODE_LINE_INFO1
+#define MHL_CODE_LINE_INFO2
+#endif
+
+/* LGE_E jongho3.lee@lge.com add additional debug info */
+
 #ifdef DEBUG
 extern unsigned int dss_debug;
 #ifdef DSS_SUBSYS_NAME
 #define DSSDBG(format, ...) \
 	if (dss_debug) \
-		printk(KERN_DEBUG "omapdss " DSS_SUBSYS_NAME ": " format, \
-		## __VA_ARGS__)
+		printk(KERN_DEBUG "omapdss " DSS_SUBSYS_NAME ": " format MHL_CODE_LINE_INFO1, \
+		## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #else
 #define DSSDBG(format, ...) \
 	if (dss_debug) \
-		printk(KERN_DEBUG "omapdss: " format, ## __VA_ARGS__)
+		printk(KERN_DEBUG "omapdss: " format MHL_CODE_LINE_INFO1, ## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #endif
 
 #ifdef DSS_SUBSYS_NAME
 #define DSSDBGF(format, ...) \
 	if (dss_debug) \
 		printk(KERN_DEBUG "omapdss " DSS_SUBSYS_NAME \
-				": %s(" format ")\n", \
+				": %s(" format ")\n" MHL_CODE_LINE_INFO1, \
 				__func__, \
-				## __VA_ARGS__)
+				## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #else
 #define DSSDBGF(format, ...) \
 	if (dss_debug) \
 		printk(KERN_DEBUG "omapdss: " \
-				": %s(" format ")\n", \
+				": %s(" format ")\n" MHL_CODE_LINE_INFO1, \
 				__func__, \
-				## __VA_ARGS__)
+				## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #endif
+
+#if 0
+	#define HDMIDBG(format, args...) \
+		printk(KERN_DEBUG "[LG_HDMI] func:%s, line:%d :: " format, __func__, __LINE__, ##args )
+#else
+	#define HDMIDBG(format, ...)
+#endif
+
 
 #else /* DEBUG */
 #define DSSDBG(format, ...)
@@ -64,29 +88,29 @@ extern unsigned int dss_debug;
 
 #ifdef DSS_SUBSYS_NAME
 #define DSSERR(format, ...) \
-	printk(KERN_ERR "omapdss " DSS_SUBSYS_NAME " error: " format, \
-	## __VA_ARGS__)
+	printk(KERN_ERR "omapdss " DSS_SUBSYS_NAME " error: " format MHL_CODE_LINE_INFO1, \
+	## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #else
 #define DSSERR(format, ...) \
-	printk(KERN_ERR "omapdss error: " format, ## __VA_ARGS__)
+	printk(KERN_ERR "omapdss error: " format MHL_CODE_LINE_INFO1, ## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #endif
 
 #ifdef DSS_SUBSYS_NAME
 #define DSSINFO(format, ...) \
-	printk(KERN_INFO "omapdss " DSS_SUBSYS_NAME ": " format, \
-	## __VA_ARGS__)
+	printk(KERN_INFO "omapdss " DSS_SUBSYS_NAME ": " format MHL_CODE_LINE_INFO1, \
+	## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #else
 #define DSSINFO(format, ...) \
-	printk(KERN_INFO "omapdss: " format, ## __VA_ARGS__)
+	printk(KERN_INFO "omapdss: " format MHL_CODE_LINE_INFO1, ## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #endif
 
 #ifdef DSS_SUBSYS_NAME
 #define DSSWARN(format, ...) \
-	printk(KERN_WARNING "omapdss " DSS_SUBSYS_NAME ": " format, \
-	## __VA_ARGS__)
+	printk(KERN_WARNING "omapdss " DSS_SUBSYS_NAME ": " format MHL_CODE_LINE_INFO1, \
+	## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #else
 #define DSSWARN(format, ...) \
-	printk(KERN_WARNING "omapdss: " format, ## __VA_ARGS__)
+	printk(KERN_WARNING "omapdss: " format MHL_CODE_LINE_INFO1, ## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #endif
 
 /* OMAP TRM gives bitfields as start:end, where start is the higher bit

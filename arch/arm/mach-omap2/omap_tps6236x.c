@@ -187,8 +187,12 @@ static struct omap_voltdm_pmic omap4_mpu_pmic = {
 	.vp_erroroffset		= OMAP4_VP_CONFIG_ERROROFFSET,
 	.vp_vstepmin		= OMAP4_VP_VSTEPMIN_VSTEPMIN,
 	.vp_vstepmax		= OMAP4_VP_VSTEPMAX_VSTEPMAX,
-	.vp_vddmin		= OMAP4_VP_MPU_VLIMITTO_VDDMIN,
-	.vp_vddmax		= OMAP4_VP_MPU_VLIMITTO_VDDMAX,
+// LGE_CHANGE_START [bk.shin@lge.com] 2012-04-25, TI patch :  rename vp_vddmin and vp_vddmax fields
+	.min_volt		= OMAP4_VP_MPU_VLIMITTO_VDDMIN,
+// LGE_CHANGE_START [bk.shin@lge.com] 2012-04-25, TI patch : recommeded VP registers settings
+	.max_volt		= OMAP4460_VP_MPU_VLIMITTO_VDDMAX,,
+// LGE_CHANGE_END [bk.shin@lge.com] 2012-04-25
+// LGE_CHANGE_END [bk.shin@lge.com] 2012-04-25
 	.vp_timeout_us		= OMAP4_VP_VLIMITTO_TIMEOUT_US,
 	.i2c_slave_addr		= I2C_TPS6236X_SLAVE_ADDR,
 	.volt_reg_addr		= REG_TPS6236X_SET_0,
@@ -246,7 +250,9 @@ static int __init omap4_twl_tps62361_enable(struct voltagedomain *voltdm)
 	u8 val;
 
 	/* Dont trust the bootloader. start with max, pm will set to proper */
-	val = voltdm->pmic->uv_to_vsel(voltdm->pmic->vp_vddmax);
+// LGE_CHANGE_START [bk.shin@lge.com] 2012-04-15, rename vp_vddmin and vp_vddmax fields
+	val = voltdm->pmic->uv_to_vsel(voltdm->pmic->max_volt);
+// LGE_CHANGE_END [bk.shin@lge.com] 2012-04-25
 	ret = omap_vc_bypass_send_i2c_msg(voltdm, voltdm->pmic->i2c_slave_addr,
 			default_reg, val);
 

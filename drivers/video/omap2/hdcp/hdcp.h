@@ -239,13 +239,15 @@ enum av_mute {
 /* FIXME: should be 300ms delay between HDMI start frame event and HDCP enable
  * (to respect 7 VSYNC delay in 24 Hz)
  */
-#define HDCP_ENABLE_DELAY	300
+#define HDCP_ENABLE_DELAY	1500
+//#define HDCP_ENABLE_DELAY	300
 #define HDCP_R0_DELAY		110
 #define HDCP_KSV_TIMEOUT_DELAY  5000
 #define HDCP_REAUTH_DELAY	100
 
 /* DDC access timeout in ms */
-#define HDCP_DDC_TIMEOUT	500
+#define HDCP_DDC_TIMEOUT	2000
+//#define HDCP_DDC_TIMEOUT	500
 #define HDCP_STOP_FRAME_BLOCKING_TIMEOUT (2*HDCP_DDC_TIMEOUT)
 
 /* Event source */
@@ -352,14 +354,26 @@ extern struct hdcp_sha_in sha_input;
 	((RD_REG_32(base, offset) & FLD_MASK(start, end)) >> (end))
 
 
+// LGE_CHANGE_S [sungho.jung@lge.com] 2012-03-27.
 #undef DBG
+#define HDCP_DEBUG
 
 #ifdef HDCP_DEBUG
 #define DBG(format, ...) \
 		printk(KERN_DEBUG "HDCP: " format "\n", ## __VA_ARGS__)
+#define HDCP_DBG_S(...)         ((void)0)
+#define HDCP_DBG_E(...)         ((void)0)
+
+//#define HDCP_DBG_S() do { \
+//	printk("HDCP: +++ %s:%d/%s() +++\n", __FILE__, __LINE__, __func__); \
+//} while (0)
+//#define HDCP_DBG_E() do { \
+//	printk("HDCP: --- %s:%d/%s() ---\n", __FILE__, __LINE__, __func__); \
+//} while (0)
 #else
 #define DBG(format, ...)
 #endif
+// LGE_CHANGE_E [sungho.jung@lge.com] 2012-03-27.
 
 /***************************/
 /* Function prototypes     */

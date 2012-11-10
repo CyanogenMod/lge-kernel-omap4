@@ -25,3 +25,10 @@ obj-$(CONFIG_INPUT_MISC)	+= misc/
 
 obj-$(CONFIG_INPUT_APMPOWER)	+= apm-power.o
 obj-$(CONFIG_INPUT_KEYRESET)	+= keyreset.o
+
+# BEGIN: 0019609 chanha.park@lge.com 2012-01-30
+# ADD: 0019609: [P2_ICS][BT] BTL-A Porting. 
+#+++ BRCM
+obj-y	+= bthid/
+#--- BRCM
+# END: 0019609 chanha.park@lge.com 2012-01-30

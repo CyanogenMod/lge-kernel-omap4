@@ -1,0 +1,23 @@
+/*
+ * Samsung LPDDR2 timings.
+ *
+ * Copyright (C) 2011 LG Electronics, Inc.
+ *
+ * Jugwan Eom <jugwan.eom@lge.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#ifndef _LPDDR2_SAMSUNG_H
+#define _LPDDR2_SAMSUNG_H
+
+extern const struct lpddr2_timings timings_samsung_200_mhz;
+extern const struct lpddr2_timings timings_samsung_333_mhz;
+extern const struct lpddr2_timings timings_samsung_400_mhz;
+extern const struct lpddr2_min_tck min_tck_samsung;
+extern struct lpddr2_device_info samsung_2G_S4;
+extern struct lpddr2_device_info samsung_4G_S4;
+
+#endif

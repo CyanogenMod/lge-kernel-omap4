@@ -216,6 +216,10 @@ extern void inet_get_local_port_range(int *low, int *high);
 extern unsigned long *sysctl_local_reserved_ports;
 static inline int inet_is_reserved_local_port(int port)
 {
+#ifdef CONFIG_CCSECURITY
+	if (ccs_lport_reserved(port))
+		return 1;
+#endif
 	return test_bit(port, sysctl_local_reserved_ports);
 }
 

@@ -441,6 +441,21 @@ struct input_keymap_entry {
 #define KEY_WIMAX		246
 #define KEY_RFKILL		247	/* Key that controls all radios */
 
+/* LGE_CHANGE_S [seungho1.park@lge.com]] 2011-10-15, add Key definitions */
+#if defined(CONFIG_MACH_LGE)
+// LGE_CHANGE_S [younglae.kim@lge.com] 2012-03-19, change key definitions
+#if defined(CONFIG_MACH_LGE_COSMOPOLITAN)
+#define KEY_3D			249		/* 3D barrier key */
+#else
+#define KEY_CAPTURE		249
+#endif
+#define KEY_HOOK		250		/* Earjack hook key */
+#define KEY_GESTURE		251		/* Gesture key */
+//#define KEY_CAPTURE		252		/* Capture key */
+// LGE_CHANGE_E [younglae.kim@lge.com] 2012-03-19
+#endif	/* CONFIG_MACH_LGE */
+/* LGE_CHANGE_E [seungho1.park@lge.com] 2011-10-15 */
+
 /* Code 255 is reserved for special needs of AT keyboard driver */
 
 #define BTN_MISC		0x100
@@ -665,7 +680,14 @@ struct input_keymap_entry {
 #define KEY_CAMERA_FOCUS	0x210
 #define KEY_WPS_BUTTON		0x211	/* WiFi Protected Setup key */
 
+// LGE_CHANGE_S [younglae.kim@lge.com] 2012-03-19, P2 use the scancode 0x212 for AT command
+//#if defined(CONFIG_MACH_LGE_P2)
+#define KEY_TESTMODE_UNLOCK 0x2FD
+//#else
 #define KEY_TOUCHPAD_TOGGLE	0x212	/* Request switch touchpad on or off */
+//#endif
+// LGE_CHANGE_E [younglae.kim@lge.com] 2012-03-19
+
 #define KEY_TOUCHPAD_ON		0x213
 #define KEY_TOUCHPAD_OFF	0x214
 
@@ -1476,7 +1498,11 @@ void input_inject_event(struct input_handle *handle, unsigned int type, unsigned
 
 static inline void input_report_key(struct input_dev *dev, unsigned int code, int value)
 {
+#if 1 // LGE Key cancel
+	input_event(dev, EV_KEY, code, value);
+#else // orig
 	input_event(dev, EV_KEY, code, !!value);
+#endif
 }
 
 static inline void input_report_rel(struct input_dev *dev, unsigned int code, int value)

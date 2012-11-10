@@ -232,6 +232,9 @@ struct omap_hsmmc_host {
 	int			req_in_progress;
 	unsigned int		flags;
 
+	/* LGE_SJIT 2011-11-28 [dojip.kim@lge.com] Enhance the error handling */
+	unsigned int		eject; /* eject state */
+
 	struct	omap_mmc_platform_data	*pdata;
 };
 
@@ -1109,8 +1112,13 @@ static inline void omap_hsmmc_reset_controller_fsm(struct omap_hsmmc_host *host,
 						   unsigned long bit)
 {
 	unsigned long i = 0;
+	/* LGE_SJIT 2011-11-29 [dojip.kim@lge.com]
+	 * Inaccurate delays when calculated based on loops_per_jiffy
+	 */
+	/*
 	unsigned long limit = (loops_per_jiffy *
 				msecs_to_jiffies(MMC_TIMEOUT_MS));
+	*/
 
 	OMAP_HSMMC_WRITE(host->base, SYSCTL,
 			 OMAP_HSMMC_READ(host->base, SYSCTL) | bit);
@@ -1120,15 +1128,32 @@ static inline void omap_hsmmc_reset_controller_fsm(struct omap_hsmmc_host *host,
 	 * Monitor a 0->1 transition first
 	 */
 	if (mmc_slot(host).features & HSMMC_HAS_UPDATED_RESET) {
+		/* LGE_SJIT 2011-11-29 [dojip.kim@lge.com]
+		 * Inaccurate delays when calculated based on
+		 * loops_per_jiffy
+		 */
+		/*
 		while ((!(OMAP_HSMMC_READ(host->base, SYSCTL) & bit))
 					&& (i++ < limit))
 			cpu_relax();
+		*/
+		while ((!(OMAP_HSMMC_READ(host->base, SYSCTL) & bit))
+					&& (i++ < 50))
+			udelay(100);
 	}
 	i = 0;
-
+	/* LGE_SJIT 2011-11-29 [dojip.kim@lge.com]
+	 * Inaccurate delays when calculated based on
+	 * loops_per_jiffy
+	 */
+	/*
 	while ((OMAP_HSMMC_READ(host->base, SYSCTL) & bit) &&
 		(i++ < limit))
 		cpu_relax();
+	*/
+	while ((OMAP_HSMMC_READ(host->base, SYSCTL) & bit) &&
+		(i++ < 50))
+		udelay(100);
 
 	if (OMAP_HSMMC_READ(host->base, SYSCTL) & bit)
 		dev_err(mmc_dev(host->mmc),
@@ -1200,6 +1225,22 @@ static void omap_hsmmc_do_irq(struct omap_hsmmc_host *host, int status)
 			if (host->data)
 				end_trans = 1;
 		}
+		/* LGE_SJIT_S 2011-11-29 [dojip.kim@lge.com]
+		 * Detecting a 0 at the end bit position of read data
+		 * when removing the sdcard
+		 */
+		if (status & (1 << 22)) { // DEB error
+			int err = -EILSEQ;
+			if (host->data)
+				omap_hsmmc_dma_cleanup(host, err);
+			else
+				host->mrq->cmd->error = err;
+
+			host->response_busy = 0;
+			omap_hsmmc_reset_controller_fsm(host, SRD);
+			end_trans = 1;
+		}
+		/* LGE_SJIT_E 2011-11-29 [dojip.kim@lge.com] */
 		if (status & ADMA_ERR) {
 			dev_dbg(mmc_dev(host->mmc),
 				"ADMA err: ADMA_ES=%x, SAL=%x.\n",
@@ -1362,8 +1403,13 @@ static void omap_hsmmc_detect(struct work_struct *work)
 
 	sysfs_notify(&host->mmc->class_dev.kobj, NULL, "cover_switch");
 
-	if (slot->card_detect)
+	if (slot->card_detect) {
 		carddetect = slot->card_detect(host->dev, host->slot_id);
+		/* LGE_SJIT 2011-11-28 [dojip.kim@lge.com]
+		 * Enhanced the error handling
+		 */
+		host->eject = !carddetect;
+	}
 	else {
 		omap_hsmmc_protect_card(host);
 		carddetect = -ENOSYS;
@@ -1630,6 +1676,10 @@ static void set_data_timeout(struct omap_hsmmc_host *host,
 			dto = 14;
 	}
 
+#ifdef CONFIG_MACH_LGE
+	dto = 14;
+#endif
+
 	reg &= ~DTO_MASK;
 	reg |= dto << DTO_SHIFT;
 	OMAP_HSMMC_WRITE(host->base, SYSCTL, reg);
@@ -1686,6 +1736,30 @@ static void omap_hsmmc_request(struct mmc_host *mmc, struct mmc_request *req)
 
 	BUG_ON(host->req_in_progress);
 	BUG_ON(host->dma_ch != -1);
+	/* LGE_SJIT_S 2011-11-28 [dojip.kim@lge.com]
+	 * Enhanced the error handling
+	 */
+	if (host->eject) {
+		/*
+		 * Ensure the controller is left in a consistent
+		 * state by resetting the command and data state
+		 * machines.
+		 */
+		omap_hsmmc_reset_controller_fsm(host, SRD);
+		omap_hsmmc_reset_controller_fsm(host, SRC);
+
+		if (req->data && !(req->data->flags & MMC_DATA_READ)) {
+			req->cmd->error = 0;
+			req->data->bytes_xfered = req->data->blksz *
+						  req->data->blocks;
+		} else
+			req->cmd->error = -ENOMEDIUM;
+
+		req->cmd->retries = 0;
+		mmc_request_done(mmc, req);
+		return;
+	}
+	/* LGE_SJIT_E 2011-11-28 [dojip.kim@lge.com] */
 	if (host->protect_card) {
 		if (host->reqs_blocked < 3) {
 			/*
@@ -2596,6 +2670,12 @@ static int omap_hsmmc_suspend(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct omap_hsmmc_host *host = platform_get_drvdata(pdev);
 
+	/* LGE_SJIT 2012-01-09 [dojip.kim@lge.com]
+	 * no suspend. Some drivers don't use pm on MMC (eg. BRCM WiFi)
+	 */
+	if (host && mmc_slot(host).no_suspend)
+		return 0;
+
 	if (host && host->suspended)
 		return 0;
 
@@ -2646,6 +2726,12 @@ static int omap_hsmmc_resume(struct device *dev)
 	int ret = 0;
 	struct platform_device *pdev = to_platform_device(dev);
 	struct omap_hsmmc_host *host = platform_get_drvdata(pdev);
+
+	/* LGE_SJIT 2012-01-09 [dojip.kim@lge.com]
+	 * no suspend. Some drivers don't use pm on MMC (eg. BRCM WiFi)
+	 */
+	if (host && mmc_slot(host).no_suspend)
+		return 0;
 
 	if (host && !host->suspended)
 		return 0;

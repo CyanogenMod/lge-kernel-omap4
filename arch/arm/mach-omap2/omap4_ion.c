@@ -24,8 +24,7 @@ static struct ion_platform_data omap4_ion_data = {
 			.type = ION_HEAP_TYPE_CARVEOUT,
 			.id = OMAP_ION_HEAP_SECURE_INPUT,
 			.name = "secure_input",
-			.base = PHYS_ADDR_SMC_MEM -
-					OMAP4_ION_HEAP_SECURE_INPUT_SIZE,
+			.base = PHYS_ADDR_DUCATI_MEM + PHYS_ADDR_DUCATI_SIZE,
 			.size = OMAP4_ION_HEAP_SECURE_INPUT_SIZE,
 		},
 		{	.type = OMAP_ION_HEAP_TYPE_TILER,
@@ -68,6 +67,14 @@ void __init omap_ion_init(void)
 		    omap4_ion_data.heaps[i].type == OMAP_ION_HEAP_TYPE_TILER) {
 			ret = memblock_remove(omap4_ion_data.heaps[i].base,
 					      omap4_ion_data.heaps[i].size);
+
+			// 1G Dynamic alloc - 18827
+			printk(KERN_INFO "%s: ion_heap[%d] name=%s, size=%dMB, addr=0x%lx\n",
+				__func__, i, omap4_ion_data.heaps[i].name,
+				(omap4_ion_data.heaps[i].size >> 20),
+				omap4_ion_data.heaps[i].base);
+			// 1G Dynamic alloc - 18827
+
 			if (ret)
 				pr_err("memblock remove of %x@%lx failed\n",
 				       omap4_ion_data.heaps[i].size,

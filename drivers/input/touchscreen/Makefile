@@ -63,3 +63,28 @@ obj-$(CONFIG_TOUCHSCREEN_W90X900)	+= w90p910_ts.o
 obj-$(CONFIG_TOUCHSCREEN_TPS6507X)	+= tps6507x-ts.o
 obj-$(CONFIG_TOUCHSCREEN_SYNTM12XX)	+= syntm12xx.o
 obj-$(CONFIG_TOUCHSCREEN_QUANTUM_OBP)	+= qtouch_obp_ts.o
+
+## LGE_SJIT_S 2011-10-13 [choongryeol.lee@lge.com] synaptics rmi4 touch driver
+obj-$(CONFIG_LGE_TOUCHSCREEN_SYNAPTICS_RMI4_I2C)	+=touch_synaptics_rmi4_i2c.o touch_synaptics_fw_upgrade_lghdk.o
+## LGE_SJIT_E 2011-10-13 [choongryeol.lee@lge.com] synaptics rmi4 touch driver
+
+## FIXME - Should merge lg's driver ...
+obj-$(CONFIG_TOUCHSCREEN_COMMON_SYNAPTICS)   += lge_touch_core.o
+obj-$(CONFIG_TOUCHSCREEN_COMMON_SYNAPTICS)   += touch_synaptics_s3000.o
+obj-$(CONFIG_TOUCHSCREEN_COMMON_SYNAPTICS)   += touch_synaptics_fw_upgrade.o
+
+obj-$(CONFIG_TOUCHSCREEN_COMMON_SYNAPTICS_S3200)   += lge_touch_core.o
+obj-$(CONFIG_TOUCHSCREEN_COMMON_SYNAPTICS_S3200)   += touch_synaptics_s7020.o
+obj-$(CONFIG_TOUCHSCREEN_COMMON_SYNAPTICS_S3200)   += touch_synaptics_fw_upgrade.o
+
+## LGE_SJIT 2011-11-17 [dojip.kim@lge.com] add atmel touch driver
+## from [G1-D1L][touch] Add Atmel Touch Driver
+obj-$(CONFIG_TOUCHSCREEN_ATMEL_MAXT224E)     += atmel_ts.o
+
+## LGE_SJIT 2011-11-16 [dojip.kim@lge.com] add melfas touch driver
+## from [G1-COMMON][touch] Add Melfas Touch Driver
+obj-$(CONFIG_TOUCHSCREEN_MMS136)        += melfas_ts.o mms136_ISP_download.o mms136_ISC_download.o
+
+## LGE_SJIT 2011-11-16 [dojip.kim@lge.com] unified touch firmware version path
+## from [G1-COMMON][touch] Unified Touch Firmware Version PATH
+obj-$(CONFIG_TS_INFO_CLASS)             += ts_class.o

@@ -701,7 +701,15 @@ static void __init omap_tablet_reserve(void)
 
 	/* do the static reservations first */
 	memblock_remove(PHYS_ADDR_SMC_MEM, PHYS_ADDR_SMC_SIZE);
+	// 1G Dynamic alloc - 18827
+	printk(KERN_INFO "%s: SMC size=%dMB, addr=0x%x\n",
+		__func__, (PHYS_ADDR_SMC_SIZE >> 20), PHYS_ADDR_SMC_MEM);
+	// 1G Dynamic alloc - 18827
 	memblock_remove(PHYS_ADDR_DUCATI_MEM, PHYS_ADDR_DUCATI_SIZE);
+	// 1G Dynamic alloc - 18827
+	printk(KERN_INFO "%s: DUCATI Memory size=%dMB, addr=0x%x\n",
+		__func__, (PHYS_ADDR_DUCATI_SIZE >> 20), PHYS_ADDR_DUCATI_MEM);
+	// 1G Dynamic alloc - 18827
 	/* ipu needs to recognize secure input buffer area as well */
 	omap_ipu_set_static_mempool(PHYS_ADDR_DUCATI_MEM, PHYS_ADDR_DUCATI_SIZE +
 					OMAP4_ION_HEAP_SECURE_INPUT_SIZE);

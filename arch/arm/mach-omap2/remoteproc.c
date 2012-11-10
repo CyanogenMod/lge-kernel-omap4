@@ -28,6 +28,7 @@
 #include "cm2_44xx.h"
 #include "cm1_44xx.h"
 #include "cm-regbits-44xx.h"
+#include <lge/board_rev.h>
 
 #define OMAP4430_CM_M3_M3_CLKCTRL (OMAP4430_CM2_BASE + OMAP4430_CM2_CORE_INST \
 		+ OMAP4_CM_DUCATI_DUCATI_CLKCTRL_OFFSET)
@@ -221,6 +222,28 @@ static int __init omap_rproc_init(void)
 		const char *oh_name = omap4_rproc_data[i].oh_name;
 		const char *oh_name_opt = omap4_rproc_data[i].oh_name_opt;
 		oh_count = 0;
+
+// WORKAROUND_CODE: replace ducati binary at run-time not build time.
+// TODO: This code must be removed.
+#ifdef CONFIG_MACH_LGE_U2_P769
+		// if HW revsion is not latest then system must be other ducati as following rull
+		if(!strcmp(oh_name, "ipu_c0")) {
+			if (system_rev < LGE_PCB_C)
+				omap4_rproc_data[i].firmware = "ducati-m3_revB.bin" ;	// for rev A and B
+			// add here more mapping rull between HW revision and ducati binary name.
+
+			printk("%s ducati name %s \n", __FUNCTION__,omap4_rproc_data[i].firmware);
+		}
+#elif defined (CONFIG_MACH_LGE_U2_P760)
+		// if HW revsion is not latest then system must be other ducati as following rull
+		if(!strcmp(oh_name, "ipu_c0")) {
+			if (system_rev < LGE_PCB_B)
+				omap4_rproc_data[i].firmware = "ducati-m3_revA.bin" ;	// for rev A and B
+			// add here more mapping rull between HW revision and ducati binary name.
+
+			printk("%s ducati name %s \n", __FUNCTION__,omap4_rproc_data[i].firmware);
+		}
+#endif
 
 		oh[0] = omap_hwmod_lookup(oh_name);
 		if (!oh[0]) {

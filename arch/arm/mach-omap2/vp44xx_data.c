@@ -64,6 +64,12 @@ static const struct omap_vp_common omap4_vp_common = {
 	.ops = &omap4_vp_ops,
 };
 
+// LGE_CHANGE_START [bk.shin@lge.com] 2012-04-25, TI patch :  introduce SoC limit parameters
+struct omap_vp_volt_limits omap4_vp_mpu_limit = {
+	.vddmin = OMAP4_VP_MPU_VLIMITTO_VDDMIN,
+};
+// LGE_CHANGE_END [bk.shin@lge.com] 2012-04-25
+
 struct omap_vp_instance omap4_vp_mpu = {
 	.id = OMAP4_PRM_IRQ_VDD_MPU_ID,
 	.common = &omap4_vp_common,
@@ -73,7 +79,14 @@ struct omap_vp_instance omap4_vp_mpu = {
 	.vlimitto = OMAP4_PRM_VP_MPU_VLIMITTO_OFFSET,
 	.vstatus = OMAP4_PRM_VP_MPU_STATUS_OFFSET,
 	.voltage = OMAP4_PRM_VP_MPU_VOLTAGE_OFFSET,
+// LGE_CHANGE_START [bk.shin@lge.com] 2012-04-25, TI patch :  introduce SoC limit parameters
+	.vlimits = &omap4_vp_mpu_limit,
 };
+
+struct omap_vp_volt_limits omap4_vp_iva_limit = {
+	.vddmin = OMAP4_VP_IVA_VLIMITTO_VDDMIN,
+};
+// LGE_CHANGE_END [bk.shin@lge.com] 2012-04-25
 
 struct omap_vp_instance omap4_vp_iva = {
 	.id = OMAP4_PRM_IRQ_VDD_IVA_ID,
@@ -84,7 +97,14 @@ struct omap_vp_instance omap4_vp_iva = {
 	.vlimitto = OMAP4_PRM_VP_IVA_VLIMITTO_OFFSET,
 	.vstatus = OMAP4_PRM_VP_IVA_STATUS_OFFSET,
 	.voltage = OMAP4_PRM_VP_IVA_VOLTAGE_OFFSET,
+// LGE_CHANGE_START [bk.shin@lge.com] 2012-04-25, TI patch : introduce SoC limit parameters
+	.vlimits = &omap4_vp_iva_limit,
 };
+
+struct omap_vp_volt_limits omap4_vp_core_limit = {
+	.vddmin = OMAP4_VP_CORE_VLIMITTO_VDDMIN,
+};
+// LGE_CHANGE_END [bk.shin@lge.com] 2012-04-25
 
 struct omap_vp_instance omap4_vp_core = {
 	.id = OMAP4_PRM_IRQ_VDD_CORE_ID,
@@ -95,4 +115,7 @@ struct omap_vp_instance omap4_vp_core = {
 	.vlimitto = OMAP4_PRM_VP_CORE_VLIMITTO_OFFSET,
 	.vstatus = OMAP4_PRM_VP_CORE_STATUS_OFFSET,
 	.voltage = OMAP4_PRM_VP_CORE_VOLTAGE_OFFSET,
+// LGE_CHANGE_START [bk.shin@lge.com] 2012-04-25, TI patch :  introduce SoC limit parameters
+	.vlimits = &omap4_vp_core_limit,
+// LGE_CHANGE_END [bk.shin@lge.com] 2012-04-25
 };

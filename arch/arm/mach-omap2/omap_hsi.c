@@ -217,6 +217,7 @@ int omap_hsi_io_wakeup_check(void)
 * Return value : * 0 if HSI tasklet scheduled.
 *		 * negative value else.
 */
+extern int use_fb0;
 int omap_hsi_wakeup(int hsi_port)
 {
 	static struct platform_device *pdev;
@@ -254,6 +255,7 @@ int omap_hsi_wakeup(int hsi_port)
 			     &hsi_ctrl->hsi_port[i].flags))
 		return -EBUSY;
 
+	use_fb0 =0;
 	/* CAWAKE falling or rising edge detected */
 	hsi_ctrl->hsi_port[i].cawake_off_event = true;
 	tasklet_hi_schedule(&hsi_ctrl->hsi_port[i].hsi_tasklet);
@@ -304,10 +306,12 @@ static int __init omap_hsi_register(struct omap_hwmod *oh, void *user)
 
 int __init omap_hsi_dev_init(void)
 {
+#if 0 //FIXME 
 	if (!omap_hsi_registration_allowed) {
 		pr_info("HSI: skipping omap_device registration\n");
 		return 0;
 	}
+#endif
 	/* Keep this for genericity, although there is only one hwmod for HSI */
 	return omap_hwmod_for_each_by_class(OMAP_HSI_HWMOD_CLASSNAME,
 					    omap_hsi_register, NULL);

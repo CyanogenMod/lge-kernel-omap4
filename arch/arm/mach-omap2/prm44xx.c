@@ -16,6 +16,7 @@
 #include <linux/errno.h>
 #include <linux/err.h>
 #include <linux/io.h>
+#include <mach/omap4-common.h>
 
 #include <plat/common.h>
 #include <plat/cpu.h>
@@ -182,6 +183,82 @@ int omap4_prm_deassert_hardreset(void __iomem *rstctrl_reg, u8 shift)
 
 	return (c == MAX_MODULE_HARDRESET_WAIT) ? -EBUSY : 0;
 }
+
+#ifdef CONFIG_LGE_HANDLE_PANIC
+#include "omap4-sar-layout.h"
+
+static unsigned int restart_reason = 0x776655AA; /* normal boot */
+
+extern int twl6030_pm_i2c_write_u8(unsigned char val, unsigned char reg);
+
+void lge_set_reboot_reason(unsigned int reason)
+{
+	restart_reason = reason;
+}
+
+void lge_omap4_prm_global_warm_sw_reset(const char *cmd)
+{
+	void __iomem *sar_base;
+	u32 v = 0;
+
+	v = omap4_prm_read_inst_reg(OMAP4430_PRM_DEVICE_INST,
+				    OMAP4_RM_RSTCTRL);
+
+	sar_base = omap4_get_sar_ram_base();
+
+	if (cmd != NULL) {
+		if (!strcmp(cmd, "recovery")) {
+			/* Save reboot mode in scratch memory */
+			restart_reason = 0x77665502;
+			v |= OMAP4430_RST_GLOBAL_WARM_SW_MASK;
+		} else if (!strcmp(cmd, "download")) {
+			/* use cold boot for web download due to USB issue */
+			v |= OMAP4430_RST_GLOBAL_COLD_SW_MASK;
+		} else if (!strcmp(cmd, "pmic")) {
+			/* use PMIC reset */
+			printk("PMIC Reset in lge_omap4_prm_global_warm_sw_reset\n");
+			twl6030_pm_i2c_write_u8(0x47, 0x06);
+		} else if (!strcmp(cmd, "pmicoff")) {
+			if (sar_base) {
+				__raw_writel(restart_reason, sar_base + 0xA0C);
+				printk("Restart reason: 0x%x cmd is pmicoff \n", __raw_readl(sar_base + 0xA0C));
+			}
+			/* use PMIC off */
+			twl6030_pm_i2c_write_u8(0x07, 0x06);
+		} else if (!strcmp(cmd, "hidden")) {
+			restart_reason = 0x729F2000;
+			v |= OMAP4430_RST_GLOBAL_WARM_SW_MASK;
+		} else {
+			printk(KERN_EMERG "reboot: non-supported mode [%s]\n",
+					cmd);
+			v |= OMAP4430_RST_GLOBAL_WARM_SW_MASK;
+		}
+	}
+	else {
+		v |= OMAP4430_RST_GLOBAL_WARM_SW_MASK;
+	}
+
+	/* save restart reason in scratch memory for bootloader to read it */
+	if (sar_base) {
+		__raw_writel(restart_reason, sar_base + 0xA0C);
+		printk("Restart reason: 0x%x\n", __raw_readl(sar_base + 0xA0C));
+	}
+	else {
+		printk(KERN_EMERG "omap4_get_sar_ram_base failed\n");
+	}
+
+	/* clear previous reboot status */
+	omap4_prm_write_inst_reg(0xfff, OMAP4430_PRM_DEVICE_INST,
+			OMAP4_RM_RSTST);
+
+	omap4_prm_write_inst_reg(v, OMAP4430_PRM_DEVICE_INST,
+			OMAP4_RM_RSTCTRL);
+
+	/* OCP barrier */
+	v = omap4_prm_read_inst_reg(OMAP4430_PRM_DEVICE_INST,
+			OMAP4_RM_RSTCTRL);
+}
+#endif
 
 void omap4_prm_global_warm_sw_reset(void)
 {

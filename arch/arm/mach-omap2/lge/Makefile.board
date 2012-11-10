@@ -1,0 +1,8 @@
+#
+# Makefile for the LGE board
+#
+
+obj-$(CONFIG_MACH_LGE_IFF)		+= iff/
+obj-$(CONFIG_MACH_LGE_P2)		+= p2/
+obj-$(CONFIG_MACH_LGE_U2)		+= u2/
+obj-$(CONFIG_MACH_LGE_HDK)		+= lghdk/

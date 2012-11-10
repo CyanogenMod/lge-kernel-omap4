@@ -95,6 +95,9 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 {
 	struct mmc_command *cmd = mrq->cmd;
 	int err = cmd->error;
+#ifdef CONFIG_MMC_PERF_PROFILING
+	ktime_t diff;
+#endif
 
 	if (err && cmd->retries && mmc_host_is_spi(host)) {
 		if (cmd->resp[0] & R1_SPI_ILLEGAL_COMMAND)
@@ -117,6 +120,20 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 			cmd->resp[2], cmd->resp[3]);
 
 		if (mrq->data) {
+#ifdef CONFIG_MMC_PERF_PROFILING
+			diff = ktime_sub(ktime_get(), host->perf.start);
+			if (mrq->data->flags == MMC_DATA_READ) {
+				host->perf.rbytes_drv +=
+					mrq->data->bytes_xfered;
+				host->perf.rtime_drv =
+					ktime_add(host->perf.rtime_drv, diff);
+			} else {
+				host->perf.wbytes_drv +=
+					mrq->data->bytes_xfered;
+				host->perf.wtime_drv =
+					ktime_add(host->perf.wtime_drv, diff);
+			}
+#endif
 			pr_debug("%s:     %d bytes transferred: %d\n",
 				mmc_hostname(host),
 				mrq->data->bytes_xfered, mrq->data->error);
@@ -191,6 +208,9 @@ mmc_start_request(struct mmc_host *host, struct mmc_request *mrq)
 			mrq->stop->error = 0;
 			mrq->stop->mrq = mrq;
 		}
+#ifdef CONFIG_MMC_PERF_PROFILING
+		host->perf.start = ktime_get();
+#endif
 	}
 	mmc_host_clk_hold(host);
 	led_trigger_event(host->led, LED_FULL);
@@ -448,6 +468,13 @@ int mmc_host_disable(struct mmc_host *host)
 	if (host->en_dis_recurs)
 		return 0;
 
+	/* LGE_SJIT 2011-12-22 [dojip.kim@lge.com] P940 GB
+	 * taehwan.kim@lge.com 20121204 in unnormal case, nesting_cnt is -1,
+	 * it causes lockup
+	 */
+	if (host->nesting_cnt == 0)
+		return 0;
+
 	if (--host->nesting_cnt)
 		return 0;
 
@@ -577,6 +604,13 @@ int mmc_host_lazy_disable(struct mmc_host *host)
 		return 0;
 
 	if (host->en_dis_recurs)
+		return 0;
+
+	/* LGE_SJIT 2011-12-22 [dojip.kim@lge.com] P940 GB
+	 * taehwan.kim@lge.com 20121204 in unnormal case, nesting_cnt is -1,
+	 * it causes lockup
+	 */
+	if (host->nesting_cnt == 0)
 		return 0;
 
 	if (--host->nesting_cnt)
@@ -1043,7 +1077,14 @@ static void mmc_power_up(struct mmc_host *host)
 	 * This delay should be sufficient to allow the power supply
 	 * to reach the minimum voltage.
 	 */
+	/* LGE_SJIT 2012-02-03 [dojip.kim@lge.com]
+	 * sometimes need a more times to power up
+	 */
+#ifdef CONFIG_MACH_LGE
+	mmc_delay(25);
+#else
 	mmc_delay(10);
+#endif
 
 	host->ios.clock = host->f_init;
 
@@ -1932,7 +1973,18 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 			spin_unlock_irqrestore(&host->lock, flags);
 			break;
 		}
+		/* LGE_SJIT 2011-12-30 [dojip.kim@lge.com]
+		 * iff deferred resume and lge hw detection,
+		 * rescan_disable should be zero
+		 */
+#if defined(CONFIG_MMC_LGE_HW_DETECTION) && defined(CONFIG_MMC_BLOCK_DEFERRED_RESUME)
+		if (host->card && mmc_card_sd(host->card))
+			host->rescan_disable = 0;
+		else
+			host->rescan_disable = 1;
+#else
 		host->rescan_disable = 1;
+#endif
 		spin_unlock_irqrestore(&host->lock, flags);
 		if (cancel_delayed_work_sync(&host->detect))
 			wake_unlock(&host->detect_wake_lock);

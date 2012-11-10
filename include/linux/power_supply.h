@@ -116,6 +116,29 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG,
 	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
 	POWER_SUPPLY_PROP_TIME_TO_FULL_AVG,
+/* LGE_CHANGE_S [jongho3.lee@lge.com] ?-?-?, adding gauge control attribute */
+#if defined(CONFIG_MACH_LGE)
+	POWER_SUPPLY_PROP_PMIC_SOC,
+	POWER_SUPPLY_PROP_GAUGE_VOLTAGE,
+	POWER_SUPPLY_PROP_GAUGE_CONTROL,
+	POWER_SUPPLY_PROP_GAUGE_CONTROL_COUNT,
+	POWER_SUPPLY_PROP_CHARGER_MODE,
+	POWER_SUPPLY_PROP_CHARGER_TEMP_CONTROL,
+	POWER_SUPPLY_PROP_BATT_TEMP_ADC,    /* LGE_CHANGE [wonhui.lee@lge.com] 2011-08-20, add to check BATT TEMP ADC value*/
+#if defined(CONFIG_MAX8971_CHARGER)
+	POWER_SUPPLY_PROP_BATT_CURRENT_ADC,    /* LGE_CHANGE [dukwung.kim@lge.com] 2011-09-16, add to check BATT CURRENT  ADC value*/
+	/* LGE_CHANGE [jude84.kim@lge.com] 2011-09-30 for check charger parm temp value [START] */
+	POWER_SUPPLY_PROP_CHARGER_TEMP_ADC,	
+	POWER_SUPPLY_PROP_PARM_TEMP_ADC,	
+	POWER_SUPPLY_PROP_CHARGER_TEMP,
+	POWER_SUPPLY_PROP_PARM_TEMP,
+	POWER_SUPPLY_PROP_TEMP_HIGH,
+	POWER_SUPPLY_PROP_TEMP_LOW,
+	/* LGE_CHANGE [jude84.kim@lge.com] 2011-09-30 for check charger parm temp value [END]*/
+#endif
+#endif
+/* LGE_CHANGE_E [jongho3.lee@lge.com] ?-?-? */
+
 	POWER_SUPPLY_PROP_TYPE, /* use power_supply.type instead */
 	/* Properties of type `const char *' */
 	POWER_SUPPLY_PROP_MODEL_NAME,
@@ -131,6 +154,13 @@ enum power_supply_type {
 	POWER_SUPPLY_TYPE_USB_DCP,	/* Dedicated Charging Port */
 	POWER_SUPPLY_TYPE_USB_CDP,	/* Charging Downstream Port */
 	POWER_SUPPLY_TYPE_USB_ACA,	/* Accessory Charger Adapters */
+/* LGE_CHANGE_S [jongho3.lee@lge.com] ?-?-?, adding factory charger */
+#if defined(CONFIG_MACH_LGE)
+	POWER_SUPPLY_TYPE_FACTORY,
+	POWER_SUPPLY_TYPE_UNKNOWN,
+#endif
+/* LGE_CHANGE_E [jongho3.lee@lge.com] ?-?-? */
+
 };
 
 union power_supply_propval {

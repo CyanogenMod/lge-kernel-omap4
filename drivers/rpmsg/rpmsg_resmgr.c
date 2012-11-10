@@ -177,12 +177,21 @@ static int rprm_auxclk_request(struct rprm_elem *e, struct rprm_auxclk *obj)
 		return -EINVAL;
 	}
 
+// [LGE_UPDATE_S] [junhyoung.cho@lge.com] [2012-07-04] OMAPS00273242 [LGE-U2] MCLK is high when Camera is off
+#if 1   // CLK_EXT_SET - OMAPS00273242
+    omap_writew(0x0000, 0x4A10019A);
+#endif    
+// [LGE_UPDATE_E] [junhyoung.cho@lge.com] [2012-07-04] OMAPS00273242 [LGE-U2] MCLK is high when Camera is off
+
 	/* Create auxclks depot */
 	acd = kmalloc(sizeof(*acd), GFP_KERNEL);
 	if (!acd)
 		return -ENOMEM;
 
 	sprintf(clk_name, "auxclk%d_ck", obj->id);
+// [LGE_UPDATE_S] [junhyoung.cho@lge.com] [2012-07-04] OMAPS00273242 [LGE-U2] MCLK is high when Camera is off
+    printk("<<< auxclk%d_ck\n", obj->id);
+// [LGE_UPDATE_E] [junhyoung.cho@lge.com] [2012-07-04] OMAPS00273242 [LGE-U2] MCLK is high when Camera is off
 	acd->aux_clk = clk_get(NULL, clk_name);
 	if (!acd->aux_clk) {
 		pr_err("%s: unable to get clock %s\n", __func__, clk_name);
@@ -267,6 +276,14 @@ static void rprm_auxclk_release(struct rprm_auxclk_depot *obj)
 	clk_put((struct clk *)obj->aux_clk);
 	clk_disable((struct clk *)obj->src);
 	clk_put((struct clk *)obj->src);
+
+// [LGE_UPDATE_S] [junhyoung.cho@lge.com] [2012-07-04] OMAPS00273242 [LGE-U2] MCLK is high when Camera is off
+    printk("<<< release auxclk_ck %s\n", obj->aux_clk->name);
+
+#if 1   // CLK_EXT_SET - OMAPS00273242
+    omap_writew(0x000f, 0x4A10019A);
+#endif
+// [LGE_UPDATE_E] [junhyoung.cho@lge.com] [2012-07-04] OMAPS00273242 [LGE-U2] MCLK is high when Camera is off
 
 	kfree(obj);
 }

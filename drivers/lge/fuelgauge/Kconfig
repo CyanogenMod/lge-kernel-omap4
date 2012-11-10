@@ -1,0 +1,37 @@
+config LG_FW_MAX17040_FUEL_GAUGE
+	bool "MAX17040_FUEL_GAUGE"
+	default n
+	help
+	  Support for MAX17040_FUEL_GAUGE driver.
+
+config LG_FW_MAX17043_FUEL_GAUGE
+	bool "MAX17043_FUEL_GAUGE"
+	depends on I2C
+	help
+	  Support for MAX17043_FUEL_GAUGE driver.
+
+config LG_FW_MAX17043_FUEL_GAUGE_I2C
+	tristate "MAX17043_FUEL_GAUGE_I2C"
+	depends on I2C
+	select LG_FW_MAX17043_FUEL_GAUGE
+	help
+	  Support for MAX17043_FUEL_GAUGE driver. 
+
+config LG_FW_STC3105_FUEL_GAUGE
+	bool "STC3105_FUEL_GAUGE"
+	default n
+	help
+	  Support for STC3105_FUEL_GAUGE driver.
+
+config LG_FW_MAX17048_FUEL_GAUGE
+	bool "MAX17048_FUEL_GAUGE"
+	depends on I2C
+	help
+	  Support for MAX17048_FUEL_GAUGE driver.
+
+config LG_FW_MAX17048_FUEL_GAUGE_I2C
+	tristate "MAX17048_FUEL_GAUGE_I2C"
+	depends on I2C
+	select LG_FW_MAX17048_FUEL_GAUGE
+	help
+	  Support for MAX17048_FUEL_GAUGE driver.

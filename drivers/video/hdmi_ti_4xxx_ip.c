@@ -457,7 +457,8 @@ static int hdmi_core_ddc_edid(struct hdmi_ip_data *ip_data,
 	 * right shifted values( The behavior is not consistent and seen only
 	 * with some TV's)
 	 */
-	msleep(300);
+	//msleep(300);
+	usleep_range(10000, 20000);
 
 	if (!ext) {
 		/* Clk SCL Devices */
@@ -513,10 +514,16 @@ static int hdmi_core_ddc_edid(struct hdmi_ip_data *ip_data,
 		REG_FLD_MOD(hdmi_core_sys_base(ip_data),
 					HDMI_CORE_DDC_CMD, 0x2, 3, 0);
 
+	 /*Stability time right after DDC command for Read : 50ms ? */
+	/* LGE_CHANGE_S LG_HDMI */
+	 mdelay(1);  // by Joshua
+	/* LGE_CHANGE_E LG_HDMI */
+
 	/* HDMI_CORE_DDC_STATUS_BUS_LOW */
 	if (REG_GET(hdmi_core_sys_base(ip_data),
 					HDMI_CORE_DDC_STATUS, 6, 6) == 1) {
 		pr_err("I2C Bus Low?\n");
+		printk("[HDMI] I2C Bus Low? func=%s, line=%d", __func__, __LINE__ );
 		return -EIO;
 	}
 	/* HDMI_CORE_DDC_STATUS_NO_ACK */
@@ -984,6 +991,8 @@ void hdmi_ti_4xxx_basic_configure(struct hdmi_ip_data *ip_data,
 	struct hdmi_core_video_config v_core_cfg;
 	struct hdmi_core_packet_enable_repeat repeat_cfg;
 
+	avi_cfg = cfg->avi_cfg; // by Joshua
+
 	hdmi_wp_init(&video_timing, &video_format,
 		&video_interface);
 
@@ -1048,6 +1057,10 @@ void hdmi_ti_4xxx_basic_configure(struct hdmi_ip_data *ip_data,
 	avi_cfg.db3_itc = HDMI_INFOFRAME_AVI_DB3ITC_NO;
 	avi_cfg.db3_ec = HDMI_INFOFRAME_AVI_DB3EC_XVYUV601;
 
+
+// by Joshua
+#if 0
+{
 	if (cfg->cm.mode == HDMI_DVI ||
 	(cfg->cm.code == 1 && cfg->cm.mode == HDMI_HDMI)) {
 		/* setting for FULL RANGE MODE */
@@ -1062,6 +1075,11 @@ void hdmi_ti_4xxx_basic_configure(struct hdmi_ip_data *ip_data,
 				HDMI_CORE_SYS_VID_ACEN, 1, 1, 1);
 		avi_cfg.db3_q_range = HDMI_INFOFRAME_AVI_DB3Q_LR;
 	}
+}
+#else
+	hdmi_avi_cfg_lr_fr(); // by Joshua
+#endif
+
 
 	avi_cfg.db3_nup_scaling = HDMI_INFOFRAME_AVI_DB3SC_NO;
 	avi_cfg.db4_videocode = cfg->cm.code;
@@ -1082,6 +1100,49 @@ void hdmi_ti_4xxx_basic_configure(struct hdmi_ip_data *ip_data,
 	hdmi_core_av_packet_config(ip_data, repeat_cfg);
 }
 EXPORT_SYMBOL(hdmi_ti_4xxx_basic_configure);
+
+
+
+// by Joshua
+void hdmi_ti_4xxx_avi_dbq3(struct hdmi_ip_data *ip_data,
+		struct hdmi_config *cfg, char qs_vcdb)
+{
+	struct hdmi_core_infoframe_avi avi_cfg;
+
+	avi_cfg = cfg->avi_cfg;
+
+	printk(KERN_INFO "[%s]cfg->cm.mode=%d,cfg->cm.code=%d...\n",__func__,cfg->cm.mode,cfg->cm.code );
+
+	if (cfg->cm.mode == HDMI_DVI ||(cfg->cm.code == 1 && cfg->cm.mode == HDMI_HDMI)) {
+		/* setting for FULL RANGE MODE */
+		if(qs_vcdb ==0)  // by Joshua
+		{
+			avi_cfg.db3_q_range = HDMI_INFOFRAME_AVI_DB3Q_DEFAULT;
+			printk(KERN_INFO "[%s] full range : HDMI_INFOFRAME_AVI_DB3Q_DEFAULT...\n",__func__); // by Joshua
+		}
+		else{
+			REG_FLD_MOD(hdmi_core_sys_base(ip_data),
+					HDMI_CORE_SYS_VID_MODE, 1, 4, 4);
+			avi_cfg.db3_q_range = HDMI_INFOFRAME_AVI_DB3Q_FR;
+			printk(KERN_INFO "[%s] full range :  HDMI_INFOFRAME_AVI_DB3Q_FR...\n",__func__); // by Joshua
+		}
+	} else {
+		/* setting for LIMITED RANGE MODE */
+		if(qs_vcdb ==0)  // by Joshua
+		{
+			avi_cfg.db3_q_range = HDMI_INFOFRAME_AVI_DB3Q_DEFAULT;
+			printk(KERN_INFO "[%s] limited range :  HDMI_INFOFRAME_AVI_DB3Q_DEFAULT...\n",__func__); // by Joshua
+		}
+		else{
+			REG_FLD_MOD(hdmi_core_sys_base(ip_data),
+					HDMI_CORE_SYS_VID_ACEN, 1, 1, 1);
+			avi_cfg.db3_q_range = HDMI_INFOFRAME_AVI_DB3Q_LR;
+			printk(KERN_INFO "[%s] limited range :  HDMI_INFOFRAME_AVI_DB3Q_LR...\n",__func__); // by Joshua
+		}
+	}
+}
+EXPORT_SYMBOL(hdmi_ti_4xxx_avi_dbq3);
+
 
 u32 hdmi_ti_4xxx_irq_handler(struct hdmi_ip_data *ip_data)
 {

@@ -283,7 +283,7 @@ config HID_MAGICMOUSE
 
 config HID_MICROSOFT
 	tristate "Microsoft non-fully HID-compliant devices" if EXPERT
-	depends on USB_HID
+	depends on (USB_HID || BT_HIDP)
 	default !EXPERT
 	---help---
 	Support for Microsoft devices that are not fully compliant with HID standard.

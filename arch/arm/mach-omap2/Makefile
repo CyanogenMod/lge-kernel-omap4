@@ -306,7 +306,9 @@ obj-$(CONFIG_MACH_TI8168EVM)		+= board-ti8168evm.o
 # Platform specific device init code
 usbfs-$(CONFIG_ARCH_OMAP_OTG)		:= usb-fs.o
 obj-y					+= $(usbfs-m) $(usbfs-y)
+ifneq ($(CONFIG_MACH_LGE),y)
 obj-y					+= usb-musb.o
+endif
 obj-$(CONFIG_MACH_OMAP2_TUSB6010)	+= usb-tusb6010.o
 obj-y					+= usb-host.o
 
@@ -333,10 +335,23 @@ obj-$(CONFIG_OMAP_REMOTE_PROC)		+= remoteproc.o
 obj-$(CONFIG_OMAP_HSI_DEVICE)		+= omap_hsi.o
 obj-$(CONFIG_ION_OMAP)			+= omap4_ion.o
 obj-$(CONFIG_ARCH_OMAP4)		+= omap_dmm.o
+
+## LGE_SJIT_S 2011-08-25 [choongryeol.lee@lge.com] Port on K3.0
+obj-$(CONFIG_MACH_LGE) += lge/ \
+						  lpddr2_samsung_data.o \
+						  hsmmc.o \
+						  omap_phy_internal.o \
+						  board-44xx-identity.o	\
+						  omap4_apps_brd_id.o
+
+subdir-ccflags-$(CONFIG_ARCH_OMAP2PLUS) += -Iarch/arm/mach-omap2/lge/include
+## LGE_SJIT_E 2011-08-25 [choongryeol.lee@lge.com] Port lghdk on K3.0
+
 obj-$(CONFIG_OMAP_FIQ_DEBUGGER)		+= omap_fiq_debugger.o
 
 ifeq ($(CONFIG_OMAP_REBOOT_REASON),y)
-obj-$(CONFIG_ARCH_OMAP4)		+= omap4-reboot-reason.o
+obj-$(CONFIG_ARCH_OMAP4)		+= omap4-reboot-reason.o \
+					   twl_i2c.o
 endif
 
 obj-$(CONFIG_OMAP_RAM_CONSOLE)		+= omap_ram_console.o

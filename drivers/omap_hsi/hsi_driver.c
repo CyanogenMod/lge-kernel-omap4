@@ -43,7 +43,12 @@
 #define HSI_RESETDONE_NORMAL_RETRIES	1 /* Reset should complete in 1 R/W */
 					  /* cycle */
 
-
+// LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [START]
+#if defined(CONFIG_MACH_LGE_COSMO_REV_D) || defined(CONFIG_MACH_LGE_COSMO_DOMASTIC)
+/* Notify active/sleep status of AP to CP*/
+#define MODEM_SEND 		121 /* MODEM_SEND gpio_121 */
+#endif
+// LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [END]
 void hsi_hsr_suspend(struct hsi_dev *hsi_ctrl)
 {
 	struct hsi_platform_data *pdata = hsi_ctrl->dev->platform_data;
@@ -289,7 +294,7 @@ void hsi_set_pm_force_hsi_on(struct hsi_dev *hsi_ctrl)
 	/* SIdleAck and MStandby are never asserted */
 	hsi_outl((HSI_AUTOIDLE | HSI_SIDLEMODE_NO |
 				 HSI_MIDLEMODE_NO),
-		hsi_ctrl->base, HSI_SYS_SYSCONFIG_REG);
+		 hsi_ctrl->base, HSI_SYS_SYSCONFIG_REG);
 	hsi_outl(HSI_CLK_AUTOGATING_ON, hsi_ctrl->base, HSI_GDD_GCR_REG);
 
 	/* HSI_TODO : use the HWMOD API : omap_hwmod_set_slave_idlemode() */
@@ -682,9 +687,14 @@ void hsi_clocks_disable_channel(struct device *dev, u8 channel_number,
 	}
 
 	if (hsi_is_hst_controller_busy(hsi_ctrl))
+// LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [START]
+/* MIPI Unstable Downlink Throughput : Disable log ( dev_warn = >  dev_dbg) */
+#if 1
 		dev_dbg(dev, "Disabling clocks with HST FSM not IDLE !\n");
-
+#endif
+// LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [END]		
 #ifdef K3_0_PORTING_HSI_MISSING_FEATURE
+
 	/* Allow Fclk to change */
 	if (dpll_cascading_blocker_release(dev) < 0)
 		dev_warn(dev, "Error releasing DPLL cascading constraint\n");
@@ -811,6 +821,23 @@ static void hsi_controller_exit(struct hsi_dev *hsi_ctrl)
 	hsi_ports_exit(hsi_ctrl, hsi_ctrl->max_p);
 }
 
+// LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [START]
+/* Notify active/sleep status of AP to CP*/
+#if defined(CONFIG_MACH_LGE_COSMO_REV_D) || defined(CONFIG_MACH_LGE_COSMO_DOMASTIC)
+static void ifx_init_modem_send(void)
+{
+	int ret = 0;			
+	ret = gpio_request(MODEM_SEND, "MODEM_SEND");
+	if (ret < 0) {
+		printk(KERN_ERR "%s: Failed to request GPIO_%d for MODEM_SEND\n", __func__, MODEM_SEND);
+		return;
+	}
+	
+	gpio_direction_output(MODEM_SEND, 1);
+}
+#endif
+// LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [END]
+
 /* HSI Platform Device probing & hsi_device registration */
 static int __init hsi_platform_device_probe(struct platform_device *pd)
 {
@@ -909,6 +936,18 @@ static int __init hsi_platform_device_probe(struct platform_device *pd)
 	/* From here no need for HSI HW access */
 	hsi_clocks_disable(hsi_ctrl->dev, __func__);
 
+// LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [START]
+#if defined(CONFIG_MACH_LGE_COSMOPOLITAN)
+	/* Set IMC CP core dump */
+	IFX_CP_CRASH_DUMP_INIT();
+#endif
+
+#if defined(CONFIG_MACH_LGE_COSMO_REV_D) || defined(CONFIG_MACH_LGE_COSMO_DOMASTIC)
+	/* Notify active/sleep status of AP to CP*/
+	ifx_init_modem_send();
+#endif
+// LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [END]
+
 	return 0;
 
 rollback3:
@@ -980,6 +1019,15 @@ static int hsi_pm_suspend(struct device *dev)
 		return -EBUSY;
 	}
 
+// LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [START]
+/* Notify active/sleep status of AP to CP */
+#if defined(CONFIG_MACH_LGE_COSMO_REV_D) || defined(CONFIG_MACH_LGE_COSMO_DOMASTIC)
+	/* set sleep status of AP */
+	dev_info(dev, "%s\n", __func__);
+	gpio_set_value(MODEM_SEND, 0);
+#endif
+// LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [END]
+
 	/* Perform HSI board specific action before platform suspend */
 	if (pdata->board_suspend)
 		for (i = 0; i < hsi_ctrl->max_p; i++)
@@ -1032,6 +1080,15 @@ static int hsi_pm_resume(struct device *dev)
 		for (i = 0; i < hsi_ctrl->max_p; i++)
 			pdata->board_resume(hsi_ctrl->hsi_port[i].port_number,
 					    device_may_wakeup(dev));
+
+// LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [START]
+/* Notify active/sleep status of AP to CP*/
+#if defined(CONFIG_MACH_LGE_COSMO_REV_D) || defined(CONFIG_MACH_LGE_COSMO_DOMASTIC)
+	/* set sleep status of AP */
+	dev_info(dev, "%s\n", __func__);
+	gpio_set_value(MODEM_SEND, 1);
+#endif
+	// LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [END]
 
 	return 0;
 }
@@ -1215,7 +1272,8 @@ static void __exit hsi_driver_exit(void)
 	pr_info(LOG_NAME "HSI DRIVER removed\n");
 }
 
-module_init(hsi_driver_init);
+late_initcall(hsi_driver_init);  //hyungsun.seo_111213 added for ICS
+//module_init(hsi_driver_init);
 module_exit(hsi_driver_exit);
 
 MODULE_ALIAS("platform:" HSI_MODULENAME);

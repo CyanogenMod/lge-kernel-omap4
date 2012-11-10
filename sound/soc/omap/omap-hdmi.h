@@ -33,4 +33,12 @@
 #define OMAP_HDMI_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | \
 				SNDRV_PCM_FMTBIT_S24_LE)
 
+
+#if 0
+	#define HDMI_AUDIO(format, args...) \
+		printk(KERN_INFO "[LG_AUDIO] func:%s, line:%d :: " format, __func__, __LINE__, ##args )
+#else
+	#define HDMI_AUDIO(format, ...)
+#endif
+
 #endif

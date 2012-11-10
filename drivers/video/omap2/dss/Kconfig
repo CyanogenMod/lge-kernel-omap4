@@ -91,6 +91,54 @@ config OMAP2_DSS_DSI
 
 	  See http://www.mipi.org/ for DSI spesifications.
 
+config P2_GAMMA
+	bool "P2 LCD Gamma"
+	depends on MACH_LGE_P2
+	default n
+	help
+	   P2 LCD Gamma Value Enable.
+
+choice
+        prompt "Memory split"
+	depends on P2_GAMMA
+        default P2_GAMMA_08
+        help
+          Select the desired split between kernel and user memory.
+ 
+          If you are not absolutely sure what you are doing, leave this
+          option alone!
+ 
+        config P2_GAMMA_08
+                bool "Gamma 0.8"
+        config P2_GAMMA_10
+                bool "Gamma 1.0"
+        config P2_GAMMA_12
+                bool "Gamma 1.2"
+	config P2_S_CURVE
+		bool "User Set Value"
+endchoice
+
+config U2_GAMMA
+	bool "U2 LCD Gamma"
+	depends on MACH_LGE_U2
+	default n
+	help
+	   U2 LCD Gamma Value Enable.
+
+choice
+        prompt "Memory split"
+	depends on MACH_LGE_U2
+        default U2_S_CURVE
+        help
+          Select the desired split between kernel and user memory.
+
+          If you are not absolutely sure what you are doing, leave this
+          option alone!
+
+	config U2_S_CURVE
+		bool "User Set Value"
+endchoice
+
 config OMAP2_DSS_FAKE_VSYNC
 	bool "Fake VSYNC irq from manual update displays"
 	default n

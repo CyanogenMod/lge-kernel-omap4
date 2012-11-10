@@ -1441,6 +1441,10 @@ enum ieee80211_sa_query_action {
 #define WLAN_AKM_SUITE_SAE			0x000FAC08
 #define WLAN_AKM_SUITE_FT_OVER_SAE	0x000FAC09
 
+//LGE_CHANGE_S, real-wifi@lge.com by kyunghoe.kim, 20120623, for ccx
+#define WLAN_AKM_SUITE_CCKM		0x000FAC04 /* CCKM */
+//LGE_CHANGE_E, real-wifi@lge.com by kyunghoe.kim, 20120623, for ccx
+
 #define WLAN_MAX_KEY_LEN		32
 
 #define WLAN_PMKID_LEN			16

@@ -54,6 +54,10 @@ enum kobject_action {
 	KOBJ_MOVE,
 	KOBJ_ONLINE,
 	KOBJ_OFFLINE,
+// LGE_CHANGE_S [sungho.jung@lge.com] 2012-03-03.
+	KOBJ_HDCP_ON,
+	KOBJ_HDCP_OFF,
+// LGE_CHANGE_E [sungho.jung@lge.com] 2012-03-03.
 	KOBJ_MAX
 };
 

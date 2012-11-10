@@ -28,6 +28,10 @@
 #define APP_DEVOFF	(1<<0)
 #define CON_DEVOFF	(1<<1)
 #define MOD_DEVOFF	(1<<2)
+/* LGE_BSP 2012-02-15 [myeonggyu.son@lge.com]
+ * Add SW_RESET because of TWL6030 Bug by wonhui.lee@lge.com
+ */
+#define SW_RESET    (1<<6)
 
 void twl6030_poweroff(void)
 {
@@ -41,7 +45,11 @@ void twl6030_poweroff(void)
 		return;
 	}
 
-	val |= APP_DEVOFF | CON_DEVOFF | MOD_DEVOFF;
+	/* LGE_BSP 2012-02-15 [myeonggyu.son@lge.com]
+   * Add SW_RESET because of TWL6030 Bug by wonhui.lee@lge.command
+   */
+    //val |= APP_DEVOFF | CON_DEVOFF | MOD_DEVOFF;
+   val |= SW_RESET | APP_DEVOFF | CON_DEVOFF | MOD_DEVOFF;
 
 	err = twl_i2c_write_u8(TWL_MODULE_PM_MASTER, val,
 				   TWL6030_PHOENIX_DEV_ON);

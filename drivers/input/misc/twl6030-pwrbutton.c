@@ -83,6 +83,7 @@ static irqreturn_t powerbutton_irq(int irq, void *_pwr)
 
 	hw_state = twl6030_readb(pwr, TWL6030_MODULE_ID0, STS_HW_CONDITIONS);
 	pwr_val = !(hw_state & PWR_PWRON_IRQ);
+    printk("%s: power button status %d\n", __func__, pwr_val);
 	if ((prev_hw_state != pwr_val) && (prev_hw_state != 0xFFFF)) {
 		push_release_flag = 0;
 		input_report_key(pwr->input_dev, pwr->report_key, pwr_val);
@@ -123,7 +124,7 @@ static int __devinit twl6030_pwrbutton_probe(struct platform_device *pdev)
 
 	__set_bit(EV_KEY, pwr_button->input_dev->evbit);
 
-	pwr_button->report_key = KEY_END;
+	pwr_button->report_key = KEY_POWER;
 	pwr_button->dev = &pdev->dev;
 	pwr_button->input_dev->evbit[0] = BIT_MASK(EV_KEY);
 	pwr_button->input_dev->keybit[BIT_WORD(pwr_button->report_key)] =

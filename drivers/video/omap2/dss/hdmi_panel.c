@@ -36,6 +36,11 @@ static struct {
 	struct switch_dev hpd_switch;
 } hdmi;
 
+// wooho47.jung@lge.com 2012.04.19
+// ADD : for Hidden Menu
+static int nbestScore = 0;
+extern  struct omap_dss_device *get_hdmi_device(void);
+
 static ssize_t hdmi_deepcolor_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -148,6 +153,34 @@ static ssize_t hdmi_s3d_enable_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", r);
 }
 
+// wooho47.jung@lge.com 2012.04.19
+// ADD : for Hidden Menu
+static ssize_t hdmi_bestScore_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", nbestScore);
+}
+
+// wooho47.jung@lge.com 2012.04.19
+// ADD : for Hidden Menu
+static ssize_t hdmi_bestScore_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t size)
+{
+    struct omap_dss_device *dssdev = get_hdmi_device();
+
+    if(!buf)
+    {
+        DSSERR("failed to store the score\n");
+        return size;
+    }
+    nbestScore = simple_strtoul(buf, NULL, 10);
+    kobject_uevent(&dssdev->dev.kobj, KOBJ_ADD);
+
+	return size;
+}
+
 static DEVICE_ATTR(s3d_enable, S_IRUGO | S_IWUSR, hdmi_s3d_enable_show,
 							hdmi_s3d_enable_store);
 static DEVICE_ATTR(s3d_type, S_IRUGO | S_IWUSR, hdmi_s3d_mode_show,
@@ -155,12 +188,19 @@ static DEVICE_ATTR(s3d_type, S_IRUGO | S_IWUSR, hdmi_s3d_mode_show,
 static DEVICE_ATTR(edid, S_IRUGO, hdmi_edid_show, NULL);
 static DEVICE_ATTR(deepcolor, S_IRUGO | S_IWUSR, hdmi_deepcolor_show,
 							hdmi_deepcolor_store);
+// wooho47.jung@lge.com 2012.04.19
+// ADD : for Hidden Menu
+static DEVICE_ATTR(bestScore, S_IRUGO | S_IWUSR, hdmi_bestScore_show,
+							hdmi_bestScore_store);
 
 static struct attribute *hdmi_panel_attrs[] = {
 	&dev_attr_s3d_enable.attr,
 	&dev_attr_s3d_type.attr,
 	&dev_attr_edid.attr,
 	&dev_attr_deepcolor.attr,
+    // wooho47.jung@lge.com 2012.04.19
+    // ADD : for Hidden Menu
+	&dev_attr_bestScore.attr,
 	NULL,
 };
 
@@ -175,6 +215,10 @@ static int hdmi_panel_probe(struct omap_dss_device *dssdev)
 	dssdev->panel.config = OMAP_DSS_LCD_TFT |
 			OMAP_DSS_LCD_IVS | OMAP_DSS_LCD_IHS;
 
+// wooho47.jung@lge.com 2012.04.19
+// MOD : for default mode. p2 is not dvi, is hdmi.
+// LGE_CHANGE_S [sungho.jung@lge.com] 2012-04-03,  Change the default timings set [640*480 --> 1280*720]
+#if 0
 	/*
 	 * Initialize the timings to 640 * 480
 	 * This is only for framebuffer update not for TV timing setting
@@ -182,12 +226,20 @@ static int hdmi_panel_probe(struct omap_dss_device *dssdev)
 	 */
 	dssdev->panel.timings.x_res = 640;
 	dssdev->panel.timings.y_res = 480;
+#else
+	dssdev->panel.timings.x_res = 1280;
+	dssdev->panel.timings.y_res = 720;
+#endif
+// LGE_CHANGE_E [sungho.jung@lge.com] 2012-04-03
 
 	/* sysfs entry to provide user space control to set deepcolor mode */
 	if (sysfs_create_group(&dssdev->dev.kobj, &hdmi_panel_attr_group))
 		DSSERR("failed to create sysfs entries\n");
 
 	DSSDBG("hdmi_panel_probe x_res= %d y_res = %d\n",
+		dssdev->panel.timings.x_res,
+		dssdev->panel.timings.y_res);
+	HDMIDBG("hdmi_panel_probe x_res= %d y_res = %d\n",
 		dssdev->panel.timings.x_res,
 		dssdev->panel.timings.y_res);
 	return 0;
@@ -202,6 +254,7 @@ static int hdmi_panel_enable(struct omap_dss_device *dssdev)
 {
 	int r = 0;
 	DSSDBG("ENTER hdmi_panel_enable\n");
+	HDMIDBG("ENTER \n");
 
 	mutex_lock(&hdmi.hdmi_lock);
 
@@ -219,12 +272,14 @@ static int hdmi_panel_enable(struct omap_dss_device *dssdev)
 	dssdev->state = OMAP_DSS_DISPLAY_ACTIVE;
 err:
 	mutex_unlock(&hdmi.hdmi_lock);
+	HDMIDBG("error:%d\n", r);
 
 	return r;
 }
 
 static void hdmi_panel_disable(struct omap_dss_device *dssdev)
 {
+	HDMIDBG("ENTER \n");
 	mutex_lock(&hdmi.hdmi_lock);
 
 	if (dssdev->state == OMAP_DSS_DISPLAY_ACTIVE)
@@ -239,6 +294,7 @@ static int hdmi_panel_suspend(struct omap_dss_device *dssdev)
 {
 	int r = 0;
 
+	HDMIDBG("ENTER \n");
 	mutex_lock(&hdmi.hdmi_lock);
 
 	if (dssdev->state != OMAP_DSS_DISPLAY_ACTIVE) {
@@ -259,6 +315,7 @@ static int hdmi_panel_resume(struct omap_dss_device *dssdev)
 {
 	int r = 0;
 
+	HDMIDBG("ENTER \n");
 	mutex_lock(&hdmi.hdmi_lock);
 
 	if (dssdev->state != OMAP_DSS_DISPLAY_SUSPENDED) {
@@ -272,6 +329,7 @@ err:
 
 	hdmi_panel_hpd_handler(hdmi_get_current_hpd());
 
+	HDMIDBG("error:%d \n", r);
 	return r;
 }
 
@@ -286,19 +344,17 @@ static struct hpd_worker_data {
 	atomic_t state;
 } hpd_work;
 static struct workqueue_struct *my_workq;
+//extern  struct omap_dss_device *get_hdmi_device(void);
 
 static void hdmi_hotplug_detect_worker(struct work_struct *work)
 {
 	struct hpd_worker_data *d = container_of(work, typeof(*d), dwork.work);
-	struct omap_dss_device *dssdev = NULL;
 	int state = atomic_read(&d->state);
+// LGE_CHANGE_S [sungho.jung@lge.com] 2012-04-03
+	struct omap_dss_device *dssdev = get_hdmi_device();
+// LGE_CHANGE_E [sungho.jung@lge.com] 2012-04-03
 
-	int match(struct omap_dss_device *dssdev, void *arg)
-	{
-		return sysfs_streq(dssdev->name , "hdmi");
-	}
-	dssdev = omap_dss_find_device(NULL, match);
-
+	HDMIDBG("in hpd work %d, state=%d\n", state, dssdev->state);
 	pr_err("in hpd work %d, state=%d\n", state, dssdev->state);
 	if (dssdev == NULL)
 		return;
@@ -326,6 +382,9 @@ static void hdmi_hotplug_detect_worker(struct work_struct *work)
 			/* get monspecs from edid */
 			hdmi_get_monspecs(&dssdev->panel.monspecs);
 			pr_info("panel size %d by %d\n",
+					dssdev->panel.monspecs.max_x,
+					dssdev->panel.monspecs.max_y);
+			HDMIDBG("panel size %d by %d\n",
 					dssdev->panel.monspecs.max_x,
 					dssdev->panel.monspecs.max_y);
 			dssdev->panel.width_in_um =

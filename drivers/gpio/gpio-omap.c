@@ -30,6 +30,9 @@
 #include <asm/mach/irq.h>
 #include <plat/omap-pm.h>
 #include <plat/usb.h> /* for omap4_trigger_ioctrl */
+#ifdef CONFIG_LGE_WORKAROUND_IGNORE_WAKEUP_GPIOS
+#include <lge/common.h>
+#endif
 
 #include "../mux.h"
 
@@ -1340,6 +1343,14 @@ static void omap2_gpio_set_wakeupenables(struct gpio_bank *bank, bool suspend)
 			pad_wakeup &= ~0xf;
 		if (bank->id == 2)
 			pad_wakeup &= ~BIT(22);
+
+		/* LGE_SJIT 2012-01-18 [dojip.kim@lge.com]
+		 * Exclude GPIOs which are not intended to wakeup
+		 * the system
+		 */
+#ifdef CONFIG_LGE_WORKAROUND_IGNORE_WAKEUP_GPIOS
+		pad_wakeup &= ~(lge_get_no_pad_wakeup_gpios(bank->id));
+#endif
 	}
 
 	for_each_set_bit(i, &pad_wakeup, bank->width) {

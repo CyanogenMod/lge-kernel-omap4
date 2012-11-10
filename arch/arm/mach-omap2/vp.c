@@ -71,8 +71,25 @@ void __init omap_vp_init(struct voltagedomain *voltdm)
 	sys_clk_rate = voltdm->sys_clk.rate / 1000;
 
 	timeout = (sys_clk_rate * voltdm->pmic->vp_timeout_us) / 1000;
-	vddmin = voltdm->pmic->uv_to_vsel(voltdm->pmic->vp_vddmin);
-	vddmax = voltdm->pmic->uv_to_vsel(voltdm->pmic->vp_vddmax);
+// LGE_CHANGE_START [bk.shin@lge.com] 2012-04-25,  TI patch : introduce SoC limit parameters
+	if (!vp->vlimits) {
+		WARN(1, "%s: voldm_%s: No limits for VP? Using PMIC data\n",
+				__func__, voltdm->name);
+// LGE_CHANGE_START [bk.shin@lge.com] 2012-04-25,  TI patch : do not allow voltage lower than retention voltage
+		vddmin = voltdm->pmic->uv_to_vsel(max(voltdm->pmic->ret_volt,
+											voltdm->pmic->min_volt));
+// LGE_CHANGE_END [bk.shin@lge.com] 2012-04-25
+		vddmax = voltdm->pmic->uv_to_vsel(voltdm->pmic->max_volt);
+	} else {
+// LGE_CHANGE_START [bk.shin@lge.com] 2012-04-25,  TI patch : do not allow voltage lower than retention voltage
+		vddmin = voltdm->pmic->uv_to_vsel(max(voltdm->pmic->ret_volt,
+										max(voltdm->pmic->min_volt,
+										vp->vlimits->vddmin)));
+// LGE_CHANGE_END [bk.shin@lge.com] 2012-04-25
+		vddmax = voltdm->pmic->uv_to_vsel(min(voltdm->pmic->max_volt,
+										vp->vlimits->vddmax));
+	}
+// LGE_CHANGE_END [bk.shin@lge.com] 2012-04-25
 
 	waittime = DIV_ROUND_UP(voltdm->pmic->step_size * sys_clk_rate,
 				1000 * voltdm->pmic->slew_rate);

@@ -86,6 +86,8 @@
 #define TWL6030_MODULE_CHARGER TWL4030_MODULE_MAIN_CHARGE
 #define TWL_MODULE_PM_SLAVE_RES	TWL6030_MODULE_SLAVE_RES
 
+#define TWL6030_MODULE_CHARGER	TWL4030_MODULE_MAIN_CHARGE
+
 #define TWL6030_MODULE_GASGAUGE 0x0B
 #define TWL6030_MODULE_ID0	0x0D
 #define TWL6030_MODULE_ID1	0x0E
@@ -131,7 +133,16 @@
 #define REG_INT_MSK_STS_C		0x08
 
 /* MASK INT REG GROUP A */
+/* LGE_CHANGE_S [euiseop.shin@lge.com] 2011-04-13 */
+//kibum.lee
+#ifdef CONFIG_MACH_LGE
+#define TWL6030_PWR_INT_MASK 		0x03
+#define TWL6030_VBAT_LOW_MASK 		0x04
+#else	/* original */
 #define TWL6030_PWR_INT_MASK 		0x07
+#endif
+/* LGE_CHANGE_E [euiseop.shin@lge.com] 2011-04-13 */
+
 #define TWL6030_RTC_INT_MASK 		0x18
 #define TWL6030_HOTDIE_INT_MASK 	0x20
 #define TWL6030_SMPSLDOA_INT_MASK	0xC0
@@ -164,6 +175,19 @@
 #define MMC_PD				(0x1 << 2)
 
 #define VLOW_INT_MASK			(0x1 << 2)
+/* TWL6030 vibrator registers */
+#define TWL6030_VIBCTRL			0x9B
+#define TWL6030_VIBMODE			0x9C
+#define TWL6030_PWM1ON			0xBA
+#define	TWL6030_PWM1OFF			0xBB
+#define TWL6030_PWM2ON			0xBD
+#define TWL6030_PWM2OFF			0xBE
+
+/* TWL6030 control interface  registers */
+#define TWL6030_TOGGLE1			0x90
+#define TWL6030_TOGGLE2			0x91
+#define TWL6030_TOGGLE3			0x92
+
 
 #define TWL_SIL_TYPE(rev)		((rev) & 0x00FFFFFF)
 #define TWL_SIL_REV(rev)		((rev) >> 24)
@@ -229,6 +253,7 @@ static inline int twl6030_mmc_card_detect(struct device *dev, int slot)
 	return -EIO;
 }
 #endif
+
 /*----------------------------------------------------------------------*/
 
 /*
@@ -514,6 +539,12 @@ int twl6030_unregister_notifier(struct notifier_block *nb,
 #define RES_GRP_ALL		0x7	/* All resource groups */
 
 #define RES_TYPE2_R0		0x0
+#define RES_TYPE2_R1            0x1
+#define RES_TYPE2_R2            0x2
+
+#define RES_TYPE_R0             0x0
+
+
 
 #define RES_TYPE_ALL		0x7
 
@@ -645,6 +676,13 @@ struct twl4030_bci_platform_data {
 	unsigned int use_power_path;
 	unsigned long features;
 	unsigned int use_eeprom_config;
+
+	/* LGE_SJIT 2012-01-25 [dojip.kim@lge.com]
+	 * LGE specific platform data
+	 */
+#ifdef CONFIG_MACH_LGE
+	int gpio_omap_send;
+#endif
 };
 
 /* TWL4030_GPIO_MAX (18) GPIOs, with interrupts */
@@ -782,9 +820,17 @@ struct twl4030_codec_audio_data {
 
 	/* twl6040 */
 	int vddhf_uV;
+
+/* LGE_CHANGE_S [ty.lee@lge.com] 2010-10-20, Enable Headset detection */
+#if defined(CONFIG_MACH_LGE_COSMO_HW_A)
+	unsigned int hsjack_gpio;
+	unsigned int hsjack_irq;
+#endif
+/* LGE_CHANGE_E [ty.lee@lge.com] 2010-10-20 */
 };
 
 struct twl4030_codec_vibra_data {
+	unsigned int	audio_mclk;
 	unsigned int	coexist;
 
 	/* timed-output based implementations */
@@ -853,6 +899,7 @@ struct twl4030_platform_data {
 	struct regulator_init_data              *vcxio;
 	struct regulator_init_data              *vusb;
 	struct regulator_init_data		*clk32kg;
+
 	struct regulator_init_data              *clk32kaudio;
 	/* TWL6032 LDO regulators */
 	struct regulator_init_data		*ldo1;
@@ -872,6 +919,13 @@ struct twl4030_platform_data {
 	/* External control pins */
 	struct regulator_init_data		*sysen;
 	struct regulator_init_data		*regen1;
+/* LGE_SJIT 2011-11-16, from p940
+ *
+ * ORIG: [yehan.ahn@lge.com] 2011-06-09, add regen1, regen2
+ */
+#if defined(CONFIG_MACH_LGE)
+    struct regulator_init_data              *regen2;
+#endif
 };
 
 /*----------------------------------------------------------------------*/
@@ -882,11 +936,22 @@ int twl4030_sih_setup(int module);
 #define TWL4030_VDAC_DEV_GRP		0x3B
 #define TWL4030_VDAC_DEDICATED		0x3E
 #define TWL4030_VAUX1_DEV_GRP		0x17
+#define TWL4030_VAUX1_TYPE		0x18
+#define TWL4030_VAUX1_REMAP		0x19
 #define TWL4030_VAUX1_DEDICATED		0x1A
 #define TWL4030_VAUX2_DEV_GRP		0x1B
+#define TWL4030_VAUX2_TYPE		0x1C
+#define TWL4030_VAUX2_REMAP		0x1D
 #define TWL4030_VAUX2_DEDICATED		0x1E
 #define TWL4030_VAUX3_DEV_GRP		0x1F
+#define TWL4030_VAUX3_TYPE		0x20
+#define TWL4030_VAUX3_REMAP		0x21
 #define TWL4030_VAUX3_DEDICATED		0x22
+#define TWL4030_VAUX4_DEV_GRP		0x23
+#define TWL4030_VAUX4_TYPE		0x24
+#define TWL4030_VAUX4_REMAP		0x25
+#define TWL4030_VAUX4_DEDICATED		0x26
+
 
 static inline int twl4030charger_usb_en(int enable) { return 0; }
 
@@ -974,7 +1039,197 @@ static inline int twl4030charger_usb_en(int enable) { return 0; }
 /* External control pins */
 #define TWL6030_REG_SYSEN	62
 #define TWL6030_REG_REGEN1	63
-
+/* LGE_SJIT 2011-11-16 [dojip.kim@lge.com] change the start num: 60 -> 80
+ *
+ * ORIG: [yehan.ahn@lge.com] 2011-06-09, add regen1, regen2
+ * start num = 60, because of merging with TI. TI can use 49.
+ */
+#if defined(CONFIG_MACH_LGE)
+#define TWL6030_REG_REGEN2	81
+#endif
 #define TWL6032_PREQ1_RES_ASS_A	0xd7
+
+#if defined(CONFIG_MACH_LGE)
+
+#define CONTROLLER_INT_MASK	0x00
+#define CONTROLLER_CTRL1	0x01
+#define CONTROLLER_WDG		0x02
+#define CONTROLLER_STAT1	0x03
+#define CHARGERUSB_INT_STATUS	0x04
+#define CHARGERUSB_INT_MASK	0x05
+#define CHARGERUSB_STATUS_INT1	0x06
+#define CHARGERUSB_STATUS_INT2	0x07
+#define CHARGERUSB_CTRL1	0x08
+#define CHARGERUSB_CTRL2	0x09
+#define CHARGERUSB_CTRL3	0x0A
+#define CHARGERUSB_STAT1	0x0B
+#define CHARGERUSB_VOREG	0x0C
+#define CHARGERUSB_VICHRG	0x0D
+#define CHARGERUSB_CINLIMIT	0x0E
+#define CHARGERUSB_CTRLLIMIT1	0x0F
+#define CHARGERUSB_CTRLLIMIT2	0x10
+#define ANTICOLLAPSE_CTRL1	0x11
+#define ANTICOLLAPSE_CTRL2	0x12
+
+#define FG_REG_00	0x00
+#define FG_REG_01	0x01
+#define FG_REG_02	0x02
+#define FG_REG_03	0x03
+#define FG_REG_04	0x04
+#define FG_REG_05	0x05
+#define FG_REG_06	0x06
+#define FG_REG_07	0x07
+#define FG_REG_08	0x08
+#define FG_REG_09	0x09
+#define FG_REG_10	0x0A
+#define FG_REG_11	0x0B
+
+/* CONTROLLER_INT_MASK */
+#define MVAC_FAULT		(1 << 7)
+#define MAC_EOC			(1 << 6)
+#define MBAT_REMOVED		(1 << 4)
+#define MFAULT_WDG		(1 << 3)
+#define MBAT_TEMP		(1 << 2)
+#define MVBUS_DET		(1 << 1)
+#define MVAC_DET		(1 << 0)
+
+/* CONTROLLER_CTRL1 */
+#define CONTROLLER_CTRL1_EN_CHARGER	(1 << 4)
+#define CONTROLLER_CTRL1_SEL_CHARGER	(1 << 3)
+
+/* CONTROLLER_STAT1 */
+#define CONTROLLER_STAT1_EXTCHRG_STATZ	(1 << 7)
+#define CONTROLLER_STAT1_CHRG_DET_N	(1 << 5)
+#define CONTROLLER_STAT1_FAULT_WDG	(1 << 4)
+#define CONTROLLER_STAT1_VAC_DET	(1 << 3)
+#define VAC_DET	(1 << 3)
+#define CONTROLLER_STAT1_VBUS_DET	(1 << 2)
+#define VBUS_DET	(1 << 2)
+#define CONTROLLER_STAT1_BAT_REMOVED	(1 << 1)
+#define CONTROLLER_STAT1_BAT_TEMP_OVRANGE (1 << 0)
+
+/* CHARGERUSB_INT_STATUS */
+#define CURRENT_TERM_INT	(1 << 3)
+#define CHARGERUSB_STAT		(1 << 2)
+#define CHARGERUSB_THMREG	(1 << 1)
+#define CHARGERUSB_FAULT	(1 << 0)
+
+/* CHARGERUSB_INT_MASK */
+#define MASK_MCURRENT_TERM		(1 << 3)
+#define MASK_MCHARGERUSB_STAT		(1 << 2)
+#define MASK_MCHARGERUSB_THMREG		(1 << 1)
+#define MASK_MCHARGERUSB_FAULT		(1 << 0)
+
+/* CHARGERUSB_STATUS_INT1 */
+#define CHARGERUSB_STATUS_INT1_TMREG	(1 << 7)
+#define CHARGERUSB_STATUS_INT1_NO_BAT	(1 << 6)
+#define CHARGERUSB_STATUS_INT1_BST_OCP	(1 << 5)
+#define CHARGERUSB_STATUS_INT1_TH_SHUTD	(1 << 4)
+#define CHARGERUSB_STATUS_INT1_BAT_OVP	(1 << 3)
+#define CHARGERUSB_STATUS_INT1_POOR_SRC	(1 << 2)
+#define CHARGERUSB_STATUS_INT1_SLP_MODE	(1 << 1)
+#define CHARGERUSB_STATUS_INT1_VBUS_OVP	(1 << 0)
+
+/* CHARGERUSB_STATUS_INT2 */
+#define ICCLOOP		(1 << 3)
+#define CURRENT_TERM	(1 << 2)
+#define CHARGE_DONE	(1 << 1)
+#define ANTICOLLAPSE	(1 << 0)
+
+/* CHARGERUSB_CTRL1 */
+#define SUSPEND_BOOT	(1 << 7)
+#define OPA_MODE	(1 << 6)
+#define HZ_MODE		(1 << 5)
+#define TERM		(1 << 4)
+
+/* CHARGERUSB_CTRL2 */
+#define CHARGERUSB_CTRL2_VITERM_50	(0 << 5)
+#define CHARGERUSB_CTRL2_VITERM_100	(1 << 5)
+#define CHARGERUSB_CTRL2_VITERM_150	(2 << 5)
+#define CHARGERUSB_CTRL2_VITERM_400	(7 << 5)
+
+/* CHARGERUSB_CTRL3 */
+#define VBUSCHRG_LDO_OVRD	(1 << 7)
+#define CHARGE_ONCE		(1 << 6)
+#define BST_HW_PR_DIS		(1 << 5)
+#define AUTOSUPPLY		(1 << 3)
+#define BUCK_HSILIM		(1 << 0)
+
+/* CHARGERUSB_VOREG */
+#define CHARGERUSB_VOREG_3P52		0x01
+#define CHARGERUSB_VOREG_4P0		0x19
+#define CHARGERUSB_VOREG_4P2		0x23
+#define CHARGERUSB_VOREG_4P76		0x3F
+
+/* CHARGERUSB_VICHRG */
+#define CHARGERUSB_VICHRG_300		0x0
+#define CHARGERUSB_VICHRG_500		0x4
+#define CHARGERUSB_VICHRG_1500		0xE
+
+/* CHARGERUSB_CINLIMIT */
+#define CHARGERUSB_CIN_LIMIT_100	0x1
+#define CHARGERUSB_CIN_LIMIT_300	0x5
+#define CHARGERUSB_CIN_LIMIT_500	0x9
+#define CHARGERUSB_CIN_LIMIT_NONE	0xF
+
+/* CHARGERUSB_CTRLLIMIT1 */
+#define VOREGL_4P16			0x21
+#define VOREGL_4P56			0x35
+
+/* CHARGERUSB_CTRLLIMIT2 */
+#define CHARGERUSB_CTRLLIMIT2_1500	0x0E
+#define		LOCK_LIMIT		(1 << 4)
+
+/* ANTICOLLAPSE_CTRL2 */
+#define BUCK_VTH_SHIFT			5
+
+/* FG_REG_00 */
+#define CC_ACTIVE_MODE_SHIFT	6
+#define CC_AUTOCLEAR		(1 << 2)
+#define CC_CAL_EN		(1 << 1)
+#define CC_PAUSE		(1 << 0)
+
+#define REG_TOGGLE1		0x90
+#define FGDITHS			(1 << 7)
+#define FGDITHR			(1 << 6)
+#define FGS			(1 << 5)
+#define FGR			(1 << 4)
+
+#define PWDNSTATUS2		0x94
+
+/* TWL6030_GPADC_CTRL */
+#define GPADC_CTRL_TEMP1_EN	(1 << 0)    /* input ch 1 */
+#define GPADC_CTRL_TEMP2_EN	(1 << 1)    /* input ch 4 */
+#define GPADC_CTRL_SCALER_EN	(1 << 2)    /* input ch 2 */
+#define GPADC_CTRL_SCALER_DIV4	(1 << 3)
+#define GPADC_CTRL_SCALER_EN_CH11	(1 << 4)    /* input ch 11 */
+#define GPADC_CTRL_TEMP1_EN_MONITOR	(1 << 5)
+#define GPADC_CTRL_TEMP2_EN_MONITOR	(1 << 6)
+#define GPADC_CTRL_ISOURCE_EN		(1 << 7)
+#define ENABLE_ISOURCE		0x80
+
+#define REG_MISC1		0xE4
+#define VAC_MEAS		0x04
+#define VBAT_MEAS		0x02
+#define BB_MEAS			0x01
+
+#define REG_USB_VBUS_CTRL_SET	0x04
+#define VBUS_MEAS		0x01
+#define REG_USB_ID_CTRL_SET	0x06
+#define ID_MEAS			0x01
+
+/* TWL6030_BBSPOR_CFG*/
+#define BBSPOR_CFG             0xE6
+#define VRTC_EN_SLP_STS         (1 << 6)
+#define VRTC_EN_OFF_STS         (1 << 5) 
+#define VRTC_PWEN               (1 << 4)
+#define BB_CHG_EN               (1 << 3)
+#define BB_SEL_2V4              (0 << 1)
+#define BB_SEL_2V5              (1 << 1)
+#define BB_SEL_2V6              (2 << 1)
+#define BB_SEL_VBAT             (3 << 1)
+
+#endif	/* CONFIG_MAHC_LGE */
+/* LGE_CHANGE_E [jongho3.lee@lge.com] ?-?-? */
 
 #endif /* End of __TWL4030_H */

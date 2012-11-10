@@ -551,6 +551,10 @@ static int dsscomp_probe(struct platform_device *pdev)
 		debugfs_create_file("log", S_IRUGO,
 			cdev->dbgfs, dsscomp_dbg_events, &dsscomp_debug_fops);
 #endif
+#ifdef CONFIG_DSSCOMP_COPY_FOR_ROT
+		debugfs_create_file("rotbuf", S_IRUGO,
+			cdev->dbgfs, dsscomp_dbg_rotbuf_mgr, &dsscomp_debug_fops);
+#endif
 	}
 
 	cdev->pdev = &pdev->dev;
@@ -564,12 +568,18 @@ static int dsscomp_probe(struct platform_device *pdev)
 	dsscomp_queue_init(cdev);
 	dsscomp_gralloc_init(cdev);
 
+#ifdef CONFIG_DSSCOMP_COPY_FOR_ROT
+	dsscomp_rotbuf_mgr_init();
+#endif
 	return 0;
 }
 
 static int dsscomp_remove(struct platform_device *pdev)
 {
 	struct dsscomp_dev *cdev = platform_get_drvdata(pdev);
+#ifdef CONFIG_DSSCOMP_COPY_FOR_ROT
+	dsscomp_rotbuf_mgr_deinit();
+#endif
 	misc_deregister(&cdev->dev);
 	debugfs_remove_recursive(cdev->dbgfs);
 	dsscomp_queue_exit();

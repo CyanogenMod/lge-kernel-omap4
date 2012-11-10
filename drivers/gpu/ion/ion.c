@@ -134,6 +134,7 @@ static void ion_handle_destroy(struct kref *kref)
 	/* XXX Can a handle be destroyed while it's map count is non-zero?:
 	   if (handle->map_cnt) unmap
 	 */
+	WARN_ON(handle->kmap_cnt || handle->dmap_cnt || handle->usermap_cnt);
 	ion_buffer_put(handle->buffer);
 	mutex_lock(&handle->client->lock);
 	if (!RB_EMPTY_NODE(&handle->node))
@@ -503,8 +504,8 @@ struct ion_handle *ion_import_fd(struct ion_client *client, int fd)
 		return ERR_PTR(-EINVAL);
 	}
 	if (file->f_op != &ion_share_fops) {
-		pr_err("%s: imported file is not a shared ion file.\n",
-		       __func__);
+		pr_err("%s: imported file %s is not a shared ion"
+			" file.", __func__, file->f_dentry->d_name.name);
 		handle = ERR_PTR(-EINVAL);
 		goto end;
 	}
@@ -706,7 +707,8 @@ static int ion_client_put(struct ion_client *client)
 
 void ion_client_destroy(struct ion_client *client)
 {
-	ion_client_put(client);
+	if (client)
+		ion_client_put(client);
 }
 EXPORT_SYMBOL(ion_client_destroy);
 

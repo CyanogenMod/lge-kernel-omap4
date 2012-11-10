@@ -584,7 +584,7 @@ void __init omap_vram_reserve_sdram_memblock(void)
 
 	omap_vram_add_region(paddr, size);
 
-	pr_info("Reserving %u bytes SDRAM for VRAM\n", size);
+	pr_info("Reserving %u bytes SDRAM for VRAM at address 0x%x\n", size,paddr); // 1G Dynamic alloc - 18827
 }
 
 /*
@@ -650,6 +650,7 @@ void __init omap_vram_set_sdram_vram(u32 size, u32 start)
 {
 	omap_vram_sdram_start = start;
 	omap_vram_sdram_size = size;
+	printk("omap_vram_set_sdram_vram() omap_vram_sdram_start =0x%x, omap_vram_sdram_size=0x%x.\n", start, size);
 }
 
 void __init omap_vram_set_sram_vram(u32 size, u32 start)

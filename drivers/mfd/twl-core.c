@@ -58,6 +58,10 @@
  * (and associated registers).
  */
 
+/* LGE_SJIT 2012-02-06 [dojip.kim@lge.com]
+ * below is defined by kconfig
+ */
+//#define CONFIG_TWL6030_BCI_BATTERY
 #define DRIVER_NAME			"twl"
 
 #if defined(CONFIG_KEYBOARD_TWL4030) || defined(CONFIG_KEYBOARD_TWL4030_MODULE)
@@ -1094,15 +1098,33 @@ add_children(struct twl4030_platform_data *pdata, unsigned long features)
 		if (IS_ERR(child))
 			return PTR_ERR(child);
 
+#if !defined(CONFIG_MACH_LGE)
 		child = add_regulator(TWL6030_REG_SYSEN,
 				pdata->sysen, features);
 		if (IS_ERR(child))
 			return PTR_ERR(child);
+#endif
 
+		/* LGE_SJIT 2011-11-16 [dojip.kim@lge.com] from p940
+		 *
+		 * ORIG: [yehan.ahn@lge.com] 2011-06-09, add regen1, regen2
+		 */
+#if defined(CONFIG_MACH_LGE)
+		child = add_regulator(TWL6030_REG_REGEN1, pdata->regen1,
+					features);
+#else
 		child = add_regulator(TWL6030_REG_REGEN1,
 				pdata->sysen, features);
+#endif
 		if (IS_ERR(child))
 			return PTR_ERR(child);
+
+#if defined(CONFIG_MACH_LGE)
+		child = add_regulator(TWL6030_REG_REGEN2, pdata->regen2,
+					features);
+		if (IS_ERR(child))
+			return PTR_ERR(child);
+#endif
 	}
 
 	/* twl6032 regulators */
@@ -1349,7 +1371,14 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 				dev_err(&client->dev,
 					"can't attach client %d\n", i);
 				status = -ENOMEM;
+				/* LGE_SJIT 2012-02-06 [dojip.kim@lge.com]
+				 * fix memory leaks
+				 */
+#ifdef CONFIG_MACH_LGE
+				goto err_i2c_register_device;
+#else
 				goto fail;
+#endif
 			}
 		}
 		mutex_init(&twl->xfer_lock);
@@ -1401,7 +1430,14 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		}
 
 		if (status < 0)
+			/* LGE_SJIT 2012-02-06 [dojip.kim@lge.com]
+			 * fix memory leaks
+			 */
+#ifdef CONFIG_MACH_LGE
+			goto err_init_irq;
+#else
 			goto fail;
+#endif
 	}
 
 	/* Disable TWL4030/TWL5030 I2C Pull-up on I2C1 and I2C4(SR) interface.
@@ -1417,10 +1453,38 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}
 
 	status = add_children(pdata, features);
+
+	/* LGE_SJIT 2012-02-06 [dojip.kim@lge.com]
+	 * fix memory leaks
+	 */
+#ifdef CONFIG_MACH_LGE
+	if (status < 0)
+		goto err_add_children;
+
+	return 0;
+err_add_children:
+	if (twl_class_is_4030())
+		twl4030_exit_irq();
+	else
+		twl6030_exit_irq();
+err_init_irq:
+	for (i = TWL_NUM_SLAVES-1; i > 0; i--) {
+		struct twl_client *twl = &twl_modules[i];
+		if (twl->client)
+			i2c_unregister_device(twl->client);
+		twl->client = NULL;
+err_i2c_register_device:
+		;
+	}
+	twl_modules[0].client = NULL;
+
+	return status;
+#else
 fail:
 	if (status < 0)
 		twl_remove(client);
 	return status;
+#endif
 }
 
 static const struct i2c_device_id twl_ids[] = {

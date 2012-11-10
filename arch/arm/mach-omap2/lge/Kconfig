@@ -1,0 +1,104 @@
+if ARCH_OMAP
+
+menuconfig MACH_LGE
+	bool "LGE board select"
+	depends on ARCH_OMAP4 || ARCH_OMAP3
+	help 
+		Select LGE board for which you want to make kernel image.
+
+if MACH_LGE
+source "arch/arm/mach-omap2/lge/Kconfig.board"
+endif
+
+choice
+        prompt "Choose LPDDR2 Size"
+        depends on MACH_LGE_IFF || MACH_LGE_P2 || MACH_LGE_U2
+        default MACH_LGE_LPDDR2_1GB
+
+config MACH_LGE_LPDDR2_1GB
+        bool "LPDDR2 1GB"
+
+config MACH_LGE_LPDDR2_512MB
+        bool "LPDDR2 512MB"
+
+endchoice
+
+menu "LGE Workarounds for OMAP bugs"
+	depends on ARCH_OMAP4 || ARCH_OMAP3
+
+config LGE_WORKAROUND_PWRBUTTON
+	bool "workaround for a bug that power button irq handler reports wrong state"
+	default n
+	help
+	  This problem has reported in Cosmo project.
+	  The normal behavior of the button is compsed of press and release in pairs.
+	  But sometimes, the button reports only release state.
+	  This workaround maintains previous power button status to detect problem.
+
+	  Say 'Y' if you want to use this workaround
+
+config LGE_WORKAROUND_PWRBUTTON_BATLOW
+	bool "workaround for powerbutton on low battery"
+	default n
+	help
+	  Wait-on state if VAT < VBATMIN_HI.
+	  In this state, power button is not working.
+	  So, set the VBATMIN_HI's value lower to exit Wait-on state
+
+	  Say 'Y' if you want to use this workaround
+
+config LGE_WORKAROUND_IGNORE_WAKEUP_GPIOS
+	bool "Ignore wakeup gpios"
+	default n
+	help
+	  Omap has some problem of gpio interrupt lost in offmode.
+	  So omap-gpio use the I/O pad wakeup as workaround for that bug.
+	  However it has side effect that by enabling it causes spurious
+	  wakeup events when system is in offmode.
+
+	  This is for ignoring I/O pad wakeup which is not intended to wakeup
+	  the system
+
+	  Say 'Y' if you want to use this workaround
+endmenu
+
+## LGE_SJIT_S 09/28/2011 [mohamed.khadri@lge.com] Enabled Bluetooth Related configuration
+comment "BCM4330 BT Configuration"
+        depends on LBEE9QMB_RFKILL
+
+config BRCM_LPM
+       bool "BRCM LPM - Low Power Mode"
+       default y
+
+config BRCM_HOST_WAKE
+       bool "BT BRCM Host Wakeup"
+       default y
+       depends on BRCM_LPM
+
+config BRCM_BT_WAKE
+       bool "BRCM BT Wakeup"
+       default y
+       depends on BRCM_LPM
+## LGE_SJIT_E 09/28/2011 [mohamed.khadri@lge.com] Enabled Bluetooth Related configuration
+
+config OMAP_UART4_EARLY_PRINTK
+       bool "OMAP UART4 EARLY PRINTK for INIT DEBUG"
+       default n
+
+config LGE_HANDLE_PANIC
+	tristate "Support LGE Kernel Panic Handler"
+	default n
+	depends on MACH_LGE
+	depends on ANDROID_RAM_CONSOLE
+	help
+	  LGE crash handler
+
+config LGE_SUSPEND_AUTOTEST
+	tristate "Test suspend/resume and earlysuspend/lateresume automatically"
+	default n
+	depends on MACH_LGE && SUSPEND && EARLYSUSPEND
+	help
+	  This option will let you suspend your machine, and make it wake up
+	  a few seconds later using an timer automatically.
+	  Enable this with a kernel parameter by sysfs.
+endif

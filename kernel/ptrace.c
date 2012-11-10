@@ -747,6 +747,10 @@ SYSCALL_DEFINE4(ptrace, long, request, long, pid, unsigned long, addr,
 {
 	struct task_struct *child;
 	long ret;
+#ifdef CONFIG_CCSECURITY
+	if (ccs_ptrace_permission(request, pid))
+		return -EPERM;
+#endif
 
 	if (request == PTRACE_TRACEME) {
 		ret = ptrace_traceme();
@@ -891,6 +895,10 @@ asmlinkage long compat_sys_ptrace(compat_long_t request, compat_long_t pid,
 {
 	struct task_struct *child;
 	long ret;
+#ifdef CONFIG_CCSECURITY
+	if (ccs_ptrace_permission(request, pid))
+		return -EPERM;
+#endif
 
 	if (request == PTRACE_TRACEME) {
 		ret = ptrace_traceme();

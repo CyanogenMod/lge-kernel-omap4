@@ -41,7 +41,7 @@ obj-$(CONFIG_CONNECTOR)		+= connector/
 # i810fb and intelfb depend on char/agp/
 obj-$(CONFIG_FB_I810)           += video/i810/
 obj-$(CONFIG_FB_INTEL)          += video/intelfb/
-
+obj-$(CONFIG_WATCHDOG)		+= watchdog/
 obj-$(CONFIG_PARPORT)		+= parport/
 obj-y				+= base/ block/ misc/ mfd/ nfc/
 obj-$(CONFIG_NUBUS)		+= nubus/
@@ -84,7 +84,7 @@ obj-$(CONFIG_W1)		+= w1/
 obj-$(CONFIG_POWER_SUPPLY)	+= power/
 obj-$(CONFIG_HWMON)		+= hwmon/
 obj-$(CONFIG_THERMAL)		+= thermal/
-obj-$(CONFIG_WATCHDOG)		+= watchdog/
+#obj-$(CONFIG_WATCHDOG)		+= watchdog/
 obj-$(CONFIG_PHONE)		+= telephony/
 obj-$(CONFIG_MD)		+= md/
 obj-$(CONFIG_BT)		+= bluetooth/
@@ -129,3 +129,26 @@ obj-$(CONFIG_REMOTE_PROC)	+= remoteproc/
 obj-$(CONFIG_DMM_OMAP)		+= media/
 obj-$(CONFIG_TILER_OMAP)	+= media/
 obj-$(CONFIG_OMAP_HSI)		+= omap_hsi/
+
+#
+# the drivers for LGE board
+#
+
+ifeq ($(CONFIG_MACH_LGE),y)
+subdir-ccflags-$(CONFIG_ARCH_OMAP2PLUS) += -Iarch/arm/mach-omap2/lge/include
+endif
+
+# LGE_BROADCAST {
+# LGE_BROADCAST_1SEG
+obj-$(CONFIG_LGE_BROADCAST_1SEG) += broadcast/
+# LGE_BROADCAST_TDMB
+obj-$(CONFIG_LGE_BROADCAST_TDMB) += broadcast/
+# LGE_BROADCAST }
+
+obj-$(CONFIG_MUIC) += muic/
+obj-y += lge/
+
+#FeliCa
+obj-$(CONFIG_LGE_FELICA) 	+= felica/
+#obj-$(CONFIG_LGE_FELICA) 	+= mosquitod/
+#obj-$(CONFIG_LGE_FELICA) 	+= mosquitou/

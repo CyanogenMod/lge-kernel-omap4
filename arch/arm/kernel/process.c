@@ -272,6 +272,7 @@ __setup("reboot=", reboot_setup);
 void machine_shutdown(void)
 {
 #ifdef CONFIG_SMP
+	preempt_disable();
 	smp_send_stop();
 #endif
 }
@@ -285,6 +286,9 @@ void machine_halt(void)
 void machine_power_off(void)
 {
 	machine_shutdown();
+	printk(" machine_power_off check\n");
+	mdelay(150);
+
 	if (pm_power_off)
 		pm_power_off();
 }
@@ -371,6 +375,9 @@ void __show_regs(struct pt_regs *regs)
 	unsigned long flags;
 	char buf[64];
 
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	set_crash_store_enable();
+#endif
 	printk("CPU: %d    %s  (%s %.*s)\n",
 		raw_smp_processor_id(), print_tainted(),
 		init_utsname()->release,
@@ -378,7 +385,11 @@ void __show_regs(struct pt_regs *regs)
 		init_utsname()->version);
 	print_symbol("PC is at %s\n", instruction_pointer(regs));
 	print_symbol("LR is at %s\n", regs->ARM_lr);
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	printk("pc : %08lx    lr : %08lx    psr: %08lx\n"
+#else
 	printk("pc : [<%08lx>]    lr : [<%08lx>]    psr: %08lx\n"
+#endif
 	       "sp : %08lx  ip : %08lx  fp : %08lx\n",
 		regs->ARM_pc, regs->ARM_lr, regs->ARM_cpsr,
 		regs->ARM_sp, regs->ARM_ip, regs->ARM_fp);
@@ -391,6 +402,9 @@ void __show_regs(struct pt_regs *regs)
 	printk("r3 : %08lx  r2 : %08lx  r1 : %08lx  r0 : %08lx\n",
 		regs->ARM_r3, regs->ARM_r2,
 		regs->ARM_r1, regs->ARM_r0);
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	set_crash_store_disable();
+#endif
 
 	flags = regs->ARM_cpsr;
 	buf[0] = flags & PSR_N_BIT ? 'N' : 'n';

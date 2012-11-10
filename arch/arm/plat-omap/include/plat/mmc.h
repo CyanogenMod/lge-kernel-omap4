@@ -150,6 +150,11 @@ struct omap_mmc_platform_data {
 
 		unsigned int ban_openended:1;
 
+		/* LGE_SJIT 2012-01-09 [dojip.kim@lge.com]
+		 * no suspend. Some drivers don't use pm on MMC (eg. BRCM WiFi)
+		 */
+		unsigned int no_suspend:1;
+
 	} slots[OMAP_MMC_MAX_SLOTS];
 };
 

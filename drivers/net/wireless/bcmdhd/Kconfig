@@ -29,12 +29,69 @@ config BCMDHD_WEXT
 	depends on BCMDHD && CFG80211 = n
 	select WIRELESS_EXT
 	select WEXT_PRIV
-	help
+	---help---
 	  Enables WEXT support
 
-config DHD_USE_STATIC_BUF
-	bool "Enable memory preallocation"
+config LGE_BCM432X_PATCH
+	bool "BCM432X Patch by LGE"
+	default y
 	depends on BCMDHD
+
+config BCMDHD_CONFIG_PATH
+	depends on LGE_BCM432X_PATCH
+	string "Config path"
+	default "/data/misc/wifi/config"
+	---help---
+	  Path to the config file.
+
+config BCMDHD_GPIO_WL_RESET
+	depends on BCMDHD
+	int "GPIO to the Reset"
+	default 168 if(MACH_LGE_P2_LU5400!=y)
+        default 95 if(MACH_LGE_P2_LU5400=y)
+	---help---
+	  GPIO to the Reset
+
+config BCMDHD_HOSTWAKEUP_USE_GPIO
+	depends on BCMDHD
+	bool "Use GPIO to Host Wakeup"
+	select BCMDHD_HW_OOB
+	default y
+	---help---
+	  Use GPIO to Host Wakeup
+
+config BCMDHD_HOSTWAKEUP_USE_SDIO
+	depends on BCMDHD && BCMDHD_HOSTWAKEUP_USE_GPIO = n
+	bool "Use SDIO pin to the Host Wakeup"
 	default n
 	---help---
-	  Use memory preallocated in platform
+	  Use SDIO pin to the Host Wakeup
+
+config BCMDHD_GPIO_WL_HOSTWAKEUP
+	depends on BCMDHD && BCMDHD_HOSTWAKEUP_USE_GPIO = y
+	int "GPIO to the Host Wakeup"
+	default 167 if(MACH_LGE_P2_LU5400!=y)
+        default 94 if(MACH_LGE_P2_LU5400=y)
+	---help---
+	  GPIO to the Host Wakeup
+
+config BCMDHD_HW_OOB
+	depends on BCMDHD && BCMDHD_HOSTWAKEUP_USE_GPIO = y
+	bool "Use H/W OOB to the Host Wakeup"
+	default y
+	---help---
+	  Use H/W OOB to the Host Wakeup
+
+config BCMDHD_USE_STATIC_BUF
+	depends on BCMDHD
+	bool "Use static buffer in os_malloc"
+	default y
+	---help---
+	  Use static buffer in os_malloc
+
+config BRCM_CCX
+         depends on BCMDHD
+         bool "Enables CCX support"
+         default n
+         ---help---
+           Enables CCX support

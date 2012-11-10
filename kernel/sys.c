@@ -180,6 +180,12 @@ SYSCALL_DEFINE3(setpriority, int, which, int, who, int, niceval)
 
 	if (which > PRIO_USER || which < PRIO_PROCESS)
 		goto out;
+#ifdef CONFIG_CCSECURITY
+	if (!ccs_capable(CCS_SYS_NICE)) {
+		error = -EPERM;
+		goto out;
+	}
+#endif
 
 	/* normalize: avoid signed division (rounding problems) */
 	error = -ESRCH;
@@ -412,6 +418,10 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 			magic2 != LINUX_REBOOT_MAGIC2B &&
 	                magic2 != LINUX_REBOOT_MAGIC2C))
 		return -EINVAL;
+#ifdef CONFIG_CCSECURITY
+	if (!ccs_capable(CCS_SYS_REBOOT))
+		return -EPERM;
+#endif
 
 	/* Instead of trying to make the power_off code look like
 	 * halt when pm_power_off is not set do it the easy way.
@@ -1240,6 +1250,10 @@ SYSCALL_DEFINE2(sethostname, char __user *, name, int, len)
 
 	if (len < 0 || len > __NEW_UTS_LEN)
 		return -EINVAL;
+#ifdef CONFIG_CCSECURITY
+	if (!ccs_capable(CCS_SYS_SETHOSTNAME))
+		return -EPERM;
+#endif
 	down_write(&uts_sem);
 	errno = -EFAULT;
 	if (!copy_from_user(tmp, name, len)) {
@@ -1289,6 +1303,10 @@ SYSCALL_DEFINE2(setdomainname, char __user *, name, int, len)
 		return -EPERM;
 	if (len < 0 || len > __NEW_UTS_LEN)
 		return -EINVAL;
+#ifdef CONFIG_CCSECURITY
+	if (!ccs_capable(CCS_SYS_SETHOSTNAME))
+		return -EPERM;
+#endif
 
 	down_write(&uts_sem);
 	errno = -EFAULT;

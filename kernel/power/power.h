@@ -189,8 +189,14 @@ static inline bool valid_state(suspend_state_t state) { return false; }
 extern void suspend_test_start(void);
 extern void suspend_test_finish(const char *label);
 #else /* !CONFIG_PM_TEST_SUSPEND */
+/* LGE_SJIT 2012-02-06 [dojip.kim@lge.com] suspend autotest (demigod) */
+#ifdef CONFIG_LGE_SUSPEND_AUTOTEST
+extern void suspend_test_start(void);
+extern void suspend_test_finish(const char *label);
+#else
 static inline void suspend_test_start(void) {}
 static inline void suspend_test_finish(const char *label) {}
+#endif
 #endif /* !CONFIG_PM_TEST_SUSPEND */
 
 #ifdef CONFIG_PM_SLEEP
@@ -251,6 +257,11 @@ static inline void suspend_thaw_processes(void)
 extern struct workqueue_struct *suspend_work_queue;
 extern struct wake_lock main_wake_lock;
 extern suspend_state_t requested_suspend_state;
+extern void suspend_sys_sync_queue(void);
+extern int suspend_sys_sync_wait(void);
+#else
+static inline void suspend_sys_sync_queue(void) {}
+static inline int suspend_sys_sync_wait(void) { return 0; }
 #endif
 
 #ifdef CONFIG_USER_WAKELOCK

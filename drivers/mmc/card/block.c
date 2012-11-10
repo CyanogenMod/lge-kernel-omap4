@@ -539,6 +539,22 @@ static int get_card_status(struct mmc_card *card, u32 *status, int retries)
 	struct mmc_command cmd = {0};
 	int err;
 
+	/* LGE_SJIT 2011-11-29 [dojip.kim@lge.com]
+	 * fix the freezing when removing the sdcard
+	 *
+	 * euikyeom.kim@lge.com 2011.02.11 immigrated from
+	 * hyoungsuk.jang@lge.com
+	 */
+#if defined(CONFIG_MMC_LGE_HW_DETECTION)
+	if (mmc_card_sd(card)) {
+		struct mmc_host *host = card->host;
+		if (host && host->ops->get_cd &&
+				host->ops->get_cd(host) == 0) {
+			return -ENOENT;
+		}
+	}
+#endif
+
 	cmd.opcode = MMC_SEND_STATUS;
 	if (!mmc_host_is_spi(card->host))
 		cmd.arg = card->rca << 16;
@@ -953,6 +969,14 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *req)
 
 		mmc_queue_bounce_post(mq);
 
+		/* LGE_SJIT 2011-11-28 [dojip.kim@lge.com]
+		 * Enhanced the error handling
+		 * Don't redo I/O when ENOMEDIUM error.
+		 */
+		if (brq.cmd.error == -ENOMEDIUM) {
+			goto cmd_err;
+		}
+
 		/*
 		 * sbc.error indicates a problem with the set block count
 		 * command.  No data will have been transferred.
@@ -1061,6 +1085,20 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *req)
 	if (mmc_card_sd(card)) {
 		u32 blocks;
 
+		/* LGE_SJIT 2011-11-29 [dojip.kim@lge.com]
+		 * fix the freezing when removing the sdcard
+		 *
+		 * euikyeom.kim@lge.com 2011.02.11 immigrated from
+		 * hyoungsuk.jang@lge.com
+		 */
+#if defined(CONFIG_MMC_LGE_HW_DETECTION)
+		struct mmc_host *host = card->host;
+		if (host && host->ops->get_cd &&
+				host->ops->get_cd(host) == 0) {
+			goto cmd_abort;
+		}
+#endif
+
 		blocks = mmc_sd_num_wr_blocks(card);
 		if (blocks != (u32)-1) {
 			spin_lock_irq(&md->lock);
@@ -1075,8 +1113,14 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *req)
 
  cmd_abort:
 	spin_lock_irq(&md->lock);
-	while (ret)
+	while (ret) {
+		/* LGE_SJIT 2011-11-28 [dojip.kim@lge.com]
+		 * Enhanced the error handling
+		 * Supressed the error message.
+		 */
+		req->cmd_flags |= REQ_QUIET;
 		ret = __blk_end_request(req, -EIO, blk_rq_cur_bytes(req));
+	}
 	spin_unlock_irq(&md->lock);
 
 	return 0;

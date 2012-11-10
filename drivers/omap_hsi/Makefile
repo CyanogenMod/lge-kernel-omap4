@@ -13,9 +13,17 @@ endif
 
 hsi_char-objs	:=	hsi-char.o hsi-if.o
 
-hsi-protocol-objs    := hsi_protocol.o hsi_protocol_if.o \
-                        hsi_protocol_cmd.o
+ifx-objs	:=	xmd-tty.o xmd-rmnet.o xmd-hsi-mcm.o xmd-rmnet.o xmd_hsi_mem.o xmd-hsi-ll.o
+
+ifeq ($(CONFIG_MACH_LGE_COSMOPOLITAN), y)
+	ifx-objs += ifx-hsi-cp-crash.o
+endif
 
 obj-$(CONFIG_OMAP_HSI)		+= omap_hsi.o
 obj-$(CONFIG_OMAP_HSI_CHAR)	+= hsi_char.o
-obj-$(CONFIG_OMAP_HSI_PROTOCOL) += hsi-protocol.o
+obj-$(CONFIG_OMAP_IFX_HSI_DLP)	+= ifx.o
+
+
+ifeq ($(TARGET_PRODUCT), u2_tmo_us)
+    EXTRA_CFLAGS += -DHSI_PRIVATE_INFO_PROTECTION
+endif

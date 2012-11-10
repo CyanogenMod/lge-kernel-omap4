@@ -331,7 +331,14 @@ void mmc_remove_card(struct mmc_card *card)
 			printk(KERN_INFO "%s: card %04x removed\n",
 				mmc_hostname(card->host), card->rca);
 		}
+		/* LGE_SJIT 2012-02-03 [dojip.kim@lge.com]
+		 * called again even if already removed device
+		 */
+#ifdef CONFIG_MACH_LGE
+		card->state &= ~(MMC_STATE_INSERTED | MMC_STATE_PRESENT);
+#else
 		card->state &= ~MMC_STATE_INSERTED;
+#endif
 		device_del(&card->dev);
 	}
 

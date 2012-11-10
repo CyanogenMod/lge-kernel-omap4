@@ -2092,8 +2092,17 @@ static void abe_dsp_init_gains(struct abe_data *abe)
 	abe_mute_gain(GAINS_DL1, GAIN_LEFT_OFFSET);
 	abe_mute_gain(GAINS_DL1, GAIN_RIGHT_OFFSET);
 
+
+//LGE_D1_BSP_ICS_S  seungdae.goh@lge.com 2012-03-07  bug fix : speaker gain 0dB offset [START_LGE]
+#if 0
 	abe_write_gain(GAINS_DL2, GAIN_M7dB, RAMP_2MS, GAIN_LEFT_OFFSET);
 	abe_write_gain(GAINS_DL2, GAIN_M7dB, RAMP_2MS, GAIN_RIGHT_OFFSET);
+#else
+	abe_write_gain(GAINS_DL2, GAIN_0dB, RAMP_2MS, GAIN_LEFT_OFFSET);
+	abe_write_gain(GAINS_DL2, GAIN_0dB, RAMP_2MS, GAIN_RIGHT_OFFSET);
+#endif
+//LGE_D1_BSP_ICS_E  seungdae.goh@lge.com 2012-03-07  bug fix : speaker gain 0dB offset [END_LGE]
+
 	abe_mute_gain(GAINS_DL2, GAIN_LEFT_OFFSET);
 	abe_mute_gain(GAINS_DL2, GAIN_RIGHT_OFFSET);
 
@@ -2191,6 +2200,10 @@ static int aess_restore_context(struct abe_data *abe)
        return 0;
 }
 
+#define ABE_IRQ_SUSPEND_OFF__RESUME_ON //LGE_BSP seungdae.goh@lge.com 2012-05-08  Temporary FM radio current issue fix
+#ifdef ABE_IRQ_SUSPEND_OFF__RESUME_ON
+static int irq_on_state = 0; /* 0 : disable  ,  1 : on  ,  2 : suspended */
+#endif
 static int aess_open(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -2209,6 +2222,9 @@ static int aess_open(struct snd_pcm_substream *substream)
 		abe->opp = 0;
 		aess_restore_context(abe);
 		abe_set_opp_mode(abe, 100);
+#ifdef ABE_IRQ_SUSPEND_OFF__RESUME_ON
+		irq_on_state = 1;
+#endif
 		abe_wakeup();
 	}
 
@@ -2309,6 +2325,9 @@ static int aess_close(struct snd_pcm_substream *substream)
 	dev_dbg(dai->dev, "%s: %s\n", __func__, dai->name);
 
 	if (!--abe->active) {
+#ifdef ABE_IRQ_SUSPEND_OFF__RESUME_ON
+	        irq_on_state = 0;
+#endif
 		abe_disable_irq();
 		aess_save_context(abe);
 		abe_dsp_shutdown();
@@ -2441,6 +2460,13 @@ static int abe_suspend(struct snd_soc_dai *dai)
 
 	dev_dbg(dai->dev, "%s: %s active %d\n",
 		__func__, dai->name, dai->active);
+#ifdef ABE_IRQ_SUSPEND_OFF__RESUME_ON
+        if (irq_on_state == 1) {
+            printk(KERN_DEBUG"call abe_disable_irq()\n");
+            irq_on_state = 2; // Suspend
+	    abe_disable_irq();
+	 }
+#endif
 
 	if (!dai->active)
 		return 0;
@@ -2495,6 +2521,13 @@ static int abe_resume(struct snd_soc_dai *dai)
 
 	dev_dbg(dai->dev, "%s: %s active %d\n",
 		__func__, dai->name, dai->active);
+#ifdef ABE_IRQ_SUSPEND_OFF__RESUME_ON
+        if (irq_on_state == 2) {
+            printk(KERN_DEBUG"call abe_wakeup()\n");
+            irq_on_state = 1;// ON
+	    abe_wakeup();
+	 }
+#endif
 
 	if (!dai->active)
 		return 0;

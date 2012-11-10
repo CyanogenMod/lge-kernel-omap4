@@ -40,14 +40,20 @@ config SPI_DEBUG
 #
 
 config SPI_MASTER
-#	boolean "SPI Master Support"
-	boolean
-	default SPI
+	bool "SPI Master Support"
+	default SPI 
 	help
 	  If your system has an master-capable SPI controller (which
 	  provides the clock and chipselect), you can enable that
 	  controller and the protocol drivers for the SPI slave chips
 	  that are connected.
+
+config SPI_SLAVE
+	bool "SPI Slave Support"
+	default n
+	help
+	  If your system has an slave-capable SPI controller, you can
+	  enable that controller.
 
 if SPI_MASTER
 
@@ -466,12 +472,24 @@ config SPI_TLE62X0
 	  sysfs interface, with each line presented as a kind of GPIO
 	  exposing both switch control and diagnostic feedback.
 
+config LGE_SPI
+	tristate "LGE SPI"
+	depends on ARCH_OMAP4
+	help
+		Enable this to support LGE SPI
+
 #
 # Add new SPI protocol masters in alphabetical order above this line
 #
-
+	  
 endif # SPI_MASTER
 
+comment "SPI Slave Controller Drivers"
 # (slave support would go here)
-
+config LGE_SPI_SLAVE
+	bool "LGE SPI SLAVE"
+	depends on ARCH_OMAP4 && MACH_LGE
+	default y if SPI_SLAVE
+	help
+	Enable this to support LGE SPI Slave
 endif # SPI

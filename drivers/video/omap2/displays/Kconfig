@@ -55,9 +55,84 @@ config PANEL_TC358765
 	select BACKLIGHT_CLASS_DEVICE
 	help
 	  Toshiba TC358765 DSI-2-LVDS chip with 1024x768 panel
+
 config TC358765_DEBUG
-	bool "Toshiba TC358765 DSI-2-LVDS chip debug"
-	depends on PANEL_TC358765 && DEBUG_FS
-	help
-	  Support of TC358765 DSI-2-LVDS chip register access via debugfs
+    bool "Toshiba TC358765 DSI-2-LVDS chip debug"
+    depends on PANEL_TC358765 && DEBUG_FS
+    help
+      Support of TC358765 DSI-2-LVDS chip register access via debugfs
+
+## LGE_SJIT_S 2011-08-29 [choongryeol.lee@lge.com]
+config PANEL_LGHDK
+       tristate "OMAP4 HDK LCD Panel"
+       help
+	  LCD Panel used for LGE HDK board 
+
+config PANEL_LH430WV4_SD02
+    tristate "B2 Rev.A panel(LH430WV4-SD02) LG4574 driver IC"
+    default n
+    help
+        This is the B2 Rev.A panel(LH430WV4-SD02) LG4574 driver IC
+
+config PANEL_TX11D101VM_0EAA
+    tristate "B2 Korea and Docomo panel(TX11D101VM_0EAA) LG4574 driver IC"
+    default n
+    help
+        This is the B2 Korea and Docomo HITACHI panel(TX11D101VM_0EAA) LG4574 driver IC
+
+config PANEL_TX11D108VM_0BAA
+    tristate "U2-P769 Hitachi panel(TX11D108VM_0BAA) Renesas driver IC"
+    default n
+    help
+        This is the U2-P769 TMUS HITACHI panel(TX11D108VM_0BAA) Renesas driver IC
+
+config PANEL_HX8389
+    tristate "U2-P760 Tovis panel() HIMAX driver IC"
+    default n
+    help
+        This is the U2-P760 EU Tovis panel() HIMAX driver IC
+choice
+    prompt "Choose DSI Mode"
+    depends on PANEL_TX11D101VM_0EAA || PANEL_LH430WV4_SD02 || PANEL_TX11D108VM_0BAA || PANEL_HX8389
+    default DSI_VIDEO_MODE
+
+config DSI_CMD_MODE
+    bool "DSI Command Mode"
+
+config DSI_VIDEO_MODE
+    bool "DSI Video Mode"
+
+endchoice
+
+config OMAP_USE_CMOS_TE_TRIGGER
+    bool "OMAP DSI Tearing Effect Trigger Source is CMOS TE"
+    depends on DSI_CMD_MODE
+    default y
+    help
+      OMAP has two trigger source of tearing effect which are DSI PHY and 
+      CMOS TE. The CMOS TE is can work without DSI bus turn around(BTA).  
+      This configuration can be used when TE trigger source is CMOS TE
+
+config DSI_VIDEO_CMD_TRANSITION
+    bool "Workaround for command mode when bootloader use video mode "
+    depends on DSI_CMD_MODE && MACH_LGE_P2
+    default y
+    help
+      Since P2 bootloader use video mode, we cannot use command mode with seamless 
+      logo display at kernel. So this is workaround to solve this problem.
+      Until fisrt suspend, lcd run as video mode and after first suspend lcd rus as command mode. 
+   
+config PANEL_DX11D100VM
+    tristate "Hitachi DX11D100VM LCD panel (Renesas R69328 Driver IC)"
+    default n
+    help
+        This is the Hitachi panel(DX11D100VM) which is using Renesas R69328 Driver IC
+
+config LUT_FILE_TUNING
+    tristate "Display Sub System Look-up-table Tuning"
+    default n
+    help
+        This is Display Sub System Look-up-table Tuning
+
+## LGE_SJIT_E 2011-08-29 [choongryeol.lee@lge.com]
 endmenu

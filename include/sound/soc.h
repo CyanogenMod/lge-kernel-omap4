@@ -765,6 +765,13 @@ struct snd_soc_dai_link {
 
 	/* machine stream operations */
 	struct snd_soc_ops *ops;
+
+// LGE_BSP 2012.03.13 [myeonggyu.son@lge.com] 4AI.1.2 - values are used in lg_soc.c
+	/* pre and post DAI link activity */
+#ifdef CONFIG_SND_OMAP_SOC_LG
+	int (*pre)(struct snd_pcm_substream *substream);
+	void (*post)(struct snd_pcm_substream *substream);
+#endif
 };
 
 struct snd_soc_codec_conf {

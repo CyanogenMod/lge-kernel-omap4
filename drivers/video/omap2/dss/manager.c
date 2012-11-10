@@ -384,6 +384,107 @@ static ssize_t manager_cpr_coef_store(struct omap_overlay_manager *mgr,
 	return size;
 }
 
+#ifdef CONFIG_LGE_BROADCAST_TDMB
+static ssize_t manager_dmb_coefs_show(struct omap_overlay_manager *mgr, char *buf)
+{
+	struct omap_overlay_manager_info info;
+
+	mgr->get_manager_info(mgr, &info);
+
+	//printk("[DSS Manager] show dmb_coefs\n");
+
+	return snprintf(buf, PAGE_SIZE, "%d %d %d %d %d %d %d %d %d %d %d %d %d\n", 
+	 info.dmb_coefs.direction, 
+
+	 info.dmb_coefs.ccs[0], info.dmb_coefs.ccs[1], info.dmb_coefs.ccs[2], 
+	 info.dmb_coefs.ccs[3], info.dmb_coefs.ccs[4], info.dmb_coefs.ccs[5], 
+	 info.dmb_coefs.ccs[6], info.dmb_coefs.ccs[7], info.dmb_coefs.ccs[8], 
+
+	 info.dmb_coefs.bv[0], info.dmb_coefs.bv[1], info.dmb_coefs.bv[2]);
+}
+
+static ssize_t manager_dmb_coefs_store(struct omap_overlay_manager *mgr, const char *buf, size_t size)
+{
+	struct omap_overlay_manager_info info;
+	struct omap_dss_dmb_coefs dmb_coefs;
+	int i;
+	int iResult;
+
+	// hd means argument converted as 'short' decimal
+	iResult = sscanf(buf, "%d %hd %hd %hd %hd %hd %hd %hd %hd %hd %hd %hd %hd", 
+	 &dmb_coefs.direction, 
+
+	 &dmb_coefs.ccs[0], &dmb_coefs.ccs[1], &dmb_coefs.ccs[2], 
+	 &dmb_coefs.ccs[3], &dmb_coefs.ccs[4], &dmb_coefs.ccs[5], 
+	 &dmb_coefs.ccs[6], &dmb_coefs.ccs[7], &dmb_coefs.ccs[8], 
+
+	 &dmb_coefs.bv[0], &dmb_coefs.bv[1], &dmb_coefs.bv[2]);
+
+	if(iResult != (1 + 9 + 3))
+	{
+		printk("[DSS Manager] store dmb_coefs ERROR! : invalid number of parameter\n");
+
+		return -EINVAL;
+	}
+
+	for(i = 0; i < 9; ++i)
+	{
+		if(dmb_coefs.ccs[i] < -65536 || dmb_coefs.ccs[i] > 65535)
+		{
+			printk("[DSS Manager] store dmb_coefs ERROR! : invalid range of parameters ccs\n");
+
+			return -EINVAL;
+		}
+	}
+
+	for(i = 0; i < 3; ++i)
+	{
+		if(dmb_coefs.bv[i] < -65536 || dmb_coefs.bv[i] > 65535)
+		{
+			printk("[DSS Manager] store dmb_coefs ERROR! : invalid range of parameters bv\n");
+
+			return -EINVAL;
+		}
+	}
+
+	mgr->get_manager_info(mgr, &info);
+
+	info.dmb_coefs.direction = dmb_coefs.direction;
+
+	for(i = 0; i < 9; ++i)
+	{
+		info.dmb_coefs.ccs[i] = dmb_coefs.ccs[i];
+	}
+
+	for(i = 0; i < 3; ++i)
+	{
+		info.dmb_coefs.bv[i] = dmb_coefs.bv[i];
+	}
+
+	iResult = mgr->set_manager_info(mgr, &info);
+
+	if(iResult)
+	{
+		printk("[DSS Manager] store dmb_coefs ERROR! : set_manager_info()\n");
+
+		return iResult;
+	}
+
+	iResult = mgr->apply(mgr);
+
+	if(iResult)
+	{
+		printk("[DSS Manager] store dmb_coefs ERROR! : apply()\n");
+
+		return iResult;
+	}
+
+	//printk("[DSS Manager] store dmb_coefs\n");
+	
+	return size;
+}
+#endif /* CONFIG_LGE_BROADCAST */
+
 struct manager_attribute {
 	struct attribute attr;
 	ssize_t (*show)(struct omap_overlay_manager *, char *);
@@ -416,6 +517,11 @@ static MANAGER_ATTR(cpr_coef, S_IRUGO|S_IWUSR,
 		manager_cpr_coef_show,
 		manager_cpr_coef_store);
 
+#ifdef CONFIG_LGE_BROADCAST_TDMB
+static MANAGER_ATTR(dmb_coefs, S_IRUGO | S_IWUSR, 
+		manager_dmb_coefs_show, 
+		manager_dmb_coefs_store);
+#endif /* CONFIG_LGE_BROADCAST */
 
 static struct attribute *manager_sysfs_attrs[] = {
 	&manager_attr_name.attr,
@@ -427,6 +533,11 @@ static struct attribute *manager_sysfs_attrs[] = {
 	&manager_attr_alpha_blending_enabled.attr,
 	&manager_attr_cpr_enable.attr,
 	&manager_attr_cpr_coef.attr,
+
+#ifdef CONFIG_LGE_BROADCAST_TDMB	
+	&manager_attr_dmb_coefs.attr,
+#endif /* CONFIG_LGE_BROADCAST */
+
 	NULL
 };
 
@@ -589,6 +700,11 @@ struct manager_cache_data {
 
 	bool cpr_enable;
 	struct omap_dss_cpr_coefs cpr_coefs;
+
+#ifdef CONFIG_LGE_BROADCAST_TDMB
+	struct omap_dss_dmb_coefs dmb_coefs;
+#endif /* CONFIG_LGE_BROADCAST */
+
 	bool skip_init;
 };
 
@@ -1147,6 +1263,7 @@ static int configure_overlay(enum omap_plane plane)
 	dispc_enable_zorder(plane, 1);
 	if (!cpu_is_omap44xx())
 		dispc_setup_plane_fifo(plane, c->fifo_low, c->fifo_high);
+
 	if (plane != OMAP_DSS_GFX)
 		_dispc_setup_color_conv_coef(plane, &c->cconv);
 
@@ -1569,7 +1686,13 @@ static void schedule_completion_irq(void)
 
 	if (mask != dss_cache.comp_irq_enabled) {
 		if (dss_cache.comp_irq_enabled)
-			omap_dispc_unregister_isr(dss_completion_irq_handler,
+			/* Code paths leading to here are non-trivial, and
+			 * this particular callback does not seem to be
+			 * needing synchronized unregister. To ease our
+			 * lives, just leave it nosync.
+			 */
+			omap_dispc_unregister_isr_nosync(
+				dss_completion_irq_handler,
 				NULL, dss_cache.comp_irq_enabled);
 		if (mask)
 			omap_dispc_register_isr(dss_completion_irq_handler,
@@ -1688,7 +1811,7 @@ static void dss_apply_irq_handler(void *data, u32 mask)
 	if (dss_has_feature(FEAT_MGR_LCD2))
 		irq_mask |= DISPC_IRQ_VSYNC2;
 
-	omap_dispc_unregister_isr(dss_apply_irq_handler, NULL, irq_mask);
+	omap_dispc_unregister_isr_nosync(dss_apply_irq_handler, NULL, irq_mask);
 	dss_cache.irq_enabled = false;
 
 end:
@@ -1922,7 +2045,28 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 		oc->max_x_decim = ovl->info.max_x_decim;
 		oc->min_y_decim = ovl->info.min_y_decim;
 		oc->max_y_decim = ovl->info.max_y_decim;
+
+#ifdef CONFIG_LGE_BROADCAST_TDMB
+		if((mgr->info.dmb_coefs.direction == 1) && (ovl->id > OMAP_DSS_GFX))
+		{
+			oc->cconv.ry = mgr->info.dmb_coefs.ccs[0];
+			oc->cconv.rcr = mgr->info.dmb_coefs.ccs[1];
+			oc->cconv.rcb= mgr->info.dmb_coefs.ccs[2];
+			oc->cconv.gy = mgr->info.dmb_coefs.ccs[3];
+			oc->cconv.gcr = mgr->info.dmb_coefs.ccs[4];
+			oc->cconv.gcb = mgr->info.dmb_coefs.ccs[5];
+			oc->cconv.by = mgr->info.dmb_coefs.ccs[6];
+			oc->cconv.bcr = mgr->info.dmb_coefs.ccs[7];
+			oc->cconv.bcb = mgr->info.dmb_coefs.ccs[8];
+			oc->cconv.full_range = 0;
+		}
+		else
+		{
+			oc->cconv = ovl->info.cconv;
+		}
+#else /* CONFIG_LGE_BROADCAST */
 		oc->cconv = ovl->info.cconv;
+#endif /* CONFIG_LGE_BROADCAST */
 
 		oc->replication =
 			dss_use_replication(dssdev, ovl->info.color_mode);
@@ -1979,6 +2123,24 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 	mc->alpha_enabled = mgr->info.alpha_enabled;
 	mc->cpr_coefs = mgr->info.cpr_coefs;
 	mc->cpr_enable = mgr->info.cpr_enable;
+
+#ifdef CONFIG_LGE_BROADCAST_TDMB
+	mc->dmb_coefs.direction = mgr->info.dmb_coefs.direction;
+
+	mc->dmb_coefs.ccs[0] = mgr->info.dmb_coefs.ccs[0];
+	mc->dmb_coefs.ccs[1] = mgr->info.dmb_coefs.ccs[1];
+	mc->dmb_coefs.ccs[2] = mgr->info.dmb_coefs.ccs[2];
+	mc->dmb_coefs.ccs[3] = mgr->info.dmb_coefs.ccs[3];
+	mc->dmb_coefs.ccs[4] = mgr->info.dmb_coefs.ccs[4];
+	mc->dmb_coefs.ccs[5] = mgr->info.dmb_coefs.ccs[5];		
+	mc->dmb_coefs.ccs[6] = mgr->info.dmb_coefs.ccs[6];
+	mc->dmb_coefs.ccs[7] = mgr->info.dmb_coefs.ccs[7];
+	mc->dmb_coefs.ccs[8] = mgr->info.dmb_coefs.ccs[8];
+
+	mc->dmb_coefs.bv[0] = mgr->info.dmb_coefs.bv[0];
+	mc->dmb_coefs.bv[1] = mgr->info.dmb_coefs.bv[1];
+	mc->dmb_coefs.bv[2] = mgr->info.dmb_coefs.bv[2];
+#endif /* CONFIG_LGE_BROADCAST */
 
 	mc->manual_upd_display =
 		dssdev->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE;

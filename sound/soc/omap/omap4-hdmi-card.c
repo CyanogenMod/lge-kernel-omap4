@@ -29,6 +29,7 @@
 
 #define DRV_NAME "omap4-hdmi-audio"
 
+#include "omap-hdmi.h"
 static int omap4_hdmi_dai_hw_params(struct snd_pcm_substream *substream,
 		struct snd_pcm_hw_params *params)
 {
@@ -36,6 +37,7 @@ static int omap4_hdmi_dai_hw_params(struct snd_pcm_substream *substream,
 	struct omap_overlay_manager *mgr = NULL;
 	struct device *dev = substream->pcm->card->dev;
 
+	HDMI_AUDIO("ENTER \n");
 	/* Find DSS HDMI device */
 	for (i = 0; i < omap_dss_get_num_overlay_managers(); i++) {
 		mgr = omap_dss_get_overlay_manager(i);
@@ -57,6 +59,7 @@ static int omap4_hdmi_dai_hw_params(struct snd_pcm_substream *substream,
 		dev_err(dev, "HDMI display is not active!\n");
 		count++;
 	}
+	HDMI_AUDIO("LEAVE \n");
 
 	return 0;
 }
@@ -85,6 +88,7 @@ static __devinit int omap4_hdmi_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &snd_soc_omap4_hdmi;
 	int ret;
+	HDMI_AUDIO("ENTER \n");
 
 	card->dev = &pdev->dev;
 
@@ -94,15 +98,17 @@ static __devinit int omap4_hdmi_probe(struct platform_device *pdev)
 		card->dev = NULL;
 		return ret;
 	}
+	HDMI_AUDIO("LEAVE \n");	
 	return 0;
 }
 
 static int __devexit omap4_hdmi_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
-
+	HDMI_AUDIO("ENTER \n");
 	snd_soc_unregister_card(card);
 	card->dev = NULL;
+	HDMI_AUDIO("LEAVE \n");
 	return 0;
 }
 

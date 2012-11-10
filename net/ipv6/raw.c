@@ -468,6 +468,12 @@ static int rawv6_recvmsg(struct kiocb *iocb, struct sock *sk,
 	skb = skb_recv_datagram(sk, flags, noblock, &err);
 	if (!skb)
 		goto out;
+#ifdef CONFIG_CCSECURITY
+	if (ccs_socket_post_recvmsg_permission(sk, skb, flags)) {
+		err = -EAGAIN; /* Hope less harmful than -EPERM. */
+		goto out;
+	}
+#endif
 
 	copied = skb->len;
 	if (copied > len) {

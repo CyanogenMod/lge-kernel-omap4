@@ -49,6 +49,8 @@ extern struct ion_device *omap_ion_device;
 /* maximum OMX devices this driver can handle */
 #define MAX_OMX_DEVICES		8
 
+extern unsigned int system_rev; // [LGE_UPDATE] [dongyu.gwak@lge.com] [2012-06-27] board HW revision
+
 enum rpc_omx_map_info_type {
 	RPC_OMX_MAP_INFO_NONE          = 0,
 	RPC_OMX_MAP_INFO_ONE_BUF       = 1,
@@ -310,7 +312,7 @@ static void rpmsg_omx_cb(struct rpmsg_channel *rpdev, void *data, int len,
 	}
 }
 
-static int rpmsg_omx_connect(struct rpmsg_omx_instance *omx, char *omxname)
+static int rpmsg_omx_connect(struct rpmsg_omx_instance *omx, struct omx_conn_req  *req) // [LGE_UPDATE] [dongyu.gwak@lge.com] [2012-03-21] time stamp for debugging
 {
 	struct omx_msg_hdr *hdr;
 	struct omx_conn_req *payload;
@@ -326,10 +328,13 @@ static int rpmsg_omx_connect(struct rpmsg_omx_instance *omx, char *omxname)
 	hdr = (struct omx_msg_hdr *)connect_msg;
 	hdr->type = OMX_CONN_REQ;
 	hdr->flags = 0;
-	hdr->len = strlen(omxname) + 1;
+	// [LGE_UPDATE_S] [dongyu.gwak@lge.com] [2012-03-21] time stamp for debugging
+	hdr->len = sizeof(*payload);
 	payload = (struct omx_conn_req *)hdr->data;
-	strcpy(payload->name, omxname);
-
+	strcpy(payload->name, req->name);
+	strcpy(payload->time_stamp, req->time_stamp);
+	payload->hw_rev = system_rev; // [LGE_UPDATE] [dongyu.gwak@lge.com] [2012-06-27] board HW revision
+	// [LGE_UPDATE_E] [dongyu.gwak@lge.com] [2012-03-21]
 	init_completion(&omx->reply_arrived);
 
 	/* send a conn req to the remote OMX connection service. use
@@ -363,7 +368,7 @@ long rpmsg_omx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct rpmsg_omx_instance *omx = filp->private_data;
 	struct rpmsg_omx_service *omxserv = omx->omxserv;
-	char buf[48];
+	struct omx_conn_req buf; // [LGE_UPDATE] [dongyu.gwak@lge.com] [2012-03-21] time stamp for debugging
 	int ret = 0;
 
 	dev_dbg(omxserv->dev, "%s: cmd %d, arg 0x%lx\n", __func__, cmd, arg);
@@ -375,7 +380,7 @@ long rpmsg_omx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case OMX_IOCCONNECT:
-		ret = copy_from_user(buf, (char __user *) arg, sizeof(buf));
+		ret = copy_from_user(&buf, (char __user *) arg, sizeof(buf));
 		if (ret) {
 			dev_err(omxserv->dev,
 				"%s: %d: copy_from_user fail: %d\n", __func__,
@@ -384,8 +389,11 @@ long rpmsg_omx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			break;
 		}
 		/* make sure user input is null terminated */
-		buf[sizeof(buf) - 1] = '\0';
-		ret = rpmsg_omx_connect(omx, buf);
+		// [LGE_UPDATE_S] [dongyu.gwak@lge.com] [2012-03-21] time stamp for debugging
+		buf.name[sizeof(buf.name)-1] = '\0';
+		buf.time_stamp[sizeof(buf.time_stamp)-1] = '\0';
+		// [LGE_UPDATE_E] [dongyu.gwak@lge.com] [2012-03-21]
+		ret = rpmsg_omx_connect(omx, &buf);
 		break;
 #ifdef CONFIG_ION_OMAP
 	case OMX_IOCIONREGISTER:

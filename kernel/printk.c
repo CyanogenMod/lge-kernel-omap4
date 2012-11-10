@@ -786,6 +786,11 @@ static int have_callable_console(void)
  * See the vsnprintf() documentation for format string extensions over C99.
  */
 
+/* LGE_SJIT devin.kim 11-11-2011, for debugging (should be removed) */
+#ifdef CONFIG_OMAP_UART4_EARLY_PRINTK
+extern void early_console_printk(const char *fmt, va_list args);
+#endif
+/* */
 asmlinkage int printk(const char *fmt, ...)
 {
 	va_list args;
@@ -800,6 +805,11 @@ asmlinkage int printk(const char *fmt, ...)
 	}
 #endif
 	va_start(args, fmt);
+#ifdef CONFIG_OMAP_UART4_EARLY_PRINTK
+	/* LGE_SJIT devin.kim 11-11-2011, for debugging (should be removed) */
+	early_console_printk(fmt, args);
+	/* */
+#endif
 	r = vprintk(fmt, args);
 	va_end(args);
 
@@ -930,6 +940,9 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 #endif
 
 	p = printk_buf;
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	store_crash_log(p);
+#endif
 
 	/* Read log level and handle special printk prefix */
 	plen = log_prefix(p, &current_log_level, &special);
@@ -977,6 +990,20 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 				/* Add the current time stamp */
 				char tbuf[50], *tp;
 				unsigned tlen;
+#if defined(CONFIG_MACH_LGE)
+				struct timespec time;
+				struct tm tmresult;
+
+				time = __current_kernel_time();
+				time_to_tm(time.tv_sec, sys_tz.tz_minuteswest * 60 * (-1), &tmresult);
+				tlen = sprintf(tbuf, "[%02d-%02d %02d:%02d:%02d.%03lu] ",
+								tmresult.tm_mon + 1,
+								tmresult.tm_mday,
+								tmresult.tm_hour,
+								tmresult.tm_min,
+								tmresult.tm_sec,
+								(unsigned long) time.tv_nsec / 1000000);
+#else
 				unsigned long long t;
 				unsigned long nanosec_rem;
 
@@ -985,6 +1012,8 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 				tlen = sprintf(tbuf, "[%5lu.%06lu] ",
 						(unsigned long) t,
 						nanosec_rem / 1000);
+#endif
+
 
 				for (tp = tbuf; tp < tbuf + tlen; tp++)
 					emit_log_char(*tp);

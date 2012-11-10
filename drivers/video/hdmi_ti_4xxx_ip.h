@@ -278,6 +278,9 @@ struct hdmi_core_video_config {
 	enum hdmi_core_tclkselclkmult	tclk_sel_clkmult;
 };
 
+// by Joshua
+// kernel/include/video/hdmi_ti_4xxx_ip.h
+#if 0
 /*
  * Refer to section 8.2 in HDMI 1.3 specification for
  * details about infoframe databytes
@@ -318,6 +321,8 @@ struct hdmi_core_infoframe_avi {
 	u16	db12_13_pixel_sofright;
 		/* Pixel number start of right bar */
 };
+#endif
+
 
 struct hdmi_core_packet_enable_repeat {
 	u32	audio_pkt;

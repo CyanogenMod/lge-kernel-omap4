@@ -753,4 +753,90 @@ config TOUCHSCREEN_QUANTUM_OBP
 
 	  If unsure, say N.
 
+
+## LGE_SJIT_S 2011-10-13 [choongryeol.lee@lge.com] synaptics rmi4 touch driver
+config LGE_TOUCHSCREEN_SYNAPTICS_RMI4_I2C
+	tristate "Synaptics RMI4 I2C touchscreen"
+	depends on I2C
+	help
+	  Say Y here to enable support for Synaptic RMI4 I2C
+	  touchscreen controller.
+	  If unsure, say N.
+	  To compile this driver as module, choose M here
+	  
+## FIXME - Should merge lg's synaptics touch driver to common source 
+config TOUCHSCREEN_COMMON_SYNAPTICS
+	tristate "Synaptics I2C P940 touchscreen"
+	depends on I2C
+	help
+	  Say Y here to enable support for Synaptic P940
+	  series touchscreen controller.
+
+	  If unsure, say N.
+
+	  To compile this driver as module, choose M here: the 
+	  module will be called lge_touch
+## LGE_SJIT_E 2011-10-13 [choongryeol.lee@lge.com] synaptics rmi4 touch driver
+
+config TOUCHSCREEN_COMMON_SYNAPTICS_S3200
+        tristate "Synaptics I2C U2 touchscreen"
+        depends on I2C
+        help
+          Say Y here to enable support for Synaptic 3200
+          series touchscreen controller.
+
+          If unsure, say N.
+
+          To compile this driver as module, choose M here: the
+          module will be called lge_touch
+
+config TOUCHSCREEN_COMMON_GHOST_SOLUTION
+	bool "Use ghost finger solution"
+	depends on TOUCHSCREEN_COMMON_SYNAPTICS || TOUCHSCREEN_COMMON_SYNAPTICS_S3200
+	help
+	  Say Y here to enable support for ghost finger solution
+
+## LGE_SJIT 2011-11-17 [dojip.kim@lge.com] add atmel touoch driver
+## from [G1-D1L][touch] Add Atmel Touch Driver
+config TOUCHSCREEN_ATMEL_MAXT224E
+	tristate "Atmel maXT224E based touchscreens"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you have an Atmel Maxtouch based touchscreen.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called atmel_ts.
+
+## LGE_SJIT 2011-11-16 [dojip.kim@lge.com] add melfas touch driver
+## from [G1-COMMON][touch] Add Melfas Touch Driver
+config TOUCHSCREEN_MMS136
+	tristate "MELFAS MMS-136 touchscreen"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you have the MELFAS MMS-136 touchscreen controller
+	  chip in your system.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will e called melfas_ts.
+
+## LGE_SJIT 2011-11-16 [dojip.kim@lge.com] unified touch firmware version path
+## from [G1-COMMON][touch] Unified Touch Firmware Version PATH
+config TS_INFO_CLASS
+	tristate "Use Ts Info Class for unified PATH"
+	depends on MACH_LGE
+	default n
+	help
+	  Say Y here if you have the touchscreen info class in your system.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ts info class.
+
 endif

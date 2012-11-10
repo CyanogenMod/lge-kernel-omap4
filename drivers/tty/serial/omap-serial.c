@@ -48,6 +48,10 @@
 
 #define UART_OMAP_IIR_ID		0x3e
 #define UART_OMAP_IIR_RX_TIMEOUT	0xc
+//BEGIN: 0019630 hyuntae0.kim@lge.com 2012-4-1
+//ADD: 0019630 [P2_ICS][BT] TI fix for UART TX data broken. 
+#define RUNTIME_SYSC	0X0D  //by Joshua
+//END: 0019630 hyuntae0.kim@lge.com 2012-4-1
 
 static struct uart_omap_port *ui[OMAP_MAX_HSUART_PORTS];
 
@@ -371,6 +375,18 @@ static void serial_omap_start_tx(struct uart_port *port)
 
 	xmit = &up->port.state->xmit;
 
+	//BEGIN: 0019630 hyuntae0.kim@lge.com 2012-4-1
+	//ADD: 0019630 [P2_ICS][BT] TI fix for UART TX data broken. 
+	// for avoiding dma misaligned error
+	// in case of data size is zero(0) :  by Joshua
+	if (up->use_dma){
+		if(uart_circ_chars_pending(xmit) == 0){
+			printk("serial_omap_start_tx::tx_buf_size = 0\n");
+			return;
+		}
+	}
+	//END: 0019630 hyuntae0.kim@lge.com 2012-4-1
+	
 	if (up->uart_dma.tx_dma_channel == OMAP_UART_DMA_CH_FREE) {
 		serial_omap_port_enable(up);
 		ret = omap_request_dma(up->uart_dma.uart_dma_tx,
@@ -1195,6 +1211,15 @@ serial_omap_console_setup(struct console *co, char *options)
 
 	if (options)
 		uart_parse_options(options, &baud, &parity, &bits, &flow);
+	/* SJIT 2012-01-11 [dojip.kim@lge.com]
+	 * Do not set console if no options
+	 */
+#ifdef CONFIG_MACH_LGE
+	else {
+		co->index = -1;
+		return -ENODEV;
+	}
+#endif
 
 	return uart_set_options(&up->port, co, baud, parity, bits, flow);
 }
@@ -1215,6 +1240,91 @@ static void serial_omap_add_console_port(struct uart_omap_port *up)
 }
 
 #define OMAP_CONSOLE	(&serial_omap_console)
+
+/* LGE_UPDATE_S felica */
+#if defined(CONFIG_LGE_FELICA)
+void serial_omap_enable_console_port(void)
+{
+       printk("serial_omap_enable_console_port()\n");
+	//OMAP_CONSOLE->flags |= CON_ENABLED;
+	register_console(OMAP_CONSOLE);
+}
+
+EXPORT_SYMBOL(serial_omap_enable_console_port);
+int serial_omap_disable_console_port(void)
+{
+       printk("serial_omap_disable_console_port()\n");
+	//OMAP_CONSOLE->flags &= ~CON_ENABLED;
+	unregister_console(OMAP_CONSOLE);
+}
+EXPORT_SYMBOL(serial_omap_disable_console_port);
+#endif
+/* LGE_UPDATE_E felica */
+
+
+/* LGE_SJIT_S devin.kim@lge.com 11-11-2011, early printk */
+#ifdef CONFIG_OMAP_UART4_EARLY_PRINTK
+#include <plat/io.h>
+
+/* omap uart4 phy address : 0x4806e000 */
+static void *omap_uart4_base = NULL;
+static unsigned early_console_enabled = 0;
+
+static void early_console_putc(char c)
+{
+	int i;
+
+	for (i = 0; i < 0x1000; i++) {
+		/* Transmit fifo not full? */
+		if (omap_readl(OMAP4_UART4_BASE + 0x14) & 0x40)
+			break;
+	}
+	omap_writel((unsigned)c, OMAP4_UART4_BASE + 0x0);
+}
+
+static void early_console_write(struct console *con, const char *s,
+				unsigned size)
+{
+	while(size--) {
+		if ('\n' == *s)
+			early_console_putc('\r');
+		early_console_putc(*s++);
+	}
+}
+
+//asmlinkage void early_console_printk(const char *fmt, ...)
+asmlinkage void early_console_printk(const char *fmt, va_list args)
+{
+	char buf[512] = {0, };
+	int n;
+
+	if (early_console_enabled == 0)
+		return;
+
+	n = vscnprintf(buf, sizeof(buf), fmt, args);
+	early_console_write(NULL, buf, n);
+}
+
+static struct console omap_early_printk = {
+	.name  = "earlyprintk",
+	.write = early_console_write,
+	.flags = CON_PRINTBUFFER | CON_BOOT,
+	.index = -1,
+};
+
+int __init setup_early_printk(char *buf)
+{
+	early_console_enabled = 1;
+	printk("****************** early printk ***********************\n");
+
+	register_console(&omap_early_printk);
+	return 0;
+}
+
+//early_param("earlycon", setup_early_printk);
+core_initcall(setup_early_printk);
+#endif /* CONFIG_OMAP_UART4_ELARY_PRINTK */
+/* LGE_SJIT_E devin.kim@lge.com 11-11-2011, early printk */
 
 #else
 
@@ -1424,6 +1534,10 @@ static void uart_tx_dma_callback(int lch, u16 ch_status, void *data)
 		up->uart_dma.tx_dma_used = false;
 		spin_unlock(&(up->uart_dma.tx_lock));
 	} else {
+		//BEGIN: 0019630 hyuntae0.kim@lge.com 2012-4-1
+		//ADD: 0019630 [P2_ICS][BT] TI fix for UART TX data broken. 
+		serial_out(up, UART_OMAP_SYSC, RUNTIME_SYSC);   // by Joshua
+		//END: 0019630 hyuntae0.kim@lge.com 2012-4-1
 		omap_stop_dma(up->uart_dma.tx_dma_channel);
 		serial_omap_continue_tx(up);
 	}
@@ -1658,9 +1772,28 @@ static void omap_uart_restore_context(struct uart_omap_port *up)
 static int omap_serial_runtime_suspend(struct device *dev)
 {
 	struct uart_omap_port *up = dev_get_drvdata(dev);
+/* LGE_CHANGE_S  [bk.shin@lge.com] 2012-02-29, TI bug fix*/
+	struct omap_device *od;
+/* LGE_CHANGE_E  [bk.shin@lge.com] 2012-02-29 */
 
 	if (!up)
 		goto done;
+
+/* LGE_CHANGE_S  [bk.shin@lge.com] 2012-02-29, TI bug fix*/
+/* when use dma, the uart port cannot go to sleep. So reset RTR, when goer to suspend
+     this problem is from GB */
+	/* HACK to reset UART module if DMA is enabled
+	* For some reason if DMA is enabled the module is
+	* stuck in transition state.
+	 */
+	if (up->use_dma && cpu_is_omap44xx()) {
+		/* NO TX_DMA WAKEUP SO KEEP IN NO IDLE MODE */
+		od = to_omap_device(up->pdev);
+		omap_hwmod_set_slave_idlemode(od->hwmods[0],
+					HWMOD_IDLEMODE_FORCE);
+		serial_out(up, UART_OMAP_SYSC, 0x2);
+	}
+/* LGE_CHANGE_E  [bk.shin@lge.com] 2012-02-29 */
 
 	if (up->rts_mux_driver_control) {
 		omap_rts_mux_write(MUX_PULL_UP, up->port.line);

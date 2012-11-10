@@ -53,10 +53,12 @@ module_param(nitro_interval, int, 0);
 static unsigned int nitro_percentage = 25;
 module_param(nitro_percentage, int, 0);
 
-static unsigned int nitro_rate = 1200000;
+//static unsigned int nitro_rate = 1200000;
+static unsigned int nitro_rate = 1008000;
 module_param(nitro_rate, int, 0);
 
-static unsigned int cooling_rate = 1008000;
+//static unsigned int cooling_rate = 1008000;
+static unsigned int cooling_rate = 800000;
 module_param(cooling_rate, int, 0);
 
 struct duty_cycle_desc {

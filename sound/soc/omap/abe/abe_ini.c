@@ -426,6 +426,7 @@ void omap_abe_reset_all_ports(struct omap_abe *abe)
 			     RAMP_2MS, MIX_VXREC_INPUT_MM_DL);
 	omap_abe_write_mixer(abe, MIXVXREC, MUTE_GAIN,
 			     RAMP_2MS, MIX_VXREC_INPUT_VX_UL);
+#if 0	//LGE_D1_BSP_ICS seungdae.goh@lge.com 2012-05-05 set  0  DMIC gain 
 	omap_abe_write_gain(abe, GAINS_DMIC1, GAIN_0dB,
 			    RAMP_2MS, GAIN_LEFT_OFFSET);
 	omap_abe_write_gain(abe, GAINS_DMIC1, GAIN_0dB,
@@ -438,6 +439,21 @@ void omap_abe_reset_all_ports(struct omap_abe *abe)
 			    RAMP_2MS, GAIN_LEFT_OFFSET);
 	omap_abe_write_gain(abe, GAINS_DMIC3, GAIN_0dB,
 			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+#else
+	omap_abe_write_gain(abe, GAINS_DMIC1, MUTE_GAIN,
+			    RAMP_2MS, GAIN_LEFT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DMIC1, MUTE_GAIN,
+			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DMIC2, MUTE_GAIN,
+			    RAMP_2MS, GAIN_LEFT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DMIC2, MUTE_GAIN,
+			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DMIC3, MUTE_GAIN,
+			    RAMP_2MS, GAIN_LEFT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DMIC3, MUTE_GAIN,
+			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+#endif
+
 	omap_abe_write_gain(abe, GAINS_AMIC, GAIN_0dB,
 			    RAMP_2MS, GAIN_LEFT_OFFSET);
 	omap_abe_write_gain(abe, GAINS_AMIC, GAIN_0dB,

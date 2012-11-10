@@ -426,6 +426,18 @@ struct omap_overlay {
 	int (*wait_for_go)(struct omap_overlay *ovl);
 };
 
+#ifdef CONFIG_LGE_BROADCAST_TDMB
+/* YUV2RGB CCS Coefficient tuning from mbp_display_platform.h */
+#define FB_CCS_SIZE 9
+#define FB_DV_SIZE  3
+
+struct omap_dss_dmb_coefs {
+	s32 direction;
+	s16 ccs[FB_CCS_SIZE];
+	s16 bv[FB_DV_SIZE];
+};
+#endif /* CONFIG_LGE_BROADCAST */
+
 struct omap_overlay_manager_info {
 	u32 default_color;
 
@@ -439,6 +451,10 @@ struct omap_overlay_manager_info {
 
 	bool cpr_enable;
 	struct omap_dss_cpr_coefs cpr_coefs;
+
+#ifdef CONFIG_LGE_BROADCAST_TDMB
+	struct omap_dss_dmb_coefs dmb_coefs;
+#endif /* CONFIG_LGE_BROADCAST */
 };
 
 struct omap_overlay_manager {
@@ -759,7 +775,8 @@ int omapdss_default_get_recommended_bpp(struct omap_dss_device *dssdev);
 
 typedef void (*omap_dispc_isr_t) (void *arg, u32 mask);
 int omap_dispc_register_isr(omap_dispc_isr_t isr, void *arg, u32 mask);
-int omap_dispc_unregister_isr(omap_dispc_isr_t isr, void *arg, u32 mask);
+int omap_dispc_unregister_isr_sync(omap_dispc_isr_t isr, void *arg, u32 mask);
+int omap_dispc_unregister_isr_nosync(omap_dispc_isr_t isr, void *arg, u32 mask);
 
 int omap_dispc_wait_for_irq_timeout(u32 irqmask, unsigned long timeout);
 int omap_dispc_wait_for_irq_interruptible_timeout(u32 irqmask,
@@ -814,6 +831,13 @@ int omap_rfbi_configure(struct omap_dss_device *dssdev, int pixel_size,
 
 int omap_dss_manager_unregister_callback(struct omap_overlay_manager *mgr,
 					 struct omapdss_ovl_cb *cb);
+
+/* LGE_SJIT 2011-12-14 [choongryeol.lee@lge.com] VC mode update */
+void omapdss_dsi_update_vc_mode(struct omap_dss_device *dssdev, int channel, bool is_l4);
+
+/* LGE_SJIT 2012-03-06 [choongryeol.lee@lge.com] set first_vsync value per channel */
+void omap_dispc_set_first_vsync(enum omap_channel channel, bool enable);
+
 
 /* generic callback handling */
 static inline void dss_ovl_cb(struct omapdss_ovl_cb *cb, int id, int status)

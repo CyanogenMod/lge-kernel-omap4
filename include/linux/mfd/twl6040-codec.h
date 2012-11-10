@@ -139,6 +139,15 @@
 #define TWL6040_LPLLFIN			0x08
 #define TWL6040_HPLLSEL			0x10
 
+/* LGE_SJIT 2011-12-07 [dojip.kim@lge.com] from P940 GB
+ * ty.lee@lge.com
+ */
+/* AMICBCTL (0x0a) fields */
+#define TWL6040_HMICENA			0x01
+#define TWL6040_HMICBSLP		0x02
+#define TWL6040_HMICBPD			0x04
+#define TWL6040_HMICBSCDIS		0x08
+
 /* HSLCTL (0x10) fields */
 
 #define TWL6040_HSDACENAL		0x01
@@ -162,6 +171,12 @@
 #define TWL6040_VIBENAL			0x01
 
 /* VIBCTLL (0x19) fields */
+
+/* LGE_SJIT 2011-12-07 [dojip.kim@lge.com] from P940 GB
+ * ty.lee@lge.com 2010-10-25
+ */
+/* HKCTL (0x1C) fields */
+#define TWL6040_HKEN			0x01
 
 #define TWL6040_VIBCTRLRN		0x10
 #define TWL6040_VIBCTRLRP		0x04
@@ -194,8 +209,16 @@
 #define TWL6040_INTCLRMODE		0x08
 #define TWL6040_CLK32KSEL		0x40
 
+// LGE_BSP 2012.03.13 [myeonggyu.son@lge.com] 4AIl.1.2 features are used in lg_soc.c
+#ifdef CONFIG_SND_OMAP_SOC_LG 
+#define TWL6040_SYSCLK_SEL_LPPLL	1
+#define TWL6040_SYSCLK_SEL_HPPLL	2
+#endif
+
 /* STATUS (0x2E) fields */
 
+/* LGE_SJIT 2011-12-07 [dojip.kim@lge.com] from P940 GB */
+#define TWL6040_HKCOMP			0x01
 #define TWL6040_PLUGCOMP		0x02
 #define TWL6040_VIBLOCDET		0x10
 #define TWL6040_VIBROCDET		0x20
@@ -238,6 +261,7 @@ struct twl6040 {
 	u8 irq_masks_cur;
 	u8 irq_masks_cache;
 };
+
 
 static inline int twl6040_request_irq(struct twl6040 *twl6040, int irq,
 				      irq_handler_t handler,

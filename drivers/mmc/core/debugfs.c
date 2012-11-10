@@ -327,4 +327,8 @@ err:
 void mmc_remove_card_debugfs(struct mmc_card *card)
 {
 	debugfs_remove_recursive(card->debugfs_root);
+	/* LGE_SJIT 2012-02-03 [dojip.kim@lge.com]
+	 * debugfs_root = NULL
+	 */
+	card->debugfs_root = NULL;
 }

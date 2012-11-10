@@ -36,6 +36,10 @@
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/ratelimit.h>
+//LGE_CHANGE_S [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
+#include <linux/gpio.h>
+#include <lge/board.h>
+//LGE_CHANGE_E [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
 
 #include <plat/sram.h>
 #include <plat/clock.h>
@@ -47,11 +51,17 @@
 #include "../clockdomain.h"
 #include "dss.h"
 #include "dss_features.h"
+//LGE_CHANGE_S [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
+#include "gammatable.h"
+//LGE_CHANGE_E [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
 #include "dispc.h"
 
 /* DISPC */
 #define DISPC_SZ_REGS			SZ_4K
 
+//LGE_CHANGE_S [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
+#define DISPC_REG(idx)			((const u16) {idx})//((const struct dispc_reg) { idx })
+//LGE_CHANGE_E [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
 #define DISPC_IRQ_MASK_ERROR            (DISPC_IRQ_GFX_FIFO_UNDERFLOW | \
 					 DISPC_IRQ_OCP_ERR | \
 					 DISPC_IRQ_VID1_FIFO_UNDERFLOW | \
@@ -59,6 +69,11 @@
 					 DISPC_IRQ_SYNC_LOST | \
 					 DISPC_IRQ_SYNC_LOST_DIGIT)
 
+//LGE_CHANGE_S [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
+#define DISPC_VID_OMAP4_REG(n, idx) DISPC_REG(0x0600 + (n)*0x04 + idx)
+#define DISPC_GAMMA_TABLE(n)	   DISPC_VID_OMAP4_REG(n, 0x0030)
+					/* n = {0,1,2,3} */
+//LGE_CHANGE_E [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
 #define DISPC_MAX_NR_ISRS		8
 
 static struct clockdomain *l3_1_clkdm, *l3_2_clkdm;
@@ -700,7 +715,12 @@ void dispc_go(enum omap_channel channel)
 
 	DSSDBG("GO %s\n", channel == OMAP_DSS_CHANNEL_LCD ? "LCD" :
 		(channel == OMAP_DSS_CHANNEL_LCD2 ? "LCD2" : "DIGIT"));
-
+//LGE_CHANGE_S [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
+#if defined(CONFIG_P2_GAMMA) || defined(CONFIG_U2_GAMMA)
+        REG_FLD_MOD(DISPC_CONFIG, 1, 3, 3);
+        REG_FLD_MOD(DISPC_CONFIG, 1, 9, 9);
+#endif
+//LGE_CHANGE_E[jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
 	if (channel == OMAP_DSS_CHANNEL_LCD2)
 		REG_FLD_MOD(DISPC_CONTROL2, 1, bit, bit);
 	else
@@ -1518,15 +1538,15 @@ static void _dispc_set_scale_param(enum omap_plane plane,
 {
 	int fir_hinc, fir_vinc;
 	int hscaleup, vscaleup;
-
+#if 0
 	hscaleup = orig_width <= out_width;
 	vscaleup = orig_height <= out_height;
 
 	_dispc_set_scale_coef(plane, hscaleup, vscaleup, five_taps, color_comp);
-
+#endif
 	fir_hinc = 1024 * orig_width / out_width;
 	fir_vinc = 1024 * orig_height / out_height;
-
+	_dispc_set_scale_coef(plane, fir_hinc, fir_vinc, five_taps, color_comp);
 	_dispc_set_fir(plane, fir_hinc, fir_vinc, color_comp);
 }
 
@@ -1540,8 +1560,9 @@ static void _dispc_set_scaling_common(enum omap_plane plane,
 	int accu0 = 0;
 	int accu1 = 0;
 	u32 l;
+	u16 y_adjust = color_mode == OMAP_DSS_COLOR_NV12 ? 2 : 0;
 
-	_dispc_set_scale_param(plane, orig_width, orig_height,
+	_dispc_set_scale_param(plane, orig_width, orig_height - y_adjust,
 				out_width, out_height, five_taps,
 				rotation, DISPC_COLOR_COMPONENT_RGB_Y);
 	l = dispc_read_reg(DISPC_OVL_ATTRIBUTES(plane));
@@ -1593,6 +1614,7 @@ static void _dispc_set_scaling_uv(enum omap_plane plane,
 {
 	int scale_x = out_width != orig_width;
 	int scale_y = out_height != orig_height;
+	u16 y_adjust = 0;
 
 	if (!dss_has_feature(FEAT_HANDLE_UV_SEPARATE))
 		return;
@@ -1611,6 +1633,7 @@ static void _dispc_set_scaling_uv(enum omap_plane plane,
 			orig_height >>= 1;
 			/* UV is subsampled by 2 horz.*/
 			orig_width >>= 1;
+		y_adjust = 1;
 		} else {
 			/* UV is downsampled by 2 vertically*/
 			out_height >>= 1;
@@ -1645,7 +1668,7 @@ static void _dispc_set_scaling_uv(enum omap_plane plane,
 	if (out_height != orig_height)
 		scale_y = true;
 
-	_dispc_set_scale_param(plane, orig_width, orig_height,
+	_dispc_set_scale_param(plane, orig_width, orig_height - y_adjust,
 			out_width, out_height, five_taps,
 				rotation, DISPC_COLOR_COMPONENT_UV);
 
@@ -1731,9 +1754,6 @@ static void _dispc_set_rotation_attrs(enum omap_plane plane, u8 rotation,
 			row_repeat = true;
 		else
 			row_repeat = false;
-	} else if (color_mode == OMAP_DSS_COLOR_NV12) {
-		/* WA for OMAP4+ UV plane overread HW bug */
-		vidrot = 1;
 	}
 
 	REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), vidrot, 13, 12);
@@ -2800,7 +2820,7 @@ static void dispc_enable_lcd_out(enum omap_channel channel, bool enable)
 					msecs_to_jiffies(100)))
 			DSSERR("timeout waiting for FRAME DONE\n");
 
-		r = omap_dispc_unregister_isr(dispc_disable_isr,
+		r = omap_dispc_unregister_isr_sync(dispc_disable_isr,
 				&frame_done_completion, irq);
 
 		if (r)
@@ -2859,7 +2879,7 @@ static void dispc_enable_digit_out(enum omap_display_type type, bool enable)
 			DSSERR("timeout waiting for EVSYNC\n");
 	}
 
-	r = omap_dispc_unregister_isr(dispc_disable_isr,
+	r = omap_dispc_unregister_isr_sync(dispc_disable_isr,
 			&frame_done_completion,
 			DISPC_IRQ_EVSYNC_EVEN | DISPC_IRQ_EVSYNC_ODD
 						| DISPC_IRQ_FRAMEDONETV);
@@ -3074,8 +3094,267 @@ bool dispc_trans_key_enabled(enum omap_channel ch)
 
 	return enabled;
 }
+//LGE_CHANGE_S [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
+//LGE_CHANGE_S [taekeun1.kim@lge.com] 2010-12-14, P920 : code refine.
+u32 dispc_convert_gamma_rgb(int index,u32 temp,int red, int green,int blue)
+{
+	return  index<<24 |(((temp&0x000000FF)*(u32)blue)/255)
+					  |(((((temp&0x0000FF00)>>8)*(u32)green)/255)<<8)
+					  |(((((temp&0x00FF0000)>>16)*(u32)red)/255)<<16);
+}
+#if defined(CONFIG_LUT_FILE_TUNING)
+long tuning_table[256];
+#endif
+int dispc_enable_gamma(enum omap_channel ch, u8 gamma)
+{
+	//printk("GAMMA	:	table_type is %d, red is %d, green is %d, blue is %d \n",
+	//	lcd_gamma_rgb.table_type,lcd_gamma_rgb.red,lcd_gamma_rgb.green,lcd_gamma_rgb.blue);
+#ifdef CONFIG_ARCH_OMAP4
+	u32 i, temp, channel;
+	static int enabled;
+	u32 *tablePtr;
+
+        channel = ch == OMAP_DSS_CHANNEL_LCD ? 0 :
+                 ch == OMAP_DSS_CHANNEL_LCD2 ? 1 : 2;
 
 
+        if (gamma > NO_OF_GAMMA_TABLES)
+                return -EINVAL;
+
+#if defined(CONFIG_P2_S_CURVE) || defined(CONFIG_U2_S_CURVE)
+	{
+		if(ch == 2)
+		{
+			dispc_write_reg(DISPC_GAMMA_TABLE(ch), 0x80000000);
+			for (i = 0; i < GAMMA_TBL_SZ * 4 - 1; i++) {
+				temp = (i << 20) | (i << 10) | i;
+				dispc_write_reg(DISPC_GAMMA_TABLE(ch), temp);
+			}
+		}
+#if defined(CONFIG_LUT_FILE_TUNING)
+	if(!gamma)
+	{
+#endif
+		for (i = 0; i < GAMMA_TBL_SZ; i++) {
+				temp =  GammaTable[i] | (i<<24);
+				//if(i == 255)
+					//printk("GAMMA	:	MAX_RGB = %x\n", temp);
+				dispc_write_reg(DISPC_GAMMA_TABLE(channel), temp);
+		}
+#if defined(CONFIG_LUT_FILE_TUNING)
+	}
+	else
+	{
+		for (i = 0; i < GAMMA_TBL_SZ; i++) {
+				temp =  tuning_table[i] | (i<<24);
+				printk("[dyotest]Tuning LUT num=%d, value= 0x%x\n", i,temp);
+				dispc_write_reg(DISPC_GAMMA_TABLE(channel), temp);
+		}
+	}
+#endif
+	}
+#else
+        if (gamma) {
+                u8 *tablePtr = gammaTablePtr[gamma - 1];
+
+                for (i = 0; i < GAMMA_TBL_SZ; i++) {
+                        temp =  tablePtr[i];
+                        temp =  (i<<24)|(temp|(temp<<8)|(temp<<16));
+                        dispc_write_reg(DISPC_GAMMA_TABLE(channel), temp);
+                }
+        }
+#endif
+        enabled = enabled & (~(1 << channel) | (gamma ? (1 << channel) : 0));
+        REG_FLD_MOD(DISPC_CONFIG, (enabled & 1), 3, 3);
+        REG_FLD_MOD(DISPC_CONFIG, !!(enabled & 6), 9, 9);
+
+        return 0;
+#endif
+}
+//LGE_CHANGE_E [taekeun1.kim@lge.com] 2010-12-14, P920 : code refine.
+//LGE_CHANGE_E [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
+
+//LGE_CHANGE_S [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
+int dispc_set_gamma_rgb(enum omap_channel ch, u8 gamma,int red,int green,int blue)
+{
+#ifdef CONFIG_ARCH_OMAP4
+	u32 i, temp, channel;
+	static int enabled;
+	unsigned char maker_id;
+	u32 *tablePtr;
+
+        channel = ch == OMAP_DSS_CHANNEL_LCD ? 0 :
+                 ch == OMAP_DSS_CHANNEL_LCD2 ? 1 : 2;
+
+
+        if (gamma > NO_OF_GAMMA_TABLES)
+                return -EINVAL;
+
+#if defined(CONFIG_P2_S_CURVE) || defined(CONFIG_U2_S_CURVE)
+	#if defined(CONFIG_MACH_LGE_U2_P760)
+		tablePtr = GammaTable_p760;
+	#elif defined(CONFIG_MACH_LGE_U2_P769)
+		tablePtr = GammaTable_p769;
+	#elif defined(CONFIG_MACH_LGE_U2_P768)
+		tablePtr = GammaTable_p760;
+	#else
+		maker_id =gpio_get_value(GPIO_LCD_MAKER_ID);
+	        if(maker_id == 1){
+			tablePtr = GammaTable_LGD;
+		} else {
+			tablePtr = GammaTable_HITACHI;
+		}
+	#endif
+	if(ch == 2)
+	{
+		dispc_write_reg(DISPC_GAMMA_TABLE(ch), 0x80000000);
+		for (i = 0; i < GAMMA_TBL_SZ * 4 - 1; i++) {
+			temp = (i << 20) | (i << 10) | i;
+			dispc_write_reg(DISPC_GAMMA_TABLE(ch), temp);
+		}
+	}
+
+	for ( i = 0; i <GAMMA_TBL_SZ; i++) {
+		temp = tablePtr[i];
+		temp = dispc_convert_gamma_rgb(i,temp,red, green, blue);
+	if(i==255)
+		printk("GAMMA	:	Tabel_values %dth is 0x%x\n",i,temp);
+	dispc_write_reg(DISPC_GAMMA_TABLE(channel), temp);
+	}
+
+#else
+        if (gamma) {
+                u8 *tablePtr = gammaTablePtr[gamma - 1];
+
+                for (i = 0; i < GAMMA_TBL_SZ; i++) {
+                        temp =  tablePtr[i];
+                        temp =  (i<<24)|(temp|(temp<<8)|(temp<<16));
+                        dispc_write_reg(DISPC_GAMMA_TABLE(channel), temp);
+                }
+        }
+#endif
+
+        enabled = enabled & (~(1 << channel) | (gamma ? (1 << channel) : 0));
+        REG_FLD_MOD(DISPC_CONFIG, (enabled & 1), 3, 3);
+        REG_FLD_MOD(DISPC_CONFIG, !!(enabled & 6), 9, 9);
+
+
+        return 0;
+#endif
+}
+
+void dispc_set_gamma_table()
+{
+	u32 temp;
+	int i, maker_id, gamma_nv_flag;
+	if((lcd_gamma_rgb.red || lcd_gamma_rgb.green || lcd_gamma_rgb.blue))
+		gamma_nv_flag = 1;
+	else
+		gamma_nv_flag = 0;
+	#if defined(CONFIG_MACH_LGE_U2_P760)
+		if(gamma_nv_flag == GAMMA_NV_ENABLED)
+			lcd_gamma_rgb.table_type= PANEL_P760_NV;
+		else
+			lcd_gamma_rgb.table_type= PANEL_P760;
+	#elif defined(CONFIG_MACH_LGE_U2_P769)
+		if(gamma_nv_flag == GAMMA_NV_ENABLED)
+			lcd_gamma_rgb.table_type= PANEL_P769_NV;
+		else
+			lcd_gamma_rgb.table_type= PANEL_P769;
+	#elif defined(CONFIG_MACH_LGE_U2_P768)
+		if(gamma_nv_flag == GAMMA_NV_ENABLED)
+			lcd_gamma_rgb.table_type= PANEL_P760_NV;
+		else
+			lcd_gamma_rgb.table_type= PANEL_P760;
+	#else
+		maker_id = gpio_get_value(GPIO_LCD_MAKER_ID);
+
+		if(maker_id == PANEL_LGD) {
+			if(gamma_nv_flag == GAMMA_NV_ENABLED)
+				lcd_gamma_rgb.table_type= PANEL_LGD_NV;
+			else
+				lcd_gamma_rgb.table_type= PANEL_LGD;
+		}
+		else {
+			if(gamma_nv_flag == GAMMA_NV_ENABLED)
+				lcd_gamma_rgb.table_type= PANEL_HITACHI_NV;
+			else
+				lcd_gamma_rgb.table_type= PANEL_HITACHI;
+		}
+	#endif
+	if(!gamma_nv_flag)
+		printk("[DISPC] LUT Table = %d, %s%s\n",lcd_gamma_rgb.table_type,(lcd_gamma_rgb.table_type==4)? "PANEL_P769":"", (lcd_gamma_rgb.table_type==6)? "PANLE_P760":"");
+	else
+		printk("[DISPC] LUT Table = %d, %s%s\n",lcd_gamma_rgb.table_type,(lcd_gamma_rgb.table_type==5)? "PANEL_P769_NV":"", (lcd_gamma_rgb.table_type==7)? "PANLE_P760_NV":"");
+
+	switch (lcd_gamma_rgb.table_type) {
+		case PANEL_HITACHI :
+			for(i=0;i<GAMMA_TBL_SZ;i++)
+				GammaTable[i]=GammaTable_HITACHI[i];
+			break;
+
+		case PANEL_LGD :
+			for(i=0;i<GAMMA_TBL_SZ;i++)
+				GammaTable[i]=GammaTable_LGD[i];
+			break;
+
+		case PANEL_HITACHI_NV :
+			for ( i = 0; i <GAMMA_TBL_SZ; i++) {
+				GammaTable[i]=GammaTable_HITACHI[i];
+				temp = GammaTable[i];
+				temp = dispc_convert_gamma_rgb(i,temp,lcd_gamma_rgb.red, lcd_gamma_rgb.green, lcd_gamma_rgb.blue);
+				GammaTable[i] = temp;
+			}
+			break;
+
+		case PANEL_LGD_NV :
+			for ( i = 0; i <GAMMA_TBL_SZ; i++) {
+				GammaTable[i]=GammaTable_LGD[i];
+				temp = GammaTable[i];
+				temp = dispc_convert_gamma_rgb(i,temp,lcd_gamma_rgb.red, lcd_gamma_rgb.green, lcd_gamma_rgb.blue);
+				GammaTable[i] = temp;
+			}
+			break;
+
+		case PANEL_P769 :
+			for(i=0;i<GAMMA_TBL_SZ;i++)
+				GammaTable[i]=GammaTable_p769[i];
+			break;
+
+		case PANEL_P769_NV :
+			for ( i = 0; i <GAMMA_TBL_SZ; i++) {
+				GammaTable[i]=GammaTable_p769[i];
+				temp = GammaTable[i];
+				temp = dispc_convert_gamma_rgb(i,temp,lcd_gamma_rgb.red, lcd_gamma_rgb.green, lcd_gamma_rgb.blue);
+				GammaTable[i] = temp;
+			}
+			break;
+
+		case PANEL_P760 :
+			for(i=0;i<GAMMA_TBL_SZ;i++)
+				GammaTable[i]=GammaTable_p760[i];
+			break;
+
+		case PANEL_P760_NV :
+			for ( i = 0; i <GAMMA_TBL_SZ; i++) {
+				GammaTable[i]=GammaTable_p760[i];
+				temp = GammaTable[i];
+				temp = dispc_convert_gamma_rgb(i,temp,lcd_gamma_rgb.red, lcd_gamma_rgb.green, lcd_gamma_rgb.blue);
+				GammaTable[i] = temp;
+			}
+			break;
+
+		default :
+			maker_id = gpio_get_value(GPIO_LCD_MAKER_ID);
+			if(maker_id == 1)
+				for(i=0;i<GAMMA_TBL_SZ;i++)
+					GammaTable[i]=GammaTable_LGD[i];
+			else
+				for(i=0;i<GAMMA_TBL_SZ;i++)
+					GammaTable[i]=GammaTable_HITACHI[i];
+		}
+}
+//LGE_CHANGE_E [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
 void dispc_set_tft_data_lines(enum omap_channel channel, u8 data_lines)
 {
 	int code;
@@ -3094,7 +3373,13 @@ void dispc_set_tft_data_lines(enum omap_channel channel, u8 data_lines)
 		code = 3;
 		break;
 	default:
+/* LGE_CHANGE_S [?] ?-?-?, Cosmopolitan: */
+#if defined(CONFIG_MACH_LGE_COSMOPOLITAN) || defined(CONFIG_MACH_LGE_P940)
+		code = 3;
+#else /* original */
 		BUG();
+#endif
+/* LGE_CHANGE_E [?] ?-?-? */
 		return;
 	}
 
@@ -3780,7 +4065,8 @@ err:
 }
 EXPORT_SYMBOL(omap_dispc_register_isr);
 
-int omap_dispc_unregister_isr(omap_dispc_isr_t isr, void *arg, u32 mask)
+/* WARNING: callback might be executed even after this function returns! */
+int omap_dispc_unregister_isr_nosync(omap_dispc_isr_t isr, void *arg, u32 mask)
 {
 	int i;
 	unsigned long flags;
@@ -3812,7 +4098,37 @@ int omap_dispc_unregister_isr(omap_dispc_isr_t isr, void *arg, u32 mask)
 
 	return ret;
 }
-EXPORT_SYMBOL(omap_dispc_unregister_isr);
+EXPORT_SYMBOL(omap_dispc_unregister_isr_nosync);
+
+/*
+ * Ensure that callback <isr> will NOT be executed after this function
+ * returns. Must be called from sleepable context, though!
+ */
+int omap_dispc_unregister_isr_sync(omap_dispc_isr_t isr, void *arg, u32 mask)
+{
+	int ret;
+
+	ret = omap_dispc_unregister_isr_nosync(isr, arg, mask);
+
+	/* Task context is not really needed. But if we're called from atomic
+	 * context, it is probably from DISPC IRQ, where we will deadlock.
+	 * So use might_sleep() to catch potential deadlocks.
+	 */
+	might_sleep();
+
+#if defined(CONFIG_SMP)
+	/* DISPC IRQ executes callbacks with dispc.irq_lock released. Hence
+	 * unregister_isr() and DISPC IRQ might be running in parallel on
+	 * different CPUs. So there is a chance that a callback is executed
+	 * even though it has been unregistered. Add a barrier, in order to
+	 * ensure that after returning from this function, the new DISPC IRQ
+	 * will use an updated callback array, and NOT its cached copy.
+	 */
+	synchronize_irq(dispc.irq);
+#endif
+
+	return ret;
+}
 
 #ifdef DEBUG
 static void print_irq_status(u32 status)
@@ -4061,6 +4377,7 @@ static void dispc_error_worker(struct work_struct *work)
 			if (mgr->id == OMAP_DSS_CHANNEL_DIGIT) {
 				if(!mgr->device->first_vsync){
 					DSSERR("First SYNC_LOST..TV ignoring\n");
+					break; //LGE_SJIT 2012-03-06 [choongryeol.lee@lge.com] ignoring sync lost right after lcd resume
 				}
 
 				manager = mgr;
@@ -4159,6 +4476,25 @@ static void dispc_error_worker(struct work_struct *work)
 	dispc_runtime_put();
 }
 
+/* LGE_SJIT 2012-03-06 [choongryeol.lee@lge.com] set first_vsync per channel */
+void omap_dispc_set_first_vsync(enum omap_channel channel, bool enable)
+{
+	int i;
+
+	DSSDBG("omap_dispc_set_first_vsync : channel = %d  enable = %d\n",channel, enable);
+
+	for (i = 0; i < omap_dss_get_num_overlay_managers(); ++i) {
+		struct omap_overlay_manager *mgr;
+		mgr = omap_dss_get_overlay_manager(i);
+
+		if (mgr->id == channel) {
+			mgr->device->first_vsync = enable;
+			return;
+		}
+	}
+	DSSERR("fail to match channel to set first_vsync");
+}
+
 int omap_dispc_wait_for_irq_timeout(u32 irqmask, unsigned long timeout)
 {
 	void dispc_irq_wait_handler(void *data, u32 mask)
@@ -4177,7 +4513,8 @@ int omap_dispc_wait_for_irq_timeout(u32 irqmask, unsigned long timeout)
 
 	timeout = wait_for_completion_timeout(&completion, timeout);
 
-	omap_dispc_unregister_isr(dispc_irq_wait_handler, &completion, irqmask);
+	omap_dispc_unregister_isr_sync(dispc_irq_wait_handler, &completion,
+			irqmask);
 
 	if (timeout == 0)
 		return -ETIMEDOUT;
@@ -4212,7 +4549,8 @@ int omap_dispc_wait_for_irq_interruptible_timeout(u32 irqmask,
 	timeout = wait_for_completion_interruptible_timeout(&completion,
 			timeout);
 
-	omap_dispc_unregister_isr(dispc_irq_wait_handler, &completion, irqmask);
+	omap_dispc_unregister_isr_sync(dispc_irq_wait_handler, &completion,
+			irqmask);
 
 	if (timeout == 0)
 		r = -ETIMEDOUT;
@@ -4382,6 +4720,16 @@ static int omap_dispchw_probe(struct platform_device *pdev)
 
 	_omap_dispc_initialize_irq();
 
+//LGE_CHANGE_S [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
+#if defined(CONFIG_P2_GAMMA) || defined(CONFIG_U2_GAMMA)
+#if defined(CONFIG_P2_S_CURVE) || defined(CONFIG_U2_S_CURVE)
+printk("probe_CONFIG_P2_GAMMA\n");
+	dispc_set_gamma_table();
+	dispc_enable_gamma(OMAP_DSS_CHANNEL_LCD, 0);
+	dispc_enable_gamma(OMAP_DSS_CHANNEL_LCD2, 0);
+#endif
+#endif
+//LGE_CHANGE_E [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
 	rev = dispc_read_reg(DISPC_REVISION);
 	dev_dbg(&pdev->dev, "OMAP DISPC rev %d.%d\n",
 	       FLD_GET(rev, 7, 4), FLD_GET(rev, 3, 0));
@@ -4430,3 +4778,17 @@ void dispc_uninit_platform_driver(void)
 {
 	return platform_driver_unregister(&omap_dispchw_driver);
 }
+//LGE_CHANGE_S [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
+static u32 __init gamma_rgb_data_dispc(char *str)
+{
+	int output[3]={0,};
+
+	sscanf(str,"%d,%d,%d",&output[0],&output[1],&output[2]);
+	lcd_gamma_rgb.red = output[0];
+	lcd_gamma_rgb.green = output[1];
+	lcd_gamma_rgb.blue= output[2];
+
+	return 1;
+}
+__setup("RGB=", gamma_rgb_data_dispc);
+//LGE_CHANGE_E [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB

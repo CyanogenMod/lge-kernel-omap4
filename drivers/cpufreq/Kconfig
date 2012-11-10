@@ -122,6 +122,16 @@ config CPU_FREQ_DEFAULT_GOV_HOTPLUG
 	  support the hotplug governor. If unsure have a look at
 	  the help section of the driver. Fallback governor will be the
 	  performance governor.
+
+## SJIT 2012-02-01 [dojip.kim@lge.com] Add SANJOSE governor
+config CPU_FREQ_DEFAULT_GOV_SANJOSE
+	bool "sanjose (Experimental)"
+	select CPU_FREQ_GOV_SANJOSE
+	help
+	  Use the CPUFreq governor 'sanjose' as default. This allows you to
+	  get full dynamic cpu frequency capable system by simply loading
+	  your cpufreq low-level hardware driver, using the 'sanjose'
+	  governor for latency-sensitive workloads.
 endchoice
 
 config CPU_FREQ_GOV_PERFORMANCE
@@ -241,6 +251,23 @@ config CPU_FREQ_GOV_HOTPLUG
 
 	  If you don't have one of these architectures or devices, use
 	  'ondemand' instead.
+
+	  If in doubt, say N.
+
+## SJIT 2012-02-01 [dojip.kim@lge.com] Add SANJOSE governor
+config CPU_FREQ_GOV_SANJOSE
+	tristate "'sanjose' cpufreq governor (Experimental)"
+	depends on CPU_FREQ && NO_HZ && HOTPLUG_CPU
+	help
+	  'sanjose' - this driver mimics the frequency scaling behavior
+	  in 'interactive', but 'sanjose' will offline auxillary CPUSs
+	  when the system is idle, and online those CPUs once the
+	  system becomes busy again. This last feature is needed for
+	  architectures which transition to low power states when only
+	  the "master" CPU is online, or for thermally constrained devices.
+
+	  If you don't have one of these architecture of devices, use
+	  'interactive' instead.
 
 	  If in doubt, say N.
 
