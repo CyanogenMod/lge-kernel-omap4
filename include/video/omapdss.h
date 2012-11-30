@@ -290,6 +290,12 @@ struct omap_dss_board_info {
 	void (*dsi_mux_pads)(bool enable);
 };
 
+//#if defined(CONFIG_PANEL_LH430WV2_SD01) //##hw2002.cho@lge.com
+#define PWM2ON		0x03
+#define PWM2OFF		0x04
+#define TOGGLE3		0x92
+//#endif //##
+
 #if defined(CONFIG_OMAP2_DSS_MODULE) || defined(CONFIG_OMAP2_DSS)
 /* Init with the board info */
 extern int omap_display_init(struct omap_dss_board_info *board_data);
@@ -558,6 +564,64 @@ struct omap_writeback {
 	void (*get_wb_info)(struct omap_writeback *wb,
 			struct omap_writeback_info *info);
 };
+
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY) //##hwcho_20120522
+/* Stereoscopic Panel types
+ * row, column, overunder, sidebyside options
+ * are with respect to native scan order
+*/
+enum s3d_disp_type {
+	S3D_DISP_NONE = 0,
+	S3D_DISP_FRAME_SEQ,
+	S3D_DISP_ROW_IL,
+	S3D_DISP_COL_IL,
+	S3D_DISP_PIX_IL,
+	S3D_DISP_CHECKB,
+	S3D_DISP_OVERUNDER,
+	S3D_DISP_SIDEBYSIDE,
+	S3D_DISP_DECISION_IN_DSSCOMP,	/*decision will be done in kernel's dsscomp*/
+};
+
+/* Subsampling direction is based on native panel scan order.
+*/
+enum s3d_disp_sub_sampling {
+	S3D_DISP_SUB_SAMPLE_NONE = 0,
+	S3D_DISP_SUB_SAMPLE_V,
+	S3D_DISP_SUB_SAMPLE_H,
+};
+
+/* Indicates if display expects left view first followed by right or viceversa
+ * For row interlaved displays, defines first row view
+ * For column interleaved displays, defines first column view
+ * For checkerboard, defines first pixel view
+ * For overunder, defines top view
+ * For sidebyside, defines west view
+*/
+enum s3d_disp_order {
+	S3D_DISP_ORDER_L = 0,
+	S3D_DISP_ORDER_R = 1,
+};
+
+/* Indicates current view
+ * Used mainly for displays that need to trigger a sync signal
+*/
+enum s3d_disp_view {
+	S3D_DISP_VIEW_L = 0,
+	S3D_DISP_VIEW_R,
+};
+
+struct s3d_disp_info {
+	enum s3d_disp_type type;
+	enum s3d_disp_sub_sampling sub_samp;
+	enum s3d_disp_order order;
+	/* Gap between left and right views
+	 * For over/under units are lines
+	 * For sidebyside units are pixels
+	  *For other types ignored*/
+	unsigned int gap;
+};
+#endif //##
+
 struct omap_dss_device {
 	struct device dev;
 
@@ -747,6 +811,25 @@ struct omap_dss_driver {
 	/* for wrapping around state changes */
 	void (*disable_orig)(struct omap_dss_device *display);
 	int (*enable_orig)(struct omap_dss_device *display);
+#if 1 //##defined(3D_LCD_FUNCTION)
+/* S3D specific */
+/* Used for displays that can switch 3D mode on/off
+3D only displays should return non-zero value when trying to disable */
+	int (*enable_s3d)(struct omap_dss_device *dssdev, bool enable);
+/* 3D only panels should return true always */
+	bool (*get_s3d_enabled)(struct omap_dss_device *dssdev);
+/* Only used for frame sequential displays*/
+	int (*set_s3d_view)(struct omap_dss_device *dssdev, enum s3d_disp_view view);
+/*Some displays may accept multiple 3D packing formats (like HDMI)
+ *hence we add capability to choose the most optimal one given a source
+ *Returns non-zero if the type was not supported*/
+	int (*set_s3d_disp_type)(struct omap_dss_device *dssdev, struct s3d_disp_info *info);
+	int (*get_s3d_disp_type)(struct omap_dss_device *dssdev, struct s3d_disp_info *info);
+// LGE_CHANGE [mo2sanggill.lee@lge.com] 2011-11-12 CX2 for realtime edid read
+	void (*get_edid_realtime)(struct omap_dss_device *dssdev,
+		struct omap_video_timings *timings);
+// LGE_CHANGE [mo2sanggill.lee@lge.com] 2011-11-12 CX2 for realtime edid read
+#endif //##	
 };
 
 int omap_dss_register_driver(struct omap_dss_driver *);

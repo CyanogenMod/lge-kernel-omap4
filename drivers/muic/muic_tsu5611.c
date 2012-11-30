@@ -480,7 +480,7 @@ static void muic_detect_device_set_mode(struct i2c_client *client, u8 int_status
 }
 
 #if defined(CONFIG_MACH_LGE)
-extern void android_disconnect_from_muic(void);
+extern void android_USB_disconnect(void);
 #endif
 
 static void muic_tsu5611_set_mode(struct i2c_client *client, u8 int_status1_val)
@@ -570,7 +570,7 @@ static void muic_tsu5611_set_mode(struct i2c_client *client, u8 int_status1_val)
 				 * USB mode change: Internal USB disconnect & connect operation.
 				 * Send USB disconnect event from MUIC.
 				 */
-				android_disconnect_from_muic();
+				android_USB_disconnect();
 #endif
 				dev_info(&client->dev, "%s: USB is removed\n", __func__);
 #if defined(CONFIG_MAX8971_CHARGER)

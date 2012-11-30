@@ -106,6 +106,7 @@ static struct {
 
 	u8 s3d_mode;
 	bool s3d_enable;
+	u8 s3d_type;  //mo2sanghyun.lee 
 
 	void (*hdmi_start_frame_cb)(void);
 	void (*hdmi_irq_cb)(int);
@@ -113,6 +114,110 @@ static struct {
 } hdmi;
 
 static const u8 edid_header[8] = {0x0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0};
+
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY)
+bool hdmi_s3d_supported(void);
+
+static void hdmi_video_stop(struct omap_dss_device *dssdev)
+{
+//    int i, count=0;
+    HDMIDBG("hdmi_video_stop\n");
+    if(hdmi_ti_4xxx_wp_get_video_state(&hdmi.hdmi_data))
+    {
+        hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 0);
+        dispc_enable_channel(OMAP_DSS_CHANNEL_DIGIT, dssdev->type, 0);
+    }
+    else
+    {
+        HDMIDBG("HDMI Video is not on. skip stop hdmi\n");
+    }
+
+}
+
+static void hdmi_video_start(struct omap_dss_device *dssdev)
+{
+    HDMIDBG("hdmi_video_start\n");
+    if(!hdmi_ti_4xxx_wp_get_video_state(&hdmi.hdmi_data))
+    {
+        HDMIDBG("Checking HDMI Video start condition. HDMI go(%d)\n", dispc_go_busy(OMAP_DSS_CHANNEL_DIGIT));
+        if ( dispc_go_busy(OMAP_DSS_CHANNEL_DIGIT) )
+        {
+            printk(KERN_ERR"unable to start vidoe\n");
+            return ;
+        }
+
+    }
+    dispc_enable_channel(OMAP_DSS_CHANNEL_DIGIT, dssdev->type, 1);
+    hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 1);
+}
+
+int hdmi_enable_s3d (struct omap_dss_device *dssdev, bool enable)
+{
+        struct hdmi_core_vendor_specific_infoframe config;
+        HDMIDBG("hdmi_enable_s3d enable = %d, s3d_enable=%d,  s3d_mnode=%d\n", enable, hdmi.s3d_enable, hdmi.s3d_mode);
+
+        if(hdmi.s3d_enable == enable)
+            return 0;
+
+	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 0);
+        
+        config.enable = hdmi.s3d_enable = enable;
+        config.s3d_structure = hdmi.s3d_mode;
+        
+#if 1   //mno2sanghyyun.lee sidebyside test     
+        if(hdmi.s3d_mode == NULL)
+        {
+            config.s3d_structure = HDMI_SIDE_BY_SIDE_HALF;
+            HDMIDBG("Force setting to %s \n", (config.s3d_structure==HDMI_SIDE_BY_SIDE_HALF)?"HDMI_SIDE_BY_SIDE_HALF":"HDMI_TOPBOTTOM");
+        }
+#endif        
+
+        if (config.s3d_structure == HDMI_SIDE_BY_SIDE_HALF)
+            config.s3d_ext_data = S3D_DISP_SUB_SAMPLE_V; //S3D_DISP_SUB_SAMPLE_V
+        else 
+            config.s3d_ext_data = S3D_DISP_SUB_SAMPLE_H;  //S3D_DISP_SUB_SAMPLE_H
+        
+        hdmi_core_vsi_config(&hdmi.hdmi_data, &config);
+
+        mdelay(300);
+  	hdmi_video_start(dssdev);
+
+        return 0;
+}
+
+int hdmi_get_s3d_enabled(struct omap_dss_device *dssdev)
+{
+        HDMIDBG("s3d_enable=%d\n", hdmi.s3d_enable);
+        return hdmi.s3d_enable;
+}
+
+int hdmi_set_s3d_disp_type(struct omap_dss_device *dssdev, struct s3d_disp_info *info)
+{
+        HDMIDBG("type=%d, sub_samp=%d, order=%d\n", info->type, info->sub_samp, info->order);
+        hdmi.s3d_type = info->type;
+        
+        if(info->type == 2/*S3D_TOP_BOTTOM*/)
+            hdmi.s3d_mode = HDMI_TOPBOTTOM;
+        else if(info->type == 1/*S3D_SIDE_BY_SIDE*/)
+            hdmi.s3d_mode = HDMI_SIDE_BY_SIDE_HALF;
+        else
+        {
+            HDMIDBG(KERN_ERR"ERROR   ======3d type missed=======\n");
+            return -1;
+        }
+        return 0;
+}
+int hdmi_get_s3d_disp_type(struct omap_dss_device *dssdev, struct s3d_disp_info *info)
+{
+        HDMIDBG("type\n", info->type);
+        return hdmi.s3d_type;
+}
+
+EXPORT_SYMBOL(hdmi_enable_s3d);
+EXPORT_SYMBOL(hdmi_get_s3d_enabled);
+EXPORT_SYMBOL(hdmi_set_s3d_disp_type);
+EXPORT_SYMBOL(hdmi_get_s3d_disp_type);
+#endif
 
 static int hdmi_runtime_get(void)
 {
@@ -349,6 +454,33 @@ int hdmi_get_datablock_offset(u8 *edid, enum extension_edid_db datablock, int *o
 	return 1;
 }
 
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY)
+bool hdmi_s3d_supported(void)
+{
+	bool s3d_support = false;
+	int offset, current_byte;
+	if (!hdmi_get_datablock_offset(hdmi.edid, DATABLOCK_VENDOR, &offset)) {
+		offset += 8;
+		current_byte = hdmi.edid[offset++];
+		/*Latency_Fields_Present?*/
+		if (current_byte & 0x80)
+			offset += 2;
+		/*I_Latency_Fields_Present?*/
+		if (current_byte & 0x40)
+			offset += 2;
+		/*HDMI_Video_present?*/
+		if (current_byte & 0x20) {
+			current_byte = hdmi.edid[offset];
+			/*3D_Present?*/
+			if (current_byte & 0x80) {
+				printk(KERN_INFO "S3D supported\n");
+				s3d_support = true;
+			}
+		}
+	}
+	return s3d_support;
+}
+#endif
 
 // by Joshua
 char hdmi_get_extended_vcdb(u8 *edid)
@@ -356,7 +488,6 @@ char hdmi_get_extended_vcdb(u8 *edid)
 	char tag;
 	char extended_tag;
 	char current_byte;
-	int j;
 	int length, offset;
 	enum extension_edid_db vcdb =  DATABLOCK_VCDB;
 	char QS_VCDB;
@@ -402,7 +533,7 @@ EXTENDED_TAG_Lable:
 
 
 // by Joshua
-void hdmi_avi_cfg_lr_fr()
+void hdmi_avi_cfg_lr_fr(void)
 {
 	char qs_vcdb;
 
@@ -463,6 +594,7 @@ struct omap_dss_device *get_hdmi_device(void)
 }
 EXPORT_SYMBOL(get_hdmi_device);
 
+#ifdef CONFIG_OMAP4_HDCP
 void hdcp_send_uevent(u8 on)
 {
 	int ret = 0;
@@ -519,6 +651,7 @@ static void hdmi_load_hdcp_keys(struct omap_dss_device *dssdev)
 	}
 
 }
+#endif
 
 /* Set / Release c-state constraints */
 static void hdmi_set_l3_cstr(struct omap_dss_device *dssdev, bool enable)
@@ -551,8 +684,9 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 	hdmi_set_l3_cstr(dssdev, true);
 
 	/* Load the HDCP keys if not already loaded*/
+#ifdef CONFIG_OMAP4_HDCP
 	hdmi_load_hdcp_keys(dssdev);
-
+#endif
 	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 0);
 
 	dispc_enable_channel(OMAP_DSS_CHANNEL_DIGIT, dssdev->type, 0);
@@ -645,7 +779,7 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 
 	/* bypass TV gamma table */
 // LGE_CHANGE_S [sungho.jung@lge.com] 2011-10-28, [SU540, LU5400]
-#if defined(CONFIG_P2_GAMMA) || defined(CONFIG_U2_GAMMA)
+#if defined(CONFIG_P2_GAMMA) || defined(CONFIG_U2_GAMMA) || defined(CONFIG_COSMO_GAMMA)
         dispc_enable_gamma_table(1);
 #else
         dispc_enable_gamma_table(0);
@@ -660,11 +794,12 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 
 	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 1);
 
+#ifdef CONFIG_OMAP4_HDCP
 	if (hdmi.hdmi_start_frame_cb &&
 	    hdmi.custom_set &&
 	    hdmi.wp_reset_done)
 		(*hdmi.hdmi_start_frame_cb)();
-
+#endif
 	return 0;
 err:
 	hdmi_set_l3_cstr(dssdev, false);
@@ -703,6 +838,7 @@ int omapdss_hdmi_get_mode(void)
 	return hdmi.mode;
 }
 
+#ifdef CONFIG_OMAP4_HDCP
 int omapdss_hdmi_register_hdcp_callbacks(void (*hdmi_start_frame_cb)(void),
 					 void (*hdmi_irq_cb)(int status),
 					 bool (*hdmi_power_on_cb)(void))
@@ -714,6 +850,7 @@ int omapdss_hdmi_register_hdcp_callbacks(void (*hdmi_start_frame_cb)(void),
 	return hdmi_ti_4xxx_wp_get_video_state(&hdmi.hdmi_data);
 }
 EXPORT_SYMBOL(omapdss_hdmi_register_hdcp_callbacks);
+#endif
 
 void omapdss_hdmi_set_deepcolor(int val)
 {
@@ -838,7 +975,7 @@ int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
 {
 	int r = 0;
 
-	HDMIDBG("ENTER hdmi_display_enable\n");
+	HDMIDBG("ENTER hdmi_display_enable  hdmi.enabled=%d\n", hdmi.enabled);
 	DSSINFO("ENTER hdmi_display_enable\n");
 
 	mutex_lock(&hdmi.lock);
@@ -862,6 +999,7 @@ int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
 		}
 	}
 
+#if 0  //mo2sanghyun.lee 2012.06.07 not used
 	hdmi.hdmi_reg = regulator_get(NULL, "hdmi_vref");
 	if (IS_ERR_OR_NULL(hdmi.hdmi_reg)) {
 		DSSERR("Failed to get hdmi_vref regulator\n");
@@ -876,6 +1014,7 @@ int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
 		HDMIDBG("failed to enable hdmi_vref regulator\n");
 		goto err3;
 	}
+#endif
 
 	r = hdmi_power_on(dssdev);
 	if (r) {
@@ -890,10 +1029,10 @@ int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
 	return 0;
 
 err4:
-	regulator_disable(hdmi.hdmi_reg);
-err3:
-	regulator_put(hdmi.hdmi_reg);
-err2:
+//	regulator_disable(hdmi.hdmi_reg);  //mo2sanghyun.lee 2012.06.07 not used
+//err3:
+//	regulator_put(hdmi.hdmi_reg);  //mo2sanghyun.lee 2012.06.07 not used
+//err2:
 	if (dssdev->platform_disable)
 		dssdev->platform_disable(dssdev);
 err1:
@@ -925,9 +1064,11 @@ void omapdss_hdmi_display_disable(struct omap_dss_device *dssdev)
 			hdmi.custom_set = 0;
 			pr_info("hdmi: clearing EDID info\n");
 		}
+#if 0  //mo2sanghyun.lee 2012.06.07 not used
 	regulator_disable(hdmi.hdmi_reg);
 
 	regulator_put(hdmi.hdmi_reg);
+#endif
 
 	if (dssdev->platform_disable)
 		dssdev->platform_disable(dssdev);
@@ -982,8 +1123,9 @@ static int omapdss_hdmihw_probe(struct platform_device *pdev)
 
 	mutex_init(&hdmi.lock);
 
+#ifdef CONFIG_MHL_TX_SII9244_LEGACY  //mo2sanghyun.lee no need in cosmo
 // LGE_CHANGE_S [sungho.jung@lge.com] 2012-03-28, Disable pull-up on DDC_SCL/SDA. Because the P2 uses Level-shift.
-	if (omap_rev() >= CHIP_IS_OMAP4430ES2_3)
+	if (omap_rev() >= CHIP_IS_OMAP4430ES2_3) 
 	{
 		val = omap_readl(0x4A100624);
 		val = val & 0xEEFFFFFF;
@@ -993,6 +1135,7 @@ static int omapdss_hdmihw_probe(struct platform_device *pdev)
 		printk(KERN_INFO " Disable pulls on DDC_SCL/SDA lines%x \n", val);
 	}
 // LGE_CHANGE_E [sungho.jung@lge.com] 2012-03-28
+#endif
 
 	/* save reference to HDMI device */
 	board_data = hdmi.pdata->board_data;

@@ -586,11 +586,7 @@ static int max17043_update(struct max17043_chip *chip)
 	/* convert raw data to usable data */
 	/* vcell * 1.25 mV */
 	chip->voltage = (chip->vcell * 5) >> 2;
-	/*jongho3.lee@lge.com soc value should be shifted 9 bit
-	  after module dataloaded (max17048 custom fuel gauge).
-	  */
-	//chip->capacity = chip->soc >> 8;
-	chip->capacity = chip->soc >> 9;
+	chip->capacity = chip->soc >> 8;
 
 	if (chip->capacity > 100)
 		chip->capacity = 100;
@@ -717,22 +713,14 @@ int max17043_get_ui_capacity(void)
 		return 1;
 
 	ui_cap = reference->soc - (1 << 8);
-	ui_cap = (ui_cap * 100) / RECHARGING_BAT_SOC_CON;
+	ui_cap = (ui_cap * 100) / (RECHARGING_BAT_SOC_CON - SHUTDOWN_SOC_CON);
 	/* LGE_CHANGE [bk.shin@lge.com] 2012-02-01, LGE_P940, add from P940 GB */
 	/* LGE_CHANGE [wonhui.lee@lge.com] 2011-10-27, apply new half up algorithm */
 #if 1
 	ui_cap += 128;		// half up
-	/*jongho3.lee@lge.com soc value should be shifted 9 bit
-	  after module dataloaded (max17048 custom fuel gauge).
-	  */
-	//ui_cap >>= 8;
-	ui_cap >>= 9;
+	ui_cap >>= 8;
 #else
-	/*jongho3.lee@lge.com soc value should be shifted 9 bit
-	  after module dataloaded (max17048 custom fuel gauge).
-	  */
-	//ui_cap >>= 8;
-	ui_cap >>= 9;
+	ui_cap >>= 8;
 	if (reference->soc & 0x80)	// half up
 		ui_cap++;
 #endif
@@ -755,7 +743,7 @@ int max17043_reverse_get_ui_capacity(int ui_cap)
 		return 1;
 
 	ui_cap <<= 8;
-	ui_cap = (ui_cap * RECHARGING_BAT_SOC_CON) / 100;
+	ui_cap = (ui_cap * (RECHARGING_BAT_SOC_CON - SHUTDOWN_SOC_CON)) / 100;
 
 	real_cap = ui_cap + (1 << 8);
 
@@ -815,13 +803,10 @@ int max17043_set_rcomp_by_temperature(int temp)
 
 	temp /= 10;
 
-	//rcomp for LGC
 	if (temp < 20)
-		rcomp +=  (3925 * (temp - 20)) / 1000;
+		rcomp += 5 * (20 - temp);
 	else if (temp > 20)
-	{
-		//no change for LGC
-	}
+		rcomp -= (22 * (temp - 20)) / 10;
 
 	if (rcomp < 0x00)
 		rcomp = 0x00;

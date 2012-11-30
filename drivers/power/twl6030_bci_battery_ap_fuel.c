@@ -62,8 +62,9 @@
 
 /* LGE_CHANGE [euiseop.shin@lge.com] 2011-06-14, [P940] Add a SMPL feature */
 /* LGE_CHANGE [wonhui.lee@lge.com] 2011-07-12, apply SMPL Setting*/
-#define FEATURE_SMPL
-#if 0 //defined(FEATURE_SMPL) 
+//#define FEATURE_SMPL
+#undef FEATURE_SMPL   //nthyunjin.yang 120615 SMPL is not used for CX2.
+#if 1 //defined(FEATURE_SMPL)  //nthyunjin.yang 120724 for nv read/write from 0 to 1
 #include <plat/lge_nvdata_handler.h>	//[hyunhee.jeon@lge.com]
 #endif
 
@@ -588,7 +589,7 @@ static int average_temp(int temp)
 	static int old_temp = 200;
 	int av_temp;
 
-	if(temp > 600) {
+	if((temp > 600) || (temp < 0)) {
 		if( abnormal_temp_count < MAX_ABNORMAL_COUNT ) {
 			abnormal_temp_count++;
 			av_temp = old_temp;
@@ -960,19 +961,20 @@ int is_tbat_good(int temp)
 	    temp <= (TEMP_LOW_NO_BAT) ||
 	    p_di->temp_control == UNLIMITED_TEMP_VAL ) {
 		if (recharging_wait_temperature_state &&
-		   !is_recharging_temperature(temp)) {
+		   !is_recharging_temperature(temp) &&
+		   !(p_di->temp_control == UNLIMITED_TEMP_VAL)) {
 			DCHG("Wait for appropriate recharging temperature");
 			return false;
 		}
 		/* LGE_CHANGE_S [wonhui.lee@lge.com] 2011-11-24,
 		 * add discharging condition, over 45 degree and over 4.0V
 		 */
-#if defined(CONFIG_MACH_LGE_P2_SU540) || defined(CONFIG_MACH_LGE_P2_KU5400) || defined(CONFIG_MACH_LGE_P2_LU5400)		
+#if defined(CONFIG_MACH_LGE_P2_SU540) || defined(CONFIG_MACH_LGE_P2_KU5400) || defined(CONFIG_MACH_LGE_P2_LU5400) || defined(CONFIG_MACH_LGE_COSMO)	
 		else if (temp > TEMP_CHANGE_CHARGING_MODE &&
 			 p_di->fg_voltage_mV > 4000 &&
 			 p_di->temp_control != UNLIMITED_TEMP_VAL) {
-			recharging_wait_temperature_state =
-				RECHARGING_WAIT_SET; // set flag
+//			recharging_wait_temperature_state =
+//				RECHARGING_WAIT_SET; // set flag
 			DCHG("Set recharging wait temperature flag : temp_C[%d], fg_v[%d]", temp, p_di->fg_voltage_mV);			
 			return false;
 		}
@@ -1056,11 +1058,23 @@ bool dcm_temp_sensor_status(int temp_h, int temp_l)
 	return false;
 }
 #endif
+
+/*mo2seongjae.jang@lge.com 20120813*/
+/*issue:
+복합 MST TEST issue: AP_USB retaion 설정 후, Idle에서 
+"휴대폰 온도가 너무 낮습니다.중전을 일시 중지 합니다. popup 발생 이슈
+*/
+#if defined(CONFIG_MUIC_MAX14526)
+extern int su760_factory_cable_detect;
+extern int get_muic_retain_mode(void);
+#endif
+/*mo2seongjae.jang@lge.com 20120813*/
+
 void charger_fsm(charger_fsm_cause fsm_cause)
 {
 	TYPE_MUIC_MODE charging_mode = MUIC_UNKNOWN;
 	//u8 chargerusb_int_status;
-	u8 controller_status_1;
+	u8 controller_status_1 = 0;
 	int ret, old_charge_status, old_valid_charging_source;
 
 	if (!p_di)
@@ -1132,7 +1146,12 @@ void charger_fsm(charger_fsm_cause fsm_cause)
 		//muic_get_charger_detected();
 	}
 #endif
+	
+//#if defined(CONFIG_MUIC_MAX14526)	
+//       charging_mode = get_muic_mode();
+//#else
 	charging_mode = muic_get_mode();
+//#endif
 
 	DCHG("charging_mode : %d", charging_mode);
 
@@ -1233,12 +1252,18 @@ void charger_fsm(charger_fsm_cause fsm_cause)
 	}
 #if defined(CONFIG_MHL_TX_SII9244) || defined(CONFIG_MHL_TX_SII9244_LEGACY)
 	/* LGE_CHANGE [wonhui.lee@lge.com] 2011-09-01, for MHL charging*/
-	else if (charging_mode == MUIC_AP_USB || charging_mode == MUIC_MHL)
+	else if (charging_mode == MUIC_AP_USB || charging_mode == MUIC_MHL || charging_mode == CHARGING_USB)
 #else
 	else if (charging_mode == MUIC_AP_USB)
 #endif
 	{
+#if defined(CONFIG_MUIC_MAX14526)/*mo2seongjae.jang@lge.com 20120813*/
+		if(su760_factory_cable_detect && (get_muic_retain_mode() ==BOOT_AP_USB))
+			p_di->charger_source = POWER_SUPPLY_TYPE_FACTORY;
+		else
+#endif
 		p_di->charger_source = POWER_SUPPLY_TYPE_USB;
+
 #if defined(CHARGING_WAKE_LOCK)
 		if (!p_di->wake_lock_count) {
 			wake_lock(&(p_di->charger_wake_lock));
@@ -1413,9 +1438,11 @@ void charger_fsm(charger_fsm_cause fsm_cause)
 	}
 
 	// recharging status check!!
-	DCHG("Recharging Status Check!");
-	DCHG("charge_status=%d capacity=%d, charger_source=%d p_di->fg_voltage_mV=%d p_di->ui_capacity=%d valid_charging_source=%d\n",p_di->charge_status, p_di->capacity, p_di->charger_source, p_di->fg_voltage_mV,p_di->ui_capacity,p_di->valid_charging_source);
-
+//	DCHG("Recharging Status Check!");
+//nthyunjin.yang 120426
+//	DCHG("ui_cap = %d, di_cap = %d, fg_voltage_mv = %d, charge_status = %d, charger_source=%d.", 
+//		p_di->ui_capacity, p_di->capacity, p_di->fg_voltage_mV, p_di->charge_status, p_di->charger_source);
+//	DCHG("capacity=%d, charger_source=%d", p_di->capacity, p_di->charger_source);
 	if (p_di->capacity > 99 &&
 	   p_di->charger_source != POWER_SUPPLY_TYPE_FACTORY) {
 		if (p_di->fg_voltage_mV > RECHARGING_BAT_VOLT_HIGH) {
@@ -1511,8 +1538,8 @@ void charger_fsm(charger_fsm_cause fsm_cause)
 		 */
 #if !defined(CONFIG_MAX8971_CHARGER)
 		D("[charger_rt9524]:: bat_temp=%d !! \n", p_di->temp_C);
-		DCHG("charger source = %d\n", p_di->charger_source);
-		DCHG("p_di->temp_C = %d\n", p_di->temp_C);
+//		DCHG("charger source = %d\n", p_di->charger_source);
+//		DCHG("p_di->temp_C = %d\n", p_di->temp_C);
 		DCHG("charger deactive check point 5 \n");
 		charging_ic_deactive();
 #else
@@ -1794,8 +1821,8 @@ static int twl6030backupbatt_setup(void)
  */
 static int twl6030battery_temp_setup(void)
 {
-	int ret;
-	u8 rd_reg;
+	int ret = 0;
+	u8 rd_reg = 0;
 
 	ret = twl_i2c_read_u8(TWL_MODULE_MADC, &rd_reg, TWL6030_GPADC_CTRL);
 	/* LGECHANGE [jongho3.lee@lge.com]
@@ -1809,8 +1836,8 @@ static int twl6030battery_temp_setup(void)
 
 static int twl6030battery_voltage_setup(void)
 {
-	int ret;
-	u8 rd_reg;
+	int ret = 0;
+	u8 rd_reg = 0;
 
 	ret = twl_i2c_read_u8(TWL6030_MODULE_ID0, &rd_reg, REG_MISC1);
 	rd_reg = rd_reg | VAC_MEAS | VBAT_MEAS | BB_MEAS;
@@ -1832,7 +1859,7 @@ static int twl6030battery_voltage_setup(void)
 static int twl6030battery_current_setup(void)
 {
 	int ret;
-	u8 rd_reg;
+	u8 rd_reg = 0;
 
 	ret = twl_i2c_read_u8(TWL6030_MODULE_ID1, &rd_reg, PWDNSTATUS2);
 	rd_reg = (rd_reg & 0x30) >> 2;
@@ -1914,7 +1941,7 @@ static enum power_supply_property twl6030_bk_bci_battery_props[] = {
 static void twl6030_current_avg(struct work_struct *work)
 {
 	s32 samples;
-	s16 cc_offset;
+	s16 cc_offset = 0;
 	int current_avg_uA;
 	struct twl6030_bci_device_info *di = container_of(work,
 		struct twl6030_bci_device_info,
@@ -2278,6 +2305,8 @@ static void twl6030_bci_battery_work(struct work_struct *work)
 	 */
 	static int old_ui_capacity = -1;
 	int charging_ic_status;
+	int ret;//nthyunjin.yang 120724 for unlimited temp charging in hidden menu
+	u8 temp_val;//nthyunjin.yang 120724 for unlimited temp charging in hidden menu
 #if !defined(GET_BET_TEMP)
 	int ret;
 #endif
@@ -2331,7 +2360,7 @@ static void twl6030_bci_battery_work(struct work_struct *work)
 	}
 #endif
 // LGE_CHANGE [euiseop.shin@lge.com] 2011-04-13, LGE_P940, Bring in Cosmo. [START_LGE]
-#if 0
+#if 1
 	if(di->temp_control == 0xFF)
 	{
 		ret = lge_dynamic_nvdata_read(LGE_NVDATA_DYNAMIC_CHARGING_TEMP_OFFSET, &temp_val , 1);
@@ -2837,6 +2866,9 @@ static void twl6030_bci_battery_work(struct work_struct *work)
 #endif
 		old_capacity = di->capacity;
 		ui_update_needed = 1;
+
+//		printk("[BATTERY] batt_voltage = %d, ui_capacity = %d, pmic_capacity = %d, batt_temp = %d, batt_status = %d, batt_present = %d, charger = %d \n", 
+//			di->fg_voltage_mV, di->ui_capacity, di->pmic_capacity, di->temp_C, di->charge_status, di->battery_present, di->charger_source);
 		
 		/* LGE_CHANGE_S [byoungcheol.lee@lge.com] 2011-12-06,
 		 * To change the charging mode according battery SOC
@@ -2931,7 +2963,7 @@ static void twl6030_bci_battery_work(struct work_struct *work)
 	else if (recharging_status == RECHARGING_WAIT_UNSET &&
 		 di->capacity > 99 &&
 		 di->charge_status == POWER_SUPPLY_STATUS_FULL) {
-		DCHG("It's discharging condition!! cap = %d", di->capacity);
+//		DCHG("It's discharging condition!! cap = %d", di->capacity);
 		fsm_work_needed = 1;
 	}
 
@@ -2959,9 +2991,12 @@ static void twl6030_bci_battery_work(struct work_struct *work)
 	/* LGE_CHANGE [byoungcheol.lee@lge.com] 2011-05-12,
 	 * added for test.. [START_LGE]
 	 */
-	D("[bclee][TWL6030] di->valid_charging_source=%d, charging_ic_status=%d", di->valid_charging_source, charging_ic_status);
+//	D("[bclee][TWL6030] di->valid_charging_source=%d, charging_ic_status=%d", di->valid_charging_source, charging_ic_status);
   /* log added to check fuel gauge stability */
-  DGAU("cap:%d - ui_cap:%d - volt:%d - chg_src:%d \n",di->capacity,di->ui_capacity,di->fg_voltage_mV,di->charger_source);
+//nthyunjin.yang 120615 remove log
+	printk("[Power] ui_cap = %d, volt = %d, chg_status = %d, temp_C = %d, chg_source = %d. \n",
+		di->ui_capacity, di->fg_voltage_mV, di->charge_status, di->temp_C, di->charger_source);
+
 	if (max17043_get_ui_capacity()==100 &&
 	   di->charger_source != POWER_SUPPLY_TYPE_BATTERY)
 		/* LGE_CHANGE [wonhui.lee@lge.com] 2011-09-03,
@@ -2977,7 +3012,7 @@ static void twl6030_bci_battery_work(struct work_struct *work)
 	 * do charging fsm if battery is present..
 	 */
 	if (fsm_work_needed) {
-		DCHG("chg_src:%d, chg_s:%d, rchg_s:%d, batt_p:%d, ui_cap:%d, pmic_v:%d, fg_v:%d, adc:%d, temp_C:%d", di->charger_source, di->charge_status, recharging_status, di->battery_present, di->ui_capacity, di->voltage_uV, di->fg_voltage_mV, adc_code, temp_C);
+//		DCHG("chg_src:%d, chg_s:%d, rchg_s:%d, batt_p:%d, ui_cap:%d, pmic_v:%d, fg_v:%d, adc:%d, temp_C:%d", di->charger_source, di->charge_status, recharging_status, di->battery_present, di->ui_capacity, di->voltage_uV, di->fg_voltage_mV, adc_code, temp_C);
 		charger_schedule_delayed_work(&di->charger_work, 0);
 		return;
 	}
@@ -3378,7 +3413,7 @@ int twl6030_bci_battery_set_property(struct power_supply *psy,
 	 */
 #if defined(FEATURE_GAUGE_CONTROL)
 	case POWER_SUPPLY_PROP_GAUGE_CONTROL:
-		printk("[TWL6030] set GAUGE_CONTROL SOC = %d", val->intval);
+		printk("[TWL6030] set GAUGE_CONTROL SOC = %d \n", val->intval);
 		di->gauge_control_count++;
 		if (di->charger_logo_status != CHARGER_LOGO_STATUS_END) {
 			if (val->intval == 300001) {
@@ -3391,7 +3426,8 @@ int twl6030_bci_battery_set_property(struct power_supply *psy,
 					charger_schedule_delayed_work(&di->gauge_reset_work, 0);
 				}
 #endif
-				D("@@@@@@ OFF MODE CHARGING is starteed : ");
+
+				D("@@@@@@ OFF MODE CHARGING is finished : ");
 
 				if (di->off_mode_timer_working) {
 					del_timer(&(p_di->off_mode_timer));
@@ -3413,7 +3449,7 @@ int twl6030_bci_battery_set_property(struct power_supply *psy,
 #endif
 					}
 				}
-				D("@@@@@@ OFF MODE CHARGING is finished : ");
+				D("@@@@@@ OFF MODE CHARGING is started : ");
         break;
 			}
 		}
@@ -3468,7 +3504,7 @@ int twl6030_bci_battery_set_property(struct power_supply *psy,
 
 #if defined(CHANGE_CHG_MODE_ON_OVERHEAT_SCENE)
 		if (val->intval == 800000) {
-			printk("antispoon camera recording START\n");
+//			printk("antispoon camera recording START\n");
 			p_di->lock_on_overheat_scene = 1; 
 			
 			/* LGE_CHANGE_S [byoungcheol.lee@lge.com] 2011-12-14,
@@ -3502,7 +3538,7 @@ int twl6030_bci_battery_set_property(struct power_supply *psy,
 			break;
 		}
 		if (val->intval == 800001) {
-			printk("antispoon camera recording STOP \n");
+//			printk("antispoon camera recording STOP \n");
 			p_di->lock_on_overheat_scene = 0; 
 			
 			/* LGE_CHANGE_S [byoungcheol.lee@lge.com] 2011-12-07,
@@ -3583,7 +3619,7 @@ int twl6030_bci_battery_set_property(struct power_supply *psy,
 			p_di->temp_control = 0;
 		}
 		//FIXME: write to nv data.
-		//lge_dynamic_nvdata_write(LGE_NVDATA_DYNAMIC_CHARGING_TEMP_OFFSET, &(p_di->temp_control), 1);
+		lge_dynamic_nvdata_write(LGE_NVDATA_DYNAMIC_CHARGING_TEMP_OFFSET, &(p_di->temp_control), 1);
 		break;
 	/* LGE_CHANGE [euiseop.shin@lge.com] 2011-04-13,
 	 * LGE_P940, Bring in Cosmo. [END_LGE]
@@ -3643,6 +3679,8 @@ static int twl6030_bci_battery_get_property(struct power_supply *psy,
 					union power_supply_propval *val)
 {
 	struct twl6030_bci_device_info *di;
+	u8 temp_val = 0;
+	int ret = 0;
 
 	di = to_twl6030_bci_device_info(psy);
 
@@ -3714,6 +3752,17 @@ static int twl6030_bci_battery_get_property(struct power_supply *psy,
 		val->intval = di->current_uA;
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
+#ifdef CONFIG_MACH_LGE_COSMO
+		if(di->temp_control == 0xFF)
+		{
+			ret = lge_dynamic_nvdata_read(LGE_NVDATA_DYNAMIC_CHARGING_TEMP_OFFSET, &temp_val , 1);
+			D("@@@@@@@@@@@@@@@E_NVDATA_DYNAMIC_CHARGING_TEMP_OFFSET= %x", di->temp_control);
+			if(ret == 1)
+			{
+				di->temp_control = temp_val;
+			}
+		}
+#endif
 		if (p_di->temp_control == UNLIMITED_TEMP_VAL) {
 		/* LGE_CHANGE_S [byoungcheol.lee@lge.com] 2011-10-28,
 		 * Change charging temperature value for LG senario [START_LGE]
@@ -3875,7 +3924,12 @@ static int twl6030_bci_battery_get_property(struct power_supply *psy,
 		/* LGE_CHANGE [byoungcheol.lee@lge.com] 2011-08-17,
 		 * Added for viewing to temp_control on adb shell
 		 */
+#ifdef CONFIG_MACH_LGE_COSMO
+		lge_dynamic_nvdata_read(LGE_NVDATA_DYNAMIC_CHARGING_TEMP_OFFSET, &temp_val, 1);
+		val->intval = (int)temp_val;
+#else
 		val->intval = (int)p_di->temp_control;
+#endif
 		D("p_di->temp_control = %02X ", (char)val->intval);
 		break;
 		/* LGE_CHANGE [euiseop.shin@lge.com] 2011-04-13,
@@ -4746,11 +4800,9 @@ __setup("chg=", charger_state);
  */
 #if defined(CONFIG_MUIC)
 static struct muic_client_ops twl6030_bci_ops = {
-	.notifier_priority = MUIC_CLIENT_NOTI_POWER_MHL,
 	.on_none = charger_fsm2,
 	.on_na_ta = charger_fsm2,
 	.on_lg_ta = charger_fsm2,
-	.on_1a_ta = charger_fsm2,
 	.on_cp_uart = charger_fsm2,
 	.on_ap_usb = charger_fsm2,
 	.on_cp_usb = charger_fsm2,
@@ -4802,6 +4854,7 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 	 * FIXME: Really need? Fuel gauge is on AP
 	 * Use platform data, enable gpio if # of gpio is not zero (buggy)
 	 */
+#if !defined(CONFIG_MACH_LGE_COSMO)
 	if (pdata->gpio_omap_send > 0) {
 		ret = gpio_request(pdata->gpio_omap_send, "omap_send");
 		if (ret < 0) {
@@ -4811,6 +4864,7 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 		}
 		gpio_direction_output(pdata->gpio_omap_send, 0);
 	}
+#endif
 
 	p_di = di;
 	di->charger_interrupt = true;
@@ -5260,7 +5314,8 @@ usb_failed:
 	power_supply_unregister(&di->bat);
 batt_failed:
 #ifdef CREATE_OWN_WORKQUEUE
-	destroy_workqueue(di->charger_workqueue);
+//nthyunjin.yang 120709 temp block for Kernel Panic (work queue)
+//	destroy_workqueue(di->charger_workqueue);
 workqueue_create_failed:
 #endif
 	free_irq(di->irq, di);
@@ -5302,7 +5357,7 @@ static int __devexit twl6030_bci_battery_remove(struct platform_device *pdev)
 #if defined(TWL6030_PMIC_CHARGING)
 	cancel_delayed_work(&di->twl6030_current_avg_work);
 #endif
-#if defined(CONFIG_LG_FW_RT9524_CHARGER) || defined(CONFIG_LG_FW_MAX8971_CHARGER)|| defined(CONFIG_MAX8971_CHARGER)
+#if defined(CONFIG_LG_FW_RT9524_CHARGER) || defined(CONFIG_LG_FW_MAX8971_CHARGER)|| defined(CONFIG_MAX8971_CHARGER) || defined(CONFIG_CHARGER_RT9524)
 	cancel_delayed_work(&di->charger_work);
 	cancel_delayed_work(&di->gauge_reset_work);
 	cancel_delayed_work(&di->power_off_work);
@@ -5324,7 +5379,8 @@ static int __devexit twl6030_bci_battery_remove(struct platform_device *pdev)
 	power_supply_unregister(&di->bk_bat);
 #endif
 #ifdef CREATE_OWN_WORKQUEUE
-	destroy_workqueue(di->charger_workqueue);
+//nthyunjin.yang 120709 temp block for Kernel Panic (work queue)
+//	destroy_workqueue(di->charger_workqueue);
 #endif
 	free_irq(di->irq, di);
 
@@ -5372,7 +5428,7 @@ static void twl6030_bci_battery_shutdown(struct platform_device *pdev)
 	/* LGE_CHANGE_S [byoungcheol.lee@lge.com] 2011-11-02,
 	 * Fixed lockup issue while power on/off error [START_LGE]
 	 */
-#if defined(CONFIG_LG_FW_RT9524_CHARGER) || defined(CONFIG_LG_FW_MAX8971_CHARGER) || defined(CONFIG_MAX8971_CHARGER)
+#if defined(CONFIG_LG_FW_RT9524_CHARGER) || defined(CONFIG_LG_FW_MAX8971_CHARGER) || defined(CONFIG_MAX8971_CHARGER) || defined(CONFIG_CHARGER_RT9524)
 	cancel_delayed_work(&di->charger_work);
 	cancel_delayed_work(&di->gauge_reset_work);
 	cancel_delayed_work(&di->power_off_work);
@@ -5421,7 +5477,8 @@ static void twl6030_bci_battery_shutdown(struct platform_device *pdev)
 	power_supply_unregister(&di->bk_bat);
 #endif
 #ifdef CREATE_OWN_WORKQUEUE
-	destroy_workqueue(di->charger_workqueue);
+//nthyunjin.yang 120709 temp block for Kernel Panic (work queue)
+//	destroy_workqueue(di->charger_workqueue);
 #endif
 
 #if defined(CHARGING_WAKE_LOCK)

@@ -24,6 +24,11 @@ config MUIC_TSU5611_INIT_BUG_FIX
 
 	  Say Y here to fix tsu5611 init bug.
 
+config MUIC_MAX14526
+	tristate "MUIC MAX14526 driver"
+	help
+	  Say Y here to support MAX14526 muic device.
+
 choice
 	prompt "revision"
 	depends on MUIC_TS5USBA33402

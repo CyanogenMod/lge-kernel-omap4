@@ -41,7 +41,11 @@
 #include <video/dsscomp.h>
 #include <plat/dsscomp.h>
 #include "dsscomp.h"
-
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY) //##hwcho_20120522
+#ifdef CONFIG_DSSCOMP_ADAPT
+#include "dsscomp_adapt.h"
+#endif
+#endif //##
 #include <linux/debugfs.h>
 
 static DECLARE_WAIT_QUEUE_HEAD(waitq);
@@ -520,6 +524,8 @@ static const struct file_operations dsscomp_debug_fops = {
 	.release        = single_release,
 };
 
+extern void LGE_boot_compleate(bool flag);
+
 static int dsscomp_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -551,9 +557,11 @@ static int dsscomp_probe(struct platform_device *pdev)
 		debugfs_create_file("log", S_IRUGO,
 			cdev->dbgfs, dsscomp_dbg_events, &dsscomp_debug_fops);
 #endif
-#ifdef CONFIG_DSSCOMP_COPY_FOR_ROT
-		debugfs_create_file("rotbuf", S_IRUGO,
-			cdev->dbgfs, dsscomp_dbg_rotbuf_mgr, &dsscomp_debug_fops);
+#ifdef CONFIG_DSSCOMP_ADAPT
+		debugfs_create_file("adapt_buffer", S_IRUGO,
+			cdev->dbgfs, dsscomp_adapt_dbg_buffer, &dsscomp_debug_fops);
+		debugfs_create_file("adapt_action_history", S_IRUGO,
+			cdev->dbgfs, dsscomp_adapt_dbg_action_history, &dsscomp_debug_fops);
 #endif
 	}
 
@@ -562,24 +570,31 @@ static int dsscomp_probe(struct platform_device *pdev)
 
 	pr_info("dsscomp: initializing.\n");
 
+       LGE_boot_compleate(1);
+
 	fill_cache(cdev);
 
 	/* initialize queues */
 	dsscomp_queue_init(cdev);
 	dsscomp_gralloc_init(cdev);
 
-#ifdef CONFIG_DSSCOMP_COPY_FOR_ROT
-	dsscomp_rotbuf_mgr_init();
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY) //##hwcho_20120522
+#ifdef CONFIG_DSSCOMP_ADAPT
+	dsscomp_adapt_init(cdev);
 #endif
+#endif //##
 	return 0;
 }
 
 static int dsscomp_remove(struct platform_device *pdev)
 {
 	struct dsscomp_dev *cdev = platform_get_drvdata(pdev);
-#ifdef CONFIG_DSSCOMP_COPY_FOR_ROT
-	dsscomp_rotbuf_mgr_deinit();
+
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY) //##hwcho_20120522
+#ifdef CONFIG_DSSCOMP_ADAPT
+	dsscomp_adapt_deinit();
 #endif
+#endif //##
 	misc_deregister(&cdev->dev);
 	debugfs_remove_recursive(cdev->dbgfs);
 	dsscomp_queue_exit();

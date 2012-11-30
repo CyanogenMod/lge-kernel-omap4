@@ -18,6 +18,9 @@ extern const struct lpddr2_timings lpddr2_elpida_timings_200_mhz;
 extern const struct lpddr2_timings lpddr2_elpida_timings_333_mhz;
 extern const struct lpddr2_timings lpddr2_elpida_timings_400_mhz;
 extern const struct lpddr2_min_tck lpddr2_elpida_min_tck;
+#if defined(CONFIG_MACH_LGE_COSMO)
+extern struct lpddr2_device_info lpddr2_elpida_2G_S2_dev;
+#endif
 extern struct lpddr2_device_info lpddr2_elpida_2G_S4_dev;
 extern struct lpddr2_device_info lpddr2_elpida_4G_S4_dev;
 #endif

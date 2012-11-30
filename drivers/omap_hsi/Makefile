@@ -22,8 +22,3 @@ endif
 obj-$(CONFIG_OMAP_HSI)		+= omap_hsi.o
 obj-$(CONFIG_OMAP_HSI_CHAR)	+= hsi_char.o
 obj-$(CONFIG_OMAP_IFX_HSI_DLP)	+= ifx.o
-
-
-ifeq ($(TARGET_PRODUCT), u2_tmo_us)
-    EXTRA_CFLAGS += -DHSI_PRIVATE_INFO_PROTECTION
-endif

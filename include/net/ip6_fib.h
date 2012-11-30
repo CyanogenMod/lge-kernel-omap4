@@ -88,7 +88,7 @@ struct rt6_info {
 
 #define rt6i_dev			dst.dev
 // LGE_BSP 2012.03.13 [myeonggyu.son@lge.com] 4AI.1.2 - changed in value struct(@kernel/include/net/dst.h) neighbour --> _neighbour
-#if defined(CONFIG_MACH_LGE_P2) || defined(CONFIG_MACH_LGE_U2)
+#if defined(CONFIG_MACH_LGE_P2) || defined(CONFIG_MACH_LGE_U2) || defined(CONFIG_MACH_LGE_COSMO)
 #define rt6i_nexthop			dst._neighbour
 #else
 #define rt6i_nexthop			dst.neighbour

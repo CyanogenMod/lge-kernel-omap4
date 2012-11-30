@@ -364,7 +364,7 @@ __acquires(&port->port_lock)
 /* Add zero length packet support (QCT patch) */
 #if defined(CONFIG_LGE_ANDROID_USB)
 	static long 		prev_len;
-#endif
+#endif	
 	bool			do_tty_wake = false;
 
 	while (!list_empty(pool)) {
@@ -377,32 +377,33 @@ __acquires(&port->port_lock)
 		req = list_entry(pool->next, struct usb_request, list);
 		len = gs_send_packet(port, req->buf, in->maxpacket);
 		if (len == 0) {
-/* Add zero length packet support (QCT patch) */
-/* Part of Increase Tx/Rx buffers in serial driver (QCT patch) */
-/* Using logical AND for condition checking in gs_start_tx (QCT patch) */
-/* free read/write requests upon queue failure (QCT patch) */
+			/* Add zero length packet support (QCT patch) */
+			/* Part of Increase Tx/Rx buffers in serial driver (QCT patch) */
+			/* Using logical AND for condition checking in gs_start_tx (QCT patch) */
+			/* free read/write requests upon queue failure (QCT patch) */
 #if defined(CONFIG_LGE_ANDROID_USB)
-			/* Queue zero length packet explicitly to make it
-			 * work with UDCs which don't support req->zero flag
-			 */
-			if (prev_len && (prev_len % in->maxpacket == 0)) {
-				req->length = 0;
-				list_del(&req->list);
-				spin_unlock(&port->port_lock);
-				status = usb_ep_queue(in, req, GFP_ATOMIC);
-				spin_lock(&port->port_lock);
-				if (!port->port_usb) {
-					gs_free_req(in, req);
-					break;
-				}
-				if (status) {
-					printk(KERN_ERR "%s: %s err %d\n",
-					__func__, "queue", status);
-					list_add(&req->list, pool);
-				}
-				prev_len = 0;
-			}
+						/* Queue zero length packet explicitly to make it
+						 * work with UDCs which don't support req->zero flag
+						 */
+						if (prev_len && (prev_len % in->maxpacket == 0)) {
+							req->length = 0;
+							list_del(&req->list);
+							spin_unlock(&port->port_lock);
+							status = usb_ep_queue(in, req, GFP_ATOMIC);
+							spin_lock(&port->port_lock);
+							if (!port->port_usb) {
+								gs_free_req(in, req);
+								break;
+							}
+							if (status) {
+								printk(KERN_ERR "%s: %s err %d\n",
+								__func__, "queue", status);
+								list_add(&req->list, pool);
+							}
+							prev_len = 0;
+						}
 #endif
+			
 			wake_up_interruptible(&port->drain_wait);
 			break;
 		}
@@ -410,15 +411,13 @@ __acquires(&port->port_lock)
 
 		req->length = len;
 		list_del(&req->list);
-
 /* PC disconnects USB with zero packet in ATS & MFT test */
 #if defined(CONFIG_LGE_ANDROID_USB)
 		if(gs_buf_data_avail(&port->port_write_buf) == 0)
 			pr_debug("%s: gs_buf_data_avail is zero, but unset req->zero\n", __func__);
-#else
+#else		
 		req->zero = (gs_buf_data_avail(&port->port_write_buf) == 0);
 #endif
-
 		pr_vdebug(PREFIX "%d: tx len=%d, 0x%02x 0x%02x 0x%02x ...\n",
 				port->port_num, len, *((u8 *)req->buf),
 				*((u8 *)req->buf+1), *((u8 *)req->buf+2));
@@ -433,7 +432,8 @@ __acquires(&port->port_lock)
 		spin_unlock(&port->port_lock);
 		status = usb_ep_queue(in, req, GFP_ATOMIC);
 		spin_lock(&port->port_lock);
-/* free read/write requests upon queue failure (QCT patch) */
+
+		/* free read/write requests upon queue failure (QCT patch) */
 #if defined(CONFIG_LGE_ANDROID_USB)
 		/*
 		 * If port_usb is NULL, gserial disconnect is called
@@ -445,7 +445,8 @@ __acquires(&port->port_lock)
 			gs_free_req(in, req);
 			break;
 		}
-#endif
+#endif		
+
 		if (status) {
 			pr_debug("%s: %s %s err %d\n",
 					__func__, "queue", in->name, status);
@@ -458,12 +459,12 @@ __acquires(&port->port_lock)
 #endif
 		port->write_started++;
 
+		/* abort immediately after disconnect */
 /* free read/write requests upon queue failure (QCT patch) */
 #if !defined(CONFIG_LGE_ANDROID_USB)
-		/* abort immediately after disconnect */
 		if (!port->port_usb)
 			break;
-#endif
+#endif		
 	}
 
 	if (do_tty_wake && port->port_tty)
@@ -506,17 +507,17 @@ __acquires(&port->port_lock)
 		spin_unlock(&port->port_lock);
 		status = usb_ep_queue(out, req, GFP_ATOMIC);
 		spin_lock(&port->port_lock);
-/* free read/write requests upon queue failure (QCT patch) */
+		/* free read/write requests upon queue failure (QCT patch) */
 #if defined(CONFIG_LGE_ANDROID_USB)
-		/*
-		 * If port_usb is NULL, gserial disconnect is called
-		 * while the spinlock is dropped and all requests are
-		 * freed. Free the current request here.
-		 */
-		if (!port->port_usb) {
-			gs_free_req(out, req);
-			break;
-		}
+				/*
+				 * If port_usb is NULL, gserial disconnect is called
+				 * while the spinlock is dropped and all requests are
+				 * freed. Free the current request here.
+				 */
+				if (!port->port_usb) {
+					gs_free_req(out, req);
+					break;
+				}
 #endif
 		if (status) {
 			pr_debug("%s: %s %s err %d\n",
@@ -525,13 +526,12 @@ __acquires(&port->port_lock)
 			break;
 		}
 		port->read_started++;
-
-/* free read/write requests upon queue failure (QCT patch) */
+		/* free read/write requests upon queue failure (QCT patch) */
 #if !defined(CONFIG_LGE_ANDROID_USB)
 		/* abort immediately after disconnect */
 		if (!port->port_usb)
 			break;
-#endif
+#endif		
 	}
 	return port->read_started;
 }
@@ -654,42 +654,19 @@ recycle:
 static void gs_read_complete(struct usb_ep *ep, struct usb_request *req)
 {
 	struct gs_port	*port = ep->driver_data;
-/* resolve spinlock inconsistencies (QCT patch) */
-#if defined(CONFIG_LGE_ANDROID_USB)
-	unsigned long flags;
-#endif
 
 	/* Queue all received data until the tty layer is ready for it. */
-/* resolve spinlock inconsistencies (QCT patch) */
-#if defined(CONFIG_LGE_ANDROID_USB)
-	spin_lock_irqsave(&port->port_lock, flags);
-#else
 	spin_lock(&port->port_lock);
-#endif
 	list_add_tail(&req->list, &port->read_queue);
 	tasklet_schedule(&port->push);
-/* resolve spinlock inconsistencies (QCT patch) */
-#if defined(CONFIG_LGE_ANDROID_USB)
-	spin_unlock_irqrestore(&port->port_lock, flags);
-#else
 	spin_unlock(&port->port_lock);
-#endif
 }
 
 static void gs_write_complete(struct usb_ep *ep, struct usb_request *req)
 {
 	struct gs_port	*port = ep->driver_data;
-/* resolve spinlock inconsistencies (QCT patch) */
-#if defined(CONFIG_LGE_ANDROID_USB)
-	unsigned long flags;
-#endif
 
-/* resolve spinlock inconsistencies (QCT patch) */
-#if defined(CONFIG_LGE_ANDROID_USB)
-	spin_lock_irqsave(&port->port_lock, flags);
-#else
 	spin_lock(&port->port_lock);
-#endif
 	list_add(&req->list, &port->write_pool);
 	port->write_started--;
 
@@ -704,10 +681,8 @@ static void gs_write_complete(struct usb_ep *ep, struct usb_request *req)
 /* free read/write requests upon queue failure (QCT patch) */
 #if defined(CONFIG_LGE_ANDROID_USB)
 		if (port->port_usb)
-			gs_start_tx(port);
-#else
+#endif		
 		gs_start_tx(port);
-#endif
 		break;
 
 	case -ESHUTDOWN:
@@ -716,12 +691,7 @@ static void gs_write_complete(struct usb_ep *ep, struct usb_request *req)
 		break;
 	}
 
-/* resolve spinlock inconsistencies (QCT patch) */
-#if defined(CONFIG_LGE_ANDROID_USB)
-	spin_unlock_irqrestore(&port->port_lock, flags);
-#else
 	spin_unlock(&port->port_lock);
-#endif
 }
 
 static void gs_free_requests(struct usb_ep *ep, struct list_head *head,
@@ -799,12 +769,6 @@ static int gs_start_io(struct gs_port *port)
 	/* queue read requests */
 	port->n_read = 0;
 	started = gs_start_rx(port);
-
-/* free read/write requests upon queue failure (QCT patch) */
-#if defined(CONFIG_LGE_ANDROID_USB)
-	if (!port->port_usb)
-		return -EIO;
-#endif
 
 	/* unblock any pending writes into our circular buffer */
 	if (started) {
@@ -999,25 +963,6 @@ static void gs_close(struct tty_struct *tty, struct file *file)
 			port->port_num, tty, file);
 
 	wake_up_interruptible(&port->close_wait);
-
-/* Freeing usb requests as a part of gs_close (QCT patch) */
-#if defined(CONFIG_LGE_ANDROID_USB)
-	/*
-	 * Freeing the previously queued requests as they are
-	 * allocated again as a part of gs_open()
-	 */
-	if (port->port_usb) {
-		spin_unlock_irq(&port->port_lock);
-		usb_ep_fifo_flush(gser->out);
-		usb_ep_fifo_flush(gser->in);
-		spin_lock_irq(&port->port_lock);
-		gs_free_requests(gser->out, &port->read_queue, NULL);
-		gs_free_requests(gser->out, &port->read_pool, NULL);
-		gs_free_requests(gser->in, &port->write_pool, NULL);
-	}
-	port->read_allocated = port->read_started =
-		port->write_allocated = port->write_started = 0;
-#endif
 exit:
 	spin_unlock_irq(&port->port_lock);
 }

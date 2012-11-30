@@ -1303,7 +1303,6 @@ unhandled:
 }
 
 static struct muic_client_ops mhl_ops = {
-	.notifier_priority = MUIC_CLIENT_NOTI_POWER_MHL,
 	.on_none = sii9244_cancel,
 	.on_mhl = sii9244_detection,
 };

@@ -351,12 +351,11 @@ static void musb_otg_notifier_work(struct work_struct *data_notifier_work)
 		val = musb_readl(musb->mregs, OTG_INTERFSEL);
 		val |= ULPI_12PIN;
 		musb_writel(musb->mregs, OTG_INTERFSEL, val);
-
-/* OMAP4:MUSB:Disconnect interrupt serviced on a Disconnect Event */
+/* OMAP4:MUSB:Disconnect interrupt serviced on a Disconnect Event */		
 #if defined(CONFIG_MACH_LGE)
 		otg_set_suspend(musb->xceiv, 0);
 		otg_shutdown(musb->xceiv);
-#endif
+#endif		
 		pm_runtime_mark_last_busy(musb->controller);
 		pm_runtime_put_autosuspend(musb->controller);
 
@@ -566,11 +565,11 @@ static int __init omap2430_probe(struct platform_device *pdev)
 		goto err2;
 	}
 
-/* Vanilla kernel : fix crash when musb glue (omap) gets initialized
-  * http://git.kernel.org/?p=linux/kernel/git/stable/linux-stable.git;a=commit;
-  * 8a1f6b4eca816f6b186b125f72ef284ef7960b85 */
+	/* Vanilla kernel : fix crash when musb glue (omap) gets initialized
+	  * http://git.kernel.org/?p=linux/kernel/git/stable/linux-stable.git;a=commit;
+	  * 8a1f6b4eca816f6b186b125f72ef284ef7960b85 */
 #if defined(CONFIG_MACH_LGE)
-	pm_runtime_enable(&pdev->dev);
+		pm_runtime_enable(&pdev->dev);
 #endif
 
 	ret = platform_device_add(musb);
@@ -578,10 +577,9 @@ static int __init omap2430_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to register musb device\n");
 		goto err2;
 	}
-
-/* Vanilla kernel : fix crash when musb glue (omap) gets initialized
-  * http://git.kernel.org/?p=linux/kernel/git/stable/linux-stable.git;a=commit;
-  * 8a1f6b4eca816f6b186b125f72ef284ef7960b85*/
+	/* Vanilla kernel : fix crash when musb glue (omap) gets initialized
+	  * http://git.kernel.org/?p=linux/kernel/git/stable/linux-stable.git;a=commit;
+	  * 8a1f6b4eca816f6b186b125f72ef284ef7960b85*/
 #if !defined(CONFIG_MACH_LGE)
 	pm_runtime_enable(&pdev->dev);
 #endif
@@ -617,13 +615,12 @@ static int omap2430_runtime_suspend(struct device *dev)
 {
 	struct omap2430_glue		*glue = dev_get_drvdata(dev);
 	struct musb			*musb = glue_to_musb(glue);
-
 	if (musb) {
-		musb->context.otg_interfsel = musb_readl(musb->mregs,
-							OTG_INTERFSEL);
+	musb->context.otg_interfsel = musb_readl(musb->mregs,
+						OTG_INTERFSEL);
 
-		omap2430_low_level_exit(musb);
-		otg_set_suspend(musb->xceiv, 1);
+	omap2430_low_level_exit(musb);
+	otg_set_suspend(musb->xceiv, 1);
 	}
 
 	return 0;
@@ -635,11 +632,11 @@ static int omap2430_runtime_resume(struct device *dev)
 	struct musb			*musb = glue_to_musb(glue);
 
 	if (musb) {
-		omap2430_low_level_init(musb);
-		musb_writel(musb->mregs, OTG_INTERFSEL,
-						musb->context.otg_interfsel);
+	omap2430_low_level_init(musb);
+	musb_writel(musb->mregs, OTG_INTERFSEL,
+					musb->context.otg_interfsel);
 
-		otg_set_suspend(musb->xceiv, 0);
+	otg_set_suspend(musb->xceiv, 0);
 	}
 
 	return 0;

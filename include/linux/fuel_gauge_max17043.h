@@ -70,6 +70,12 @@ typedef struct __battery_graph_prop
 #define SAFE_SHUTDOWN_SOC_CON	5
 #define SHUTDOWN_SOC_CON	6 //5 /*[SU540][MR] charger issue fixed - charger is not able to chrge up 100% capacity  */
 
+#ifdef CONFIG_MACH_LGE_COSMO //nthyunjin.yang 120412 [start]
+#define GAUGE_INT 21
+
+#define RCOMP_BL44JN (0xB8)
+#define RCOMP_BL48LN (0xB8)
+#endif//nthyunjin.yang 120412 [end]
 
 #define FG_CONTROL_ENABLE	1704301
 #define FG_CONTROL_DISABLE	1704300

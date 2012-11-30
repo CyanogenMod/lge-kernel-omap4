@@ -107,12 +107,12 @@ static int sdp4430_modem_mcbsp_configure(struct snd_pcm_substream *substream,
 				omap_mcbsp_set_tx_threshold(
 					modem_rtd->cpu_dai->id, channels);
 		}
-#if 1 //LGE_BSP seungdae.goh@lge.com 2012-05-30
-                ret = snd_soc_dai_set_sysclk(modem_rtd->cpu_dai, OMAP_MCBSP_SYSCLK_CLKX_EXT, 0, SND_SOC_CLOCK_IN);
-                if (ret) {
-                    printk(KERN_ERR "can't set codec system clock\n");
-                    goto exit;
-                }
+#ifndef CONFIG_MACH_LGE_COSMO //LGE_BSP seungdae.goh@lge.com 2012-05-30
+		ret = snd_soc_dai_set_sysclk(modem_rtd->cpu_dai, OMAP_MCBSP_SYSCLK_CLKX_EXT, 0, SND_SOC_CLOCK_IN);
+		if (ret) {
+			printk(KERN_ERR "can't set codec system clock\n");
+			goto exit;
+		}
 #endif
 	} else {
 		mcbsp_cfg = 0;
@@ -590,11 +590,8 @@ static int sdp4430_twl6040_init(struct snd_soc_pcm_runtime *rtd)
 	ret = snd_soc_jack_add_pins(&hs_jack, ARRAY_SIZE(hs_jack_pins),
 				hs_jack_pins);
 
-//  Need Fix
-//	if (machine_is_p2() || machine_is_lghdk() || machine_is_iff() || machine_is_u2())
+	if (machine_is_p2() || machine_is_lghdk() || machine_is_iff() || machine_is_u2() || machine_is_cosmo())
 		twl6040_hs_jack_detect(codec, &hs_jack, SND_JACK_HEADSET);
-//	else
-//		snd_soc_jack_report(&hs_jack, SND_JACK_HEADSET, SND_JACK_HEADSET);
 
 	/* DC offset cancellation computation */
 	hsotrim = snd_soc_read(codec, TWL6040_REG_HSOTRIM);
@@ -1165,11 +1162,10 @@ static int __init sdp4430_soc_init(void)
 	u8 gpoctl;
 	int ret;
 
-//  Need Fix
-//	if (!machine_is_p2() && !machine_is_lghdk() && !machine_is_iff() && !machine_is_u2) {
-//		printk("Not Supported Sound Device\n");
-//		return -ENODEV;
-//	}
+	if (!machine_is_p2() && !machine_is_lghdk() && !machine_is_iff() && !machine_is_u2() && !machine_is_cosmo()) {
+		pr_debug("Not Supported Device\n");
+		return -ENODEV;
+	}
 	printk(KERN_INFO "LG SoC init\n");
 	if (machine_is_lghdk())
                 snd_soc_sdp4430.name = "lghdk";
@@ -1177,9 +1173,10 @@ static int __init sdp4430_soc_init(void)
                 snd_soc_sdp4430.name = "p2";
         else if(machine_is_iff())
                 snd_soc_sdp4430.name = "iff";
-// Need Fix
-	else
-		snd_soc_sdp4430.name = "u2";
+        else if(machine_is_u2())
+                snd_soc_sdp4430.name = "u2";
+	else if(machine_is_cosmo())
+                snd_soc_sdp4430.name = "cosmo";
 
 	sdp4430_snd_device = platform_device_alloc("soc-audio", -1);
 	if (!sdp4430_snd_device) {
@@ -1218,11 +1215,11 @@ static int __init sdp4430_soc_init(void)
 
 	/* Default mode is low-power, MCLK not required */
 	twl6040_power_mode = 0;	//  Set Default mode is High-Performace power
-
-	//LGE_BSP_S  seungdae.goh@lge.com 2012-08-09  for tcxo error case defence code [START_LGE]
-	//cdc_tcxo_set_req_int(CDC_TCXO_CLK3, 0);
+#ifdef CONFIG_MACH_LGE_U2
 	cdc_tcxo_set_req_int(CDC_TCXO_CLK3, 1);
-	//LGE_BSP_E  seungdae.goh@lge.com 2012-08-09  for tcxo error case defence code [END_LGE]
+#else
+	cdc_tcxo_set_req_int(CDC_TCXO_CLK3, 0);
+#endif
 
 	/*
 	 * CDC CLK2 supplies TWL6040 MCLK, drive it from REQ2INT to

@@ -365,10 +365,22 @@ int twl6030_mmc_card_detect_config(void)
 	 */
 #if defined(CONFIG_MMC_OMAP_HS_VMMC_AUTO_OFF)
 	reg_val |= VMMC_AUTO_OFF;
+#ifndef CONFIG_MACH_LGE_MMC_COVER
+	reg_val |= SW_FC;
+#else
+	reg_val |= SW_FC;			//MOD
+#endif
+
 #else
 	reg_val &= ~VMMC_AUTO_OFF;
-#endif
+#ifndef CONFIG_MACH_LGE_MMC_COVER
 	reg_val |= SW_FC;
+#else	
+	reg_val &= ~SW_FC;
+#endif
+
+#endif
+//	reg_val |= SW_FC;
 	ret = twl_i2c_write_u8(TWL6030_MODULE_ID0, reg_val, TWL6030_MMCCTRL);
 	if (ret < 0) {
 		pr_err("twl6030: Failed to write MMCCTRL, error %d\n", ret);

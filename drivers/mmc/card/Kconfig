@@ -50,6 +50,34 @@ config MMC_BLOCK_BOUNCE
 
 	  If unsure, say Y here.
 
+config MACH_LGE_MMC_COVER
+	bool "COVER CONTECT"
+	depends on MMC_BLOCK
+	default y
+	help
+	  Say Y here to enable cover detect.
+	  
+config MACH_LGE_MMC_ENHANCED_COVER
+	bool "ENHANCED COVER DETECT"
+	depends on MACH_LGE_MMC_COVER
+	default n
+	help
+	  Say Y here to enable enhanced cover detect.
+
+config MACH_LGE_VMMC_AUTO_OFF
+	bool "VMMC AUTO OFF"
+	depends on MMC_BLOCK
+	default n
+	help
+	  Say Y here to enable host auto off by sdcard exist or not.
+
+config MACH_LGE_MMC_REFRESH	
+        bool "MMC_REFRESH"	
+        depends on MMC_BLOCK	
+        default n	
+        help	  
+          Say Y here to enable refreshing.
+ 
 config MMC_BLOCK_DEFERRED_RESUME
 	bool "Deferr MMC layer resume until I/O is requested"
 	depends on MMC_BLOCK

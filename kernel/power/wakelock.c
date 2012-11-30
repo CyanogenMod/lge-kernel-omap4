@@ -287,7 +287,7 @@ long has_wake_lock(int type)
 static void suspend_sys_sync(struct work_struct *work)
 {
 	if (debug_mask & DEBUG_SUSPEND)
-		pr_info("PM: Syncing filesystems...[suspend_sys_sync]");
+		pr_info("PM: Syncing filesystems...\n");
 
 	sys_sync();
 

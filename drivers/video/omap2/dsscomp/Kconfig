@@ -19,6 +19,15 @@ config DSSCOMP_DEBUG_LOG
 	  log buffer.  This is a separate menuconfig in case this is
 	  deemed an overhead.
 
+config DSSCOMP_ADAPT
+	bool "DSSCOMP Adaptation(EXPERIMENTAL)"
+	default n
+	depends on DSSCOMP
+
+	help
+		When input of layer is not compatible with display,
+		DSSCOMP_ADAPT will do adaptation processing.
+
 config DSSCOMP_COPY_FOR_ROT
 	bool "Rotation Support for Non 2D Tiler buffer in DSSCOMP (EXPERIMENTAL)"
 	default n

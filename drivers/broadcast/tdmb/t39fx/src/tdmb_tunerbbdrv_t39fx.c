@@ -188,7 +188,6 @@ int8 tunerbb_drv_t39fx_stop(void)
 int8 tunerbb_drv_t39fx_get_ber(struct broadcast_tdmb_sig_info *dmb_bb_info)
 {
 	INC_UINT8 nRet;
-	INC_UINT32 uipreBER;
 
 	ST_BBPINFO* pInfo;
 	
@@ -218,31 +217,37 @@ int8 tunerbb_drv_t39fx_get_ber(struct broadcast_tdmb_sig_info *dmb_bb_info)
 	//dmb_bb_info->msc_ber	= (uint32)INTERFACE_GET_CER(TDMB_RFBB_DEV_ADDR) * 10;
 	// 20120215, antenna level changing
 	// printk("[INC_PROCESS] uipreCER = (%d), uiCER = %d, ucVber = %d\n", pInfo->uipreCER, pInfo->uiCER, pInfo->ucVber);
-	//dmb_bb_info->msc_ber	= (uint32)(pInfo->uipreCER * 10);
-	dmb_bb_info->msc_ber	= (uint32)(pInfo->uiCER* 10) ;
-	uipreBER	= (uint32)(pInfo->uipreCER * 10);
+	//dmb_bb_info->msc_ber	= (uint32)(pInfo->uiCER* 10) ;
+	dmb_bb_info->msc_ber	= (uint32)(pInfo->uipreCER * 10);
 
 	/* Determine Ant. Level using msc_ber */
-	if(uipreBER >= 12500)
+	if(dmb_bb_info->msc_ber >= 12500)
 	{
 		dmb_bb_info->antenna_level = 0;
 	}
-	else if(uipreBER > 9000 && uipreBER < 12500)
+	else if(dmb_bb_info->msc_ber > 9000 && dmb_bb_info->msc_ber < 12500)
 	{
 		dmb_bb_info->antenna_level = 1;
 	}
-	else if (uipreBER > 8000 && uipreBER <= 9000)
+	else if (dmb_bb_info->msc_ber > 8000 && dmb_bb_info->msc_ber <= 9000)
 	{
 		dmb_bb_info->antenna_level = 2;
 	}
-	else if (uipreBER && uipreBER <= 8000)
+	else if (dmb_bb_info->msc_ber > 6000 && dmb_bb_info->msc_ber <= 8000)
 	{
 		dmb_bb_info->antenna_level = 3;
 	}
-	else if (uipreBER >= 0 && uipreBER <= 6000)
+	else if (dmb_bb_info->msc_ber >= 0 && dmb_bb_info->msc_ber <= 6000)
 	{
 		dmb_bb_info->antenna_level = 4;
 	}
+
+	//antenna level이 0이면 약전계이므로 5분종료를 위해 dab_ok를 0으로 만듬.
+	if(dmb_bb_info->antenna_level == 0)
+	{
+		dmb_bb_info->dab_ok = 0;
+	}
+	//[End]
 
 	if(( T39FX_DMB == serviceType) || (T39FX_VISUAL == serviceType))
 	{

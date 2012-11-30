@@ -1769,6 +1769,12 @@ static void omap_uart_restore_context(struct uart_omap_port *up)
 		serial_out(up, UART_OMAP_MDR1, up->mdr1);
 }
 
+// +s LGBT_COMMON_UART_SLEEP hyuntae0.kim@lge.com 120802	
+//TIK Brandon 20120801 : Power consumption - for wakeup after software reset.
+static int uart2_soft_reset = 0;
+//TIK Brandon 20120801 : Power consumption - for wakeup after software reset.
+// +e LGBT_COMMON_UART_SLEEP
+
 static int omap_serial_runtime_suspend(struct device *dev)
 {
 	struct uart_omap_port *up = dev_get_drvdata(dev);
@@ -1792,6 +1798,15 @@ static int omap_serial_runtime_suspend(struct device *dev)
 		omap_hwmod_set_slave_idlemode(od->hwmods[0],
 					HWMOD_IDLEMODE_FORCE);
 		serial_out(up, UART_OMAP_SYSC, 0x2);
+// +s LGBT_COMMON_UART_SLEEP hyuntae0.kim@lge.com 120802		
+//TIK Brandon 20120801 : Power consumption - for wakeup after software reset.
+		if(up->pdev && up->pdev->id == 1) // only UART2
+		{
+			serial_out(up, UART_IER, up->ier); // set Interrupt Enable Register
+			uart2_soft_reset = 1;
+		}
+//TIK Brandon 20120801 : Power consumption - for wakeup after software reset.
+// +e LGBT_COMMON_UART_SLEEP
 	}
 /* LGE_CHANGE_E  [bk.shin@lge.com] 2012-02-29 */
 
@@ -1814,9 +1829,17 @@ static int omap_serial_runtime_resume(struct device *dev)
 	struct omap_device *od;
 
 	if (up) {
-		if (omap_pm_was_context_lost(dev))
+// +s LGBT_COMMON_UART_SLEEP hyuntae0.kim@lge.com 120802		
+//TIK Brandon 20120801 : Power consumption - for working BT after software reset.
+		if(omap_pm_was_context_lost(dev)) {
 			omap_uart_restore_context(up);
-
+		}
+		else if((uart2_soft_reset == 1) && (up->pdev && up->pdev->id == 1)) {
+			omap_uart_restore_context(up);
+			uart2_soft_reset = 0;
+		}
+//TIK Brandon 20120801 : Power consumption - for working BT after software reset.
+// +e LGBT_COMMON_UART_SLEEP
 		if (up->use_dma) {
 			/* NO TX_DMA WAKEUP SO KEEP IN NO IDLE MODE */
 			od = to_omap_device(up->pdev);

@@ -298,12 +298,7 @@ static int twl_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	tm->tm_hour = bcd2bin(rtc_data[2]);
 	tm->tm_mday = bcd2bin(rtc_data[3]);
 	tm->tm_mon = bcd2bin(rtc_data[4]) - 1;
-/* LGE_CHANGE_S [kyungyoon.kim@lge.com] 2012-07-07, Time setting (in 1970 ~ 1999) Problem */
-	if (bcd2bin(rtc_data[5]) < 70 )
 	tm->tm_year = bcd2bin(rtc_data[5]) + 100;
-	else
-		tm->tm_year = bcd2bin(rtc_data[5]) ;
-/* LGE_CHANGE_E [kyungyoon.kim@lge.com] 2012-07-07 */
 
 	return ret;
 }
@@ -355,13 +350,7 @@ static int twl_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	rtc_data[3] = bin2bcd(tm->tm_hour);
 	rtc_data[4] = bin2bcd(tm->tm_mday);
 	rtc_data[5] = bin2bcd(tm->tm_mon + 1);
-
-/* LGE_CHANGE_S [kyungyoon.kim@lge.com] 2012-07-07, Time setting (in 1970 ~ 1999) Problem */
-	if (tm->tm_year < 100 )
-		rtc_data[6] = bin2bcd(tm->tm_year );
-	else
-	        rtc_data[6] = bin2bcd(tm->tm_year - 100);
-/* LGE_CHANGE_E [kyungyoon.kim@lge.com] 2012-07-07 */
+	rtc_data[6] = bin2bcd(tm->tm_year - 100);
 
 	/* Stop RTC while updating the TC registers */
 	ret = twl_rtc_read_u8(&save_control, REG_RTC_CTRL_REG);

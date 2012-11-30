@@ -24,7 +24,7 @@
 #include <mach/gpio.h>
 
 #include <linux/input/lge_touch_core.h>
-#include <linux/input/touch_synaptics.h>
+#include <linux/input/touch_synaptics_s3200.h>
 
 #include "SynaImage.h"
 

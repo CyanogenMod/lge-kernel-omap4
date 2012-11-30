@@ -1,6 +1,6 @@
 /* include/linux/lge_touch_core.h
  *
- * Copyright (C) 2012 LGE.
+ * Copyright (C) 2011 LGE.
  *
  * Writer: yehan.ahn@lge.com, 	hyesung.shin@lge.com
  *
@@ -25,21 +25,13 @@
 
 #define DESCRIPTION_TABLE_START			0xe9
 
-#define PAGE_SELECT_REG					0xFF		/* Button exists Page 02 */
-#define PAGE_MAX_NUM					4			/* number of page register */
-
-struct function_descriptor {
+struct ts_function_descriptor {
 	u8 	query_base;
 	u8 	command_base;
 	u8 	control_base;
 	u8 	data_base;
 	u8 	int_source_count;
 	u8 	id;
-};
-
-struct ts_ic_function {
-	struct function_descriptor dsc;
-	u8 	function_page;
 };
 
 struct finger_data {
@@ -59,17 +51,11 @@ struct cur_touch_data {
 	struct button_data	button;
 };
 
-struct synaptics_ts_fw_info
-{
-	u8		fw_rev;
-	u8		fw_image_rev;
-	u8		manufacturer_id;
-	u8		product_id[11];
-	u8		fw_image_product_id[11];
-	u8		config_id[5];
-	u8		image_config_id[5];
-	unsigned char	*fw_start;
-	unsigned long	fw_size;
+struct interrupt_bit_mask {
+	u8 flash;
+	u8 status;
+	u8 abs;
+	u8 button;
 };
 
 struct synaptics_ts_data {
@@ -78,19 +64,16 @@ struct synaptics_ts_data {
 	struct regulator*	regulator_vio;
 	struct i2c_client*	client;
 	struct touch_platform_data*		pdata;
-	struct ts_ic_function	common_fc;
-	struct ts_ic_function	finger_fc;
-	struct ts_ic_function	button_fc;
-	struct ts_ic_function	analog_fc;	/* FIXME: not used in ClearPad3000 serise */
-	struct ts_ic_function	flash_fc;
-	struct cur_touch_data	ts_data;
-	struct synaptics_ts_fw_info	fw_info;
+	struct ts_function_descriptor	common_dsc;
+	struct ts_function_descriptor	finger_dsc;
+	struct ts_function_descriptor	button_dsc;
+	struct ts_function_descriptor	flash_dsc;
+	struct ts_function_descriptor   analog_dsc;
+	struct cur_touch_data		ts_data;
+	struct touch_fw_info*	fw_info;
+	struct interrupt_bit_mask	interrupt_mask;
 };
 
 /* extern function */
 extern int FirmwareUpgrade(struct synaptics_ts_data *ts, const char* fw_path);
-int synaptics_ts_page_data_read(struct i2c_client *client, u8 page, u8 reg, int size, u8 *data);
-int ts_page_data_write(struct i2c_client *client, u8 page, u8 reg, int size, u8 *data);
-int synaptics_ts_page_data_write_byte(struct i2c_client *client, u8 page, u8 reg, u8 data);
-
 #endif

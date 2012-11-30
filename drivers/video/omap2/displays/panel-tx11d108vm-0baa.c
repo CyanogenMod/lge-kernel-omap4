@@ -77,7 +77,7 @@
 #define DSI_DT_SET_MAX_RET_PKG_SIZE	0x37
 #define DSI_DT_NULL_PACKET		0x09
 #define DSI_DT_DCS_LONG_WRITE		0x39
-extern int ssc_enable;
+
 static irqreturn_t tx11d108vm_panel_te_isr(int irq, void *data);
 static void tx11d108vm_panel_te_timeout_work_callback(struct work_struct *work);
 static int _tx11d108vm_panel_enable_te(struct omap_dss_device *dssdev, bool enable);
@@ -137,12 +137,12 @@ static struct panel_config panel_configs[] = {
 		.timings	= {
 			.x_res		= 540,
 			.y_res		= 960,
-			.vfp = 5,
+			.vfp = 10,
 			.vsw =2,
 			.vbp =5,//16,
 			.hfp = 11,
 			.hsw =10,
-			.hbp =40,
+			.hbp =67,
 		},
 		.sleep		= {
 			.sleep_in	= 5,//20,
@@ -220,7 +220,7 @@ u8 hitachi_u2_lcd_command_for_mipi[][30] = {
 };
 #endif
 //LGE_CHANGE_S [sangjae.han@lge.com] 2011-10-26, Only using for HITACHI LCD to prevent Peak Current
-u8 hitachi_lcd_command_for_mipi_1[][30] = {
+u8 hitachi_lcd_command_for_mipi_1[][5] = {
 	{LONG_CMD_MIPI, DSI_GEN_LONGWRITE,  0x17, 0xC8, 0x00, 0x04, 0x03, 0x08, 0xA9, 0x07, 0x09, 0x01, 0x00, 0x04, 0x04, 0x00, 0x04, 0x03, 0x08, 0xA9, 0x07, 0x09, 0x01, 0x00, 0x04, 0x04, }, 
 	{LONG_CMD_MIPI, DSI_GEN_LONGWRITE,  0x17, 0xC9, 0x00, 0x04, 0x03, 0x08, 0xA9, 0x07, 0x09, 0x01, 0x00, 0x04, 0x04, 0x00, 0x04, 0x03, 0x08, 0xA9, 0x07, 0x09, 0x01, 0x00, 0x04, 0x04, }, 
 	{LONG_CMD_MIPI, DSI_GEN_LONGWRITE,  0x17, 0xCA, 0x00, 0x04, 0x03, 0x08, 0xA9, 0x07, 0x09, 0x01, 0x00, 0x04, 0x04, 0x00, 0x04, 0x03, 0x08, 0xA9, 0x07, 0x09, 0x01, 0x00, 0x04, 0x04, }, 
@@ -716,66 +716,6 @@ static ssize_t display_gamma_tuning_store(struct device *dev,
 
 static DEVICE_ATTR(gamma_tuning, 0660, display_gamma_tuning_show, display_gamma_tuning_store);
 //LGE_CHANGE_E [jeonghoon.cho@lge.com] 2012-0208, P940 : Add sysfile for gamma tuning + at%kcal jeonghoon.cho@lge.com
-static ssize_t display_porch_value_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-       struct omap_dss_device *dssdev = to_dss_device(dev);
-       int vbp,vsw,vfp,hbp,hsw,hfp;
-       sscanf(buf, "%d,%d,%d,%d,%d,%d",&vbp,&vsw,&vfp,&hbp,&hsw,&hfp);
-       dssdev->panel.timings.vbp = vbp;
-       dssdev->panel.timings.vsw = vsw;
-       dssdev->panel.timings.vfp = vfp;
-       dssdev->panel.timings.hbp = hbp;
-       dssdev->panel.timings.hsw = hsw;
-       dssdev->panel.timings.hfp = hfp;
-       return;
-}
-static ssize_t display_porch_value_show(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-       struct omap_dss_device *dssdev = to_dss_device(dev);
-	 int vbp,vsw,vfp,hbp,hsw,hfp;
-       vbp = dssdev->panel.timings.vbp;
-       vsw = dssdev->panel.timings.vsw;
-       vfp = dssdev->panel.timings.vfp;
-       hbp = dssdev->panel.timings.hbp;
-       hsw = dssdev->panel.timings.hsw;
-       hfp = dssdev->panel.timings.hfp;
-	return snprintf(buf, PAGE_SIZE, "vbp=%d, vsw=%d, vfp=%d, hbp=%d, hsw=%d, hfp=%d\n", vbp,vsw,vfp,hbp,hsw,hfp);
-}
-static DEVICE_ATTR(porch_value, 0660, display_porch_value_show, display_porch_value_store);
-
-static ssize_t display_clock_value_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-       struct omap_dss_device *dssdev = to_dss_device(dev);
-       int regn,regm;//,regm_dispc,regm_dsi;
-       sscanf(buf, "%d,%d",&regn,&regm);//,&regm_dispc,&regm_dsi);
-       dssdev->clocks.dsi.regn = regn;
-       dssdev->clocks.dsi.regm = regm;
-       //dssdev->clocks.dsi.regm_dispc = regm_dispc;
-       //dssdev->clocks.dsi.regm_dsi = regm_dsi;
-       //dssdev->clocks.dsi.lp_clk_div = lp_clk_div;
-       return;
-}
-static ssize_t display_clock_value_show(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-       struct omap_dss_device *dssdev = to_dss_device(dev);
-	   int clock_value;
-	   clock_value = 19200*(dssdev->clocks.dsi.regm)/(1+(dssdev->clocks.dsi.regn));
-	return snprintf(buf, PAGE_SIZE, "regn=%d, regm=%d, clock_value(KHz)= %d\n", dssdev->clocks.dsi.regn,dssdev->clocks.dsi.regm,clock_value);
-}
-static DEVICE_ATTR(clock_value, 0660, display_clock_value_show, display_clock_value_store);
-static ssize_t display_ssc_enable_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-       struct omap_dss_device *dssdev = to_dss_device(dev);
-       sscanf(buf, "%d",&ssc_enable);
-       printk("[dyotest]ssc_enable=%d\n",ssc_enable);
-       return;
-}
-static ssize_t display_ssc_enable_show(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-	return snprintf(buf, PAGE_SIZE, "ssc_enable=%d\n",ssc_enable);
-}
-static DEVICE_ATTR(ssc_enable, 0660, display_ssc_enable_show, display_ssc_enable_store);
-
 static ssize_t show_cabc_available_modes(struct device *dev,
 		struct device_attribute *attr,
 		char *buf)
@@ -951,9 +891,6 @@ static struct attribute *tx11d108vm_panel_attrs[] = {
 #if defined(CONFIG_LUT_FILE_TUNING)
     &dev_attr_file_tuning.attr,
 #endif
-    &dev_attr_porch_value.attr,
-    &dev_attr_clock_value.attr,
-    &dev_attr_ssc_enable.attr,
 //LGE_CHANGE_E [jeonghoon.cho@lge.com] 2012-0208, P940 : Add sysfile for gamma tuning + at%kcal jeonghoon.cho@lge.com
 	NULL,
 };
@@ -1216,16 +1153,11 @@ static int tx11d108vm_panel_power_on(struct omap_dss_device *dssdev)
 		if (r)
 			goto err;
 
-		usleep_range(20000, 22000);
-
 		if(dssdev->phy.dsi.type == OMAP_DSS_DSI_TYPE_CMD_MODE){
 			r = tx11d108vm_panel_set_addr_mode(td, td->rotate, td->mirror);
 			if (r)
 				goto err;
 		}
-
-		usleep_range(2000, 2200);
-
 		for (i = 0; hitachi_lcd_command_for_mipi_1[i][0] != END_OF_COMMAND; i++) {
 			dsi_vc_dcs_write_nosync(dssdev, td->channel, &hitachi_lcd_command_for_mipi_1[i][3], hitachi_lcd_command_for_mipi_1[i][2]);
 		}

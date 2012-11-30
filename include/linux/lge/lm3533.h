@@ -4,9 +4,6 @@
 #include <linux/kernel.h>
 #include <asm/gpio.h>
 #include <linux/i2c.h>
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-#endif
 
 #define LM3533_I2C_NAME		"lm3533"
 #define LM3533_I2C_ADDR		0x36
@@ -20,7 +17,7 @@ struct lm3533_private_data {
 	unsigned char	reg_rttr; // LED CURRENT RUN-TIME TRANSITION TIME REGISTE
 	unsigned char	reg_fscr; // CONTROL BANK FULL-SCALE CURRENT REGISTERS
 	unsigned char	reg_bcr; // CONTROL BANK A/B BRIGHTNESS CONFIGURATION REGISTER
-
+	
 
 	struct i2c_client*	client;
 	struct mutex	update_lock;
@@ -30,13 +27,10 @@ struct lm3533_platform_data {
 	int		gpio_hwen;
         int             gpio_pwm;
 	struct lm3533_private_data	private;
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	struct early_suspend early_suspend;
-#endif
 };
 
-#define LM3533_MAX_BRT			0xf7//0xf5//0xff
-#define LM3533_DEFAULT_BRT		0xd6//0xe6
+#define LM3533_MAX_BRT			0xff
+#define LM3533_DEFAULT_BRT		0xe6
 #define LM3533_MIN_BRT			0x64
 #define UI_MAX					255
 #define UI_DEFAULT				153
@@ -59,8 +53,6 @@ int	lm3533_set_brightness_control(struct lm3533_private_data* pdata, int val);
 int	lm3533_get_hwen(struct lm3533_private_data* pdata, int gpio);
 int	lm3533_set_hwen(struct lm3533_private_data* pdata, int gpio, int status);
 int	lm3533_init(struct lm3533_private_data* pdata, struct i2c_client* client);
-int	lm3533_write_byte(struct lm3533_private_data* pdata, int reg, int value);
-int	lm3533_read_byte(struct lm3533_private_data* pdata, int reg);
 #if defined(CONFIG_MAX8971_CHARGER)&&  defined(CONFIG_MACH_LGE_P2_DCM)
 
 int lm3533_get_lcd_on_off();

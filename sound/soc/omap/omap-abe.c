@@ -176,7 +176,11 @@ int omap_abe_set_dl1_output(int output)
 		break;
 	case OMAP_ABE_DL1_HEADSET_HP:
 	case OMAP_ABE_DL1_EARPIECE:
+#ifdef CONFIG_MACH_LGE_COSMO
+		gain = GAIN_0dB; //MO2_COSMO_SKT_ICS, mo2sujin.kim,120723  GAIN_M1dB;
+#else
 		gain = GAIN_M1dB;
+#endif
 		break;
 	case OMAP_ABE_DL1_NO_PDM:
 		gain = GAIN_0dB;
@@ -950,11 +954,13 @@ static int omap_abe_dai_hw_params(struct snd_pcm_substream *substream,
 
 	switch (params_channels(params)) {
 	case 1:
-	        //LGE_BSP_S  seungdae.goh@lge.com 2012-05-30  Ti Modem I/F [START_LGE]
-	        if( (dai->id) == ABE_FRONTEND_DAI_MODEM ) {
-	            format.samp_format = MONO_MSB;
-	        } else
-	        //LGE_BSP_E  seungdae.goh@lge.com 2012-05-30  Ti Modem I/F [END_LGE]
+#ifndef CONFIG_MACH_LGE_COSMO
+		//LGE_BSP_S  seungdae.goh@lge.com 2012-05-30  Ti Modem I/F [START_LGE]
+		if( (dai->id) == ABE_FRONTEND_DAI_MODEM ) {
+			format.samp_format = MONO_MSB;
+		} else
+		//LGE_BSP_E  seungdae.goh@lge.com 2012-05-30  Ti Modem I/F [END_LGE]
+#endif
 		if (params_format(params) == SNDRV_PCM_FORMAT_S16_LE) {
 			format.samp_format = MONO_RSHIFTED_16;
 			dma_data->data_type = OMAP_DMA_DATA_TYPE_S16;

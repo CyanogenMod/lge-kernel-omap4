@@ -36,7 +36,7 @@ void tdmb_fc8050_Must_mdelay(int32 ms);
 void tdmb_fc8050_interrupt_lock(void);
 void tdmb_fc8050_interrupt_free(void);
 int tdmb_fc8050_spi_write_read(uint8* tx_data, int tx_length, uint8 *rx_data, int rx_length);
-void tdmb_fc8050_set_userstop(void);
+void tdmb_fc8050_set_userstop(int mode);
 int tdmb_fc8050_tdmb_is_on(void);
 #endif
 

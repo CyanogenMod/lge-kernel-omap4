@@ -193,6 +193,11 @@ u16 pm44xx_errata;
 
 #define MAX_IOPAD_LATCH_TIME 1000
 
+#ifdef CONFIG_MACH_LGE_COSMO
+	#include <linux/i2c/twl.h>
+	int last_turn_off_reason_count = 0;
+#endif
+
 void syscontrol_lpddr_clk_io_errata(bool enable)
 {
 	u32 v = 0;
@@ -832,6 +837,26 @@ static int omap4_restore_pwdms_after_suspend(void)
 	struct power_state *pwrst;
 	int cstate, pstate, ret = 0;
 
+//nthyunjin.yang 120607 power debuging [start]
+#ifdef CONFIG_MACH_LGE_COSMO
+	int state = 0;
+	/* Print the previous power domain states */
+	printk("[POWER] ### Read Powerdomain states as ...\n");
+	printk("[POWER] ### 0 : OFF, 1 : RETENTION, 2 : ON-INACTIVE, 3 : ON-ACTIVE\n");
+	list_for_each_entry(pwrst, &pwrst_list, node) {
+		state = pwrdm_read_prev_pwrst(pwrst->pwrdm);
+		if (state == -EINVAL) {
+			state = pwrdm_read_pwrst(pwrst->pwrdm);
+			pr_info("Powerdomain (%s) is in state %d\n",
+				pwrst->pwrdm->name, state);
+		} else {
+			pr_info("Powerdomain (%s) entered state %d\n",
+				pwrst->pwrdm->name, state);
+		}
+	}
+#endif
+//nthyunjin.yang 120607 power debuging [end]
+
 	/* Restore next powerdomain state */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
 		cstate = pwrdm_read_pwrst(pwrst->pwrdm);
@@ -932,7 +957,7 @@ static int omap4_pm_suspend(void)
 		pr_err("Could not enter target state in pm_suspend\n");
 	else
 		pr_err("Successfully put all powerdomains to target state\n");
-
+	
 	return 0;
 }
 
@@ -987,40 +1012,59 @@ static void omap4_pm_end(void)
 
 static int omap4_pm_prepare(void)
 {
+#ifdef CONFIG_MACH_LGE_COSMO //LAST POWER OFF REASON
+	int ret=0;
+	u8 rd_reg=0;//mo2seongjae.jang 20120702 WBT issue modification
+
+//	printk("###nthyunjin.yang PHOENIX_LAST_TURNOFF_STS last_turn_off_reason_count = %d. \n", last_turn_off_reason_count);
+	if((last_turn_off_reason_count <= 5) &&(last_turn_off_reason_count >= 0))
+	{
+		ret = twl_i2c_read_u8(0x0D, &rd_reg, 0x22);/* PHOENIX_LAST_TURNOFF_STS */
+		if (ret < 0) {
+			pr_err("%s: failed to read PHOENIX_LAST_TURNOFF_STS %d\n", __func__, ret);
+			return ret;
+		}
+
+		printk("[POWER] ### PHOENIX_LAST_TURNOFF_STS = 0x%x", rd_reg);
+		last_turn_off_reason_count++;
+	}
+	else if(last_turn_off_reason_count == 7)
+	{
+		ret = twl_i2c_write_u8(0x0D, 0x01, 0x22);/* PHOENIX_LAST_TURNOFF_STS */
+		if (ret < 0) {
+			pr_err("%s: failed to read PHOENIX_LAST_TURNOFF_STS %d\n", __func__, ret);
+			return ret;
+		}
+
+		printk("[POWER] ### PHOENIX_LAST_TURNOFF_STS write 0x01, so clear register \n");
+	}
+#endif
+
 	//GPADC_CTRL
 	twl_i2c_write_u8(0x0E, 0x00, 0x2E);
-
-    //TOGGLE1
+        //TOGGLE1
 	twl_i2c_write_u8(0x0E, 0x51, 0x90);
-
-	//MISC2
-	twl_i2c_write_u8(0x0D, 0x00, 0xE5);
-
-	//OFF VCXIO  100uA
-	twl_i2c_write_u8(0x0D, 0x01, 0x90);
-	twl_i2c_write_u8(0x0D, 0x01, 0x91);
-
-	//CLK32KG
-	twl_i2c_write_u8(0x0D, 0x01, 0xBC);
-	twl_i2c_write_u8(0x0D, 0x05, 0xBD);
-	twl_i2c_write_u8(0x0D, 0x21, 0xBE);
-
+#ifdef CONFIG_MACH_LGE_COSMO //nthyunjin.yang 120724 for power off issue in entering sleep by CX2 GB MR 6th version.
 	//VUSB
 	twl_i2c_write_u8(0x0D, 0x01, 0xA0);
 	twl_i2c_write_u8(0x0D, 0x01, 0xA1);
-	twl_i2c_write_u8(0x0D, 0x21, 0xA2);
+#else
+        //MISC2
+	twl_i2c_write_u8(0x0D, 0x00, 0xE5);
+#endif
 
-	//VPP
-	twl_i2c_write_u8(0x0D, 0x7F, 0xF4); //disable internal PD for VPP LDO
-	twl_i2c_write_u8(0x0D, 0x00, 0x9C);
-	twl_i2c_write_u8(0x0D, 0x00, 0x9D);
-	twl_i2c_write_u8(0x0D, 0x00, 0x9E);
+//LGE_CHANGE_S 20110725 taehwan.kim@lge.com When go into sleep off mode,
+//disable regulator. 
+#if defined(CONFIG_MACH_LGE_P2_SU540) || defined(CONFIG_MACH_LGE_P2_KU5400) || defined(CONFIG_MACH_LGE_P2_LU5400)
 
-	//LGE_CHANGED 20110811 taehwan.kim@lge.com To reduce sleep current by
-    //enabling ACT2SLP transition
-    // Unmask PREQ transition
-    twl_i2c_write_u8(0x0D, 0x00, 0x20);
+    // REGEN2
+	twl_i2c_write_u8(0x0D, 0x01, 0xB0);
+	twl_i2c_write_u8(0x0D, 0x01, 0xB1);
+	twl_i2c_write_u8(0x0D, 0x20, 0xB2);
 
+#endif
+//LGE_CHANGE_E 20110725 taehwan.kim@lge.com When go into sleep off mode,
+//disable regulator. 
 	return (0);
 }
 
@@ -1378,12 +1422,6 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 	irqstatus_mpu = omap4_prm_read_inst_reg(OMAP4430_PRM_OCP_SOCKET_INST,
 					 OMAP4_PRM_IRQSTATUS_MPU_OFFSET);
 
-	// 2012-07-25 bk.shin : ti patch - OMAP4: PM: Fix missed PRCM MPU interrupt events
-	/* Clear the interrupt */
-	irqstatus_mpu &= irqenable_mpu;
-	omap4_prm_write_inst_reg(irqstatus_mpu, OMAP4430_PRM_OCP_SOCKET_INST,
-					OMAP4_PRM_IRQSTATUS_MPU_OFFSET);
-
 	/* Check if a IO_ST interrupt */
 	if (irqstatus_mpu & OMAP4430_IO_ST_MASK) {
 		/* Check if HSI caused the IO wakeup */
@@ -1393,7 +1431,11 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 		omap_debug_uart_resume_idle();
 		omap4_trigger_ioctrl();
 	}
-	// 2012-07-25 bk.shin : ti patch - OMAP4: PM: Fix missed PRCM MPU interrupt events
+
+	/* Clear the interrupt */
+	irqstatus_mpu &= irqenable_mpu;
+	omap4_prm_write_inst_reg(irqstatus_mpu, OMAP4430_PRM_OCP_SOCKET_INST,
+					OMAP4_PRM_IRQSTATUS_MPU_OFFSET);
 
 	return IRQ_HANDLED;
 }
@@ -1523,7 +1565,7 @@ static void __init omap4_pm_setup_errata(void)
 static int __init omap4_pm_init(void)
 {
 	int ret = 0;
-	struct clockdomain *l3_1_clkdm, *l4wkup;
+	struct clockdomain *l3_1_clkdm, *l4wkup,*sdma_clkdm, *l3_init_clkdm;
 	struct clockdomain *ducati_clkdm, *l3_2_clkdm, *l4_per, *l4_cfg;
 	char *init_devices[] = {"mpu", "iva"};
 	int i;
@@ -1588,6 +1630,10 @@ static int __init omap4_pm_init(void)
 	l4_per = clkdm_lookup("l4_per_clkdm");
 	l4_cfg = clkdm_lookup("l4_cfg_clkdm");
 	l4wkup = clkdm_lookup("l4_wkup_clkdm");
+
+	sdma_clkdm = clkdm_lookup("l3_dma_clkdm");
+	l3_init_clkdm = clkdm_lookup("l3_init_clkdm");
+	
 	if ((!mpuss_clkdm) || (!emif_clkdm) || (!l3_1_clkdm) || (!l4wkup) ||
 		(!l3_2_clkdm) || (!ducati_clkdm) || (!l4_per) || (!l4_cfg) ||
 		(!abe_clkdm))
@@ -1607,6 +1653,17 @@ static int __init omap4_pm_init(void)
 		ret |= clkdm_add_wkdep(ducati_clkdm, l4_per);
 		ret |= clkdm_add_wkdep(ducati_clkdm, l4_cfg);
 		ret |= clkdm_add_wkdep(mpuss_clkdm, l4wkup);
+		
+		/* Adding all SDMA static dependencies and keeping
+		   only L3_2, before we clear.
+		*/
+		ret |=  clkdm_add_wkdep(sdma_clkdm, emif_clkdm);
+		ret |=  clkdm_add_wkdep(sdma_clkdm, l3_1_clkdm);
+		ret |=  clkdm_add_wkdep(sdma_clkdm, l3_init_clkdm);
+		ret |=  clkdm_add_wkdep(sdma_clkdm, l4wkup);
+		ret |=  clkdm_add_wkdep(sdma_clkdm, l4_per);
+		ret |=  clkdm_add_wkdep(sdma_clkdm, l4_cfg);
+		
 		if (ret) {
 			pr_err("Failed to add MPUSS -> L3/EMIF, DUCATI -> L3"
 			       " and MPUSS -> L4* wakeup dependency\n");
@@ -1617,6 +1674,19 @@ static int __init omap4_pm_init(void)
 			" MPUSS <-> L3_MAIN_1.\n");
 		pr_info("OMAP4 PM: Static dependency added between"
 			" DUCATI <-> L4_PER/CFG and DUCATI <-> L3.\n");
+		
+		/* clearing all SDMA static dependencies and keeping 
+		   only L3_2.
+		*/
+		ret  =  clkdm_del_wkdep(sdma_clkdm, emif_clkdm);
+		ret |=  clkdm_del_wkdep(sdma_clkdm, l3_1_clkdm);
+		ret |=  clkdm_del_wkdep(sdma_clkdm, l3_init_clkdm);
+		ret |=  clkdm_del_wkdep(sdma_clkdm, l4wkup);
+		ret |=  clkdm_del_wkdep(sdma_clkdm, l4_per);
+		ret |=  clkdm_del_wkdep(sdma_clkdm, l4_cfg);
+		if (ret){
+			pr_err("Failed to Remove wkdep For SDMA \n");
+		}		
 	} else if (cpu_is_omap446x() || cpu_is_omap447x()) {
 		/*
 		 * Static dependency between mpuss and emif can only be

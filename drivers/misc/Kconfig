@@ -594,5 +594,5 @@ source "drivers/misc/gcx/gccore/Kconfig"
 source "drivers/misc/gcx/gcioctl/Kconfig"
 source "drivers/misc/gcx/gcbv/Kconfig"
 source "drivers/misc/ts0710mux/Kconfig"
-
+source "drivers/misc/ti-st/Kconfig"
 endif # MISC_DEVICES

@@ -226,8 +226,8 @@ static int input_handle_abs_event(struct input_dev *dev,
 static void input_handle_event(struct input_dev *dev,
 			       unsigned int type, unsigned int code, int value)
 {
+#ifdef CONFIG_MACH_LGE_U2
 	/* LGE_CHANGE_S [younglae.kim@lge.com] 2012-06-28, add for AT command
-	 * all of the event will be ignored except power key when the key_lock is enabled
 	 */
 	if(unlikely(get_key_lock_status())) {
 		if(code != KEY_POWER)
@@ -241,7 +241,7 @@ static void input_handle_event(struct input_dev *dev,
 		}
 	}
 	// LGE_CHANGE_E [younglae.kim@lge.com] 2012-06-28
-
+#endif
 	int disposition = INPUT_IGNORE_EVENT;
 
 	switch (type) {
@@ -272,10 +272,15 @@ static void input_handle_event(struct input_dev *dev,
 			if (value != 2) {
 				__change_bit(code, dev->key);
 
+/*  LGE_CHANGE [younglae.kim@lge.com] 2012-06-11 , disable auto-repeatition for U2
+ *   pass the key event only two times when the key is pressed and released
+ */
+#ifndef CONFIG_MACH_LGE_U2
 				if (value)
 					input_start_autorepeat(dev, code);
 				else
 					input_stop_autorepeat(dev);
+#endif
 			}
 
 			disposition = INPUT_PASS_TO_HANDLERS;

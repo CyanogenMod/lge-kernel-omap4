@@ -74,6 +74,12 @@ config PANEL_LH430WV4_SD02
     help
         This is the B2 Rev.A panel(LH430WV4-SD02) LG4574 driver IC
 
+config PANEL_LH430WV2_SD01
+    tristate "B2 Rev.A panel(LH430WV2-SD01) LG4573 driver IC"
+    default n
+    help
+        This is the B2 Rev.A panel(LH430WV2-SD01) LG4573 driver IC
+
 config PANEL_TX11D101VM_0EAA
     tristate "B2 Korea and Docomo panel(TX11D101VM_0EAA) LG4574 driver IC"
     default n
@@ -93,7 +99,7 @@ config PANEL_HX8389
         This is the U2-P760 EU Tovis panel() HIMAX driver IC
 choice
     prompt "Choose DSI Mode"
-    depends on PANEL_TX11D101VM_0EAA || PANEL_LH430WV4_SD02 || PANEL_TX11D108VM_0BAA || PANEL_HX8389
+    depends on PANEL_TX11D101VM_0EAA || PANEL_LH430WV4_SD02 || PANEL_TX11D108VM_0BAA || PANEL_HX8389 || PANEL_LH430WV2_SD01
     default DSI_VIDEO_MODE
 
 config DSI_CMD_MODE

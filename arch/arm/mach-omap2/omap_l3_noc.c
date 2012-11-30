@@ -75,6 +75,15 @@ static void l3_dump_targ_context(u32 baseaddr)
  *	can be trapped as well. But the trapping is implemented as part
  *	secure software and hence need not be implemented here.
  */
+
+static bool boot_compleate = 0;
+void LGE_boot_compleate(bool flag)
+{
+    boot_compleate = flag;
+}
+
+extern void omap4_prm_global_warm_sw_reset(void);
+
 static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 {
 
@@ -164,6 +173,14 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 		/* Error found so break the for loop */
 		break;
 		}
+        else
+            {
+//            WARN(true, "######### boot_compleate=%d\n",boot_compleate);
+               if(boot_compleate==0)
+                {
+                       omap4_prm_global_warm_sw_reset();
+                }            
+            }
 	}
 	return IRQ_HANDLED;
 }

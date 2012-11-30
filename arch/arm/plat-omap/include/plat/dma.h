@@ -500,6 +500,8 @@ extern int omap_get_dma_index(int lch, int *ei, int *fi);
 
 void omap_dma_global_context_save(void);
 void omap_dma_global_context_restore(void);
+void omap_dma_set_midle(unsigned int);
+
 
 extern void omap_dma_disable_irq(int lch);
 

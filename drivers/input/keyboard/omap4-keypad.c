@@ -84,6 +84,12 @@
  */
 u32 debug_mask = 0;
 
+#ifdef CONFIG_MACH_LGE_COSMO
+//mo2haewoon.you@lge.com => [START] keylock command
+int atcmd_keylock=0;
+//mo2haewoon.you@lge.com => [END]
+#endif
+
 struct omap4_keypad {
 	struct input_dev *input;
 
@@ -134,6 +140,41 @@ static DEVICE_ATTR(keypad_debug, S_IWUSR | S_IRUGO | S_IRGRP | S_IROTH,
 			show_keypad_debug_mask, store_keypad_debug_mask);
 // LGE_CHANGE_E [younglae.kim@lge.com] 2012-06-06
 
+//mo2haewoon.you@lge.com => [START] keylock command
+#ifdef CONFIG_MACH_LGE_COSMO
+//LGE_S 11.12.13 <ntdeaewan.choi@lge.com> AT%KEYLOCK touch,keytouch,key disable
+static ssize_t keypad_keylock_show(struct device *dev,  struct device_attribute *attr,  char *buf)
+{
+	int r = 0;
+
+	r += sprintf(buf+r, "%d", atcmd_keylock);
+
+	return r;
+}
+
+static ssize_t keypad_keylock_store(struct device *dev,  struct device_attribute *attr,  const char *buf, size_t count)
+{
+    int ret;
+
+    ret = sscanf(buf, "%d", &atcmd_keylock);
+
+	printk("keypad_keylock_store = [%d]\n", atcmd_keylock);
+
+	if(atcmd_keylock == 1)
+	{
+		printk("[KEYPAD] AT%KEYLOCK ON.\n");
+	}
+	else if(atcmd_keylock == 0)
+	{
+		printk("[KEYPAD] AT%KEYLOCK OFF.\n");
+	}
+
+	return ret;
+}
+static DEVICE_ATTR(keylock, 0665, keypad_keylock_show, keypad_keylock_store);
+//mo2haewoon.you@lge.com <= [END] 
+#endif
+
 /* Interrupt handler */
 static irqreturn_t omap4_keypad_interrupt(int irq, void *dev_id)
 {
@@ -153,7 +194,7 @@ static irqreturn_t omap4_keypad_interrupt(int irq, void *dev_id)
 						+ OMAP4_KBD_FULLCODE63_32);
 
 	// LGE_CHANGE_S [younglae.kim@lge.com] 2012-06-06 , add to check H/W status
-	if(unlikely(debug_mask)) {
+	if(debug_mask) {
 		printk("========================================================\n");
 		printk("%s: [%#x][%#x]\n", __func__, *new_state, *(new_state+1));
 		printk("========================================================\n");
@@ -171,24 +212,19 @@ static irqreturn_t omap4_keypad_interrupt(int irq, void *dev_id)
 						keypad_data->row_shift);
 
 				// LGE_CHANGE_S [younglae.kim@lge.com] 2012-06-06 , add to check H/W status
-				if(unlikely(debug_mask)) {
+				if(debug_mask) {
 					printk("%s: [changed][col][row][code] = [%#x][%d][%d][%d]\n", __func__, changed, col, row, code);
 					printk("========================================================\n");
 				}
 				// LGE_CHANGE_E [younglae.kim@lge.com] 2012-06-06
 
-
+                                //mo2haewoon.you@lge.com => [START]  keylock command
+#ifdef CONFIG_MACH_LGE_COSMO
+				if( keypad_data->keymap[code] && !atcmd_keylock) {
+#else
 				if( keypad_data->keymap[code] ) {
-// LGE_CHANGE_S [younglae.kim@lge.com] 2012-06-22, do not report the key event when AT%GKPD=1
-#ifdef CONFIG_INPUT_LGE_GKPD
-					if (unlikely(gkpd_get_test_mode())) {
-						printk("%s: gkpd_test_mode(%d)\n", __func__, gkpd_get_test_mode());
-						gkpd_report_key(keypad_data->keymap[code], (bool)(key_state[col] & (1 << row)));
-						break;
-					}
 #endif
-// LGE_CHANGE_E [younglae.kim@lge.com] 2012-06-22
-
+                                //mo2haewoon.you@lge.com <= [END]
 				    input_event(input_dev, EV_MSC, MSC_SCAN, code);
 				    input_report_key(input_dev,
                             keypad_data->keymap[code],
@@ -202,6 +238,10 @@ static irqreturn_t omap4_keypad_interrupt(int irq, void *dev_id)
                     printk("[omap4-keypad] %s KEY %s\n",
 						(keypad_data->keymap[code] == KEY_VOLUMEUP) ? "Vol_UP" : ((keypad_data->keymap[code] == KEY_VOLUMEDOWN) ? "Vol_DOWN" : "CAPTURE"),
 						(key_state[col] & (1 << row)) ? "PRESS" : "RELEASE" );
+#endif
+
+#ifdef CONFIG_INPUT_LGE_GKPD
+                    gkpd_report_key(keypad_data->keymap[code], (bool)(key_state[col] & (1 << row)));
 #endif
 
                     break;
@@ -230,6 +270,8 @@ static irqreturn_t omap4_keypad_interrupt(int irq, void *dev_id)
 	__raw_writel(__raw_readl(keypad_data->base + OMAP4_KBD_IRQSTATUS),
 			keypad_data->base + OMAP4_KBD_IRQSTATUS);
 
+
+	printk("#################################### %s is finished!!!!!\n", __func__);
 	return IRQ_HANDLED;
 }
 
@@ -381,7 +423,7 @@ static int __devinit omap4_keypad_probe(struct platform_device *pdev)
 	input_dev->keycodemax	= max_keys;
 
 	__set_bit(EV_KEY, input_dev->evbit);
-//	__set_bit(EV_REP, input_dev->evbit);
+	__set_bit(EV_REP, input_dev->evbit);
 
 	input_set_capability(input_dev, EV_MSC, MSC_SCAN);
 
@@ -445,6 +487,16 @@ static int __devinit omap4_keypad_probe(struct platform_device *pdev)
 	}
 // LGE_CHANGE_E [younglae.kim@lge.com] 2012-06-06
 
+//mo2haewoon.you@lge.com => [START]  keylock command
+#ifdef CONFIG_MACH_LGE_COSMO
+	error = device_create_file(&pdev->dev, &dev_attr_keylock);
+	if (error) {
+		printk( "keypad: keylock create file: Fail\n");
+		device_remove_file(&pdev->dev, &dev_attr_keylock);
+	}
+#endif
+//mo2haewoon.you@lge.com <= [END]
+
 	/* LGE_SJIT 2011-12-06 [dojip.kim@lge.com] export input handle */
 #ifdef CONFIG_MACH_LGE
 	lge_input_set(input_dev);
@@ -477,6 +529,11 @@ static int __devexit omap4_keypad_remove(struct platform_device *pdev)
 	device_remove_file(&pdev->dev, &dev_attr_keypad_debug);
 // LGE_CHANGE_E [younglae.kim@lge.com] 2012-06-06
 
+//mo2haewoon.you@lge.com => [START]  keylock command
+#ifdef CONFIG_MACH_LGE_COSMO
+	device_remove_file(&pdev->dev, &dev_attr_keylock);
+#endif
+//mo2haewoon.you@lge.com <= [END]
 
 	/* LGE_SJIT 2012-01-05 [dojip.kim@lge.com] for Android SafeMode
 	 * [yehan.ahn@lge.com] 2011-06-10, [P940] for enable the saving-mode

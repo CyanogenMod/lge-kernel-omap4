@@ -178,17 +178,6 @@
 #define BMA250_EE_WRITE_SETTING_S__MSK          0x04
 #define BMA250_EE_WRITE_SETTING_S__REG          BMA250_EEPROM_CTRL_REG
 
-// LGE_CHANGE_S [younglae.kim@lge.com] 2012-06-15 , add for calibration (get from U0)
-#define BMA250_EN_SOFT_RESET__POS         0
-#define BMA250_EN_SOFT_RESET__LEN         8
-#define BMA250_EN_SOFT_RESET__MSK         0xFF
-#define BMA250_EN_SOFT_RESET__REG         BMA250_RESET_REG
-
-#define BMA250_EN_SOFT_RESET_VALUE        0xB6
-
-#define BMA250_SHAKING_DETECT_THRESHOLD	(20)	/* threshold of shaking detection under 2G */
-// LGE_CHANGE_E [younglae.kim@lge.com] 2012-06-15
-
 #define BMA250_GET_BITSLICE(regvar, bitname)\
 	((regvar & bitname##__MSK) >> bitname##__POS)
 
@@ -258,6 +247,7 @@
 #define BMA250_COMP_TARGET_OFFSET_Z__MSK        0x60
 #define BMA250_COMP_TARGET_OFFSET_Z__REG        BMA250_OFFSET_PARAMS_REG
 
+
 static const u8 bma250_valid_range[] = {
 	BMA250_RANGE_2G,
 	BMA250_RANGE_4G,
@@ -299,12 +289,6 @@ struct bma250_data {
 #endif
 
 	atomic_t selftest_result;
-
-// LGE_CHANGE_S [younglae.kim@lge.com] 2012-06-15 , add for calibration (get from U0)
-	atomic_t fast_calib_x_rslt;
-	atomic_t fast_calib_y_rslt;
-	atomic_t fast_calib_z_rslt;
-// LGE_CHANGE_E [younglae.kim@lge.com] 2012-06-15
 };
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -856,7 +840,6 @@ static int bma250_read_accel_x(struct i2c_client *client, short *a_x)
 
 	return comres;
 }
-
 static int bma250_read_accel_y(struct i2c_client *client, short *a_y)
 {
 	int comres;
@@ -1187,44 +1170,18 @@ static int bma250_set_cal_trigger(struct i2c_client *client,
 	return comres;
 }
 
-// LGE_CHANGE_S [younglae.kim@lge.com] 2012-06-15 , modification for calibration (get from U0)
-static int bma250_soft_reset(struct i2c_client *client)
-{
-	int comres = 0;
-	unsigned char data = BMA250_EN_SOFT_RESET_VALUE ;
-
-	comres = bma250_smbus_write_byte(client, BMA250_EN_SOFT_RESET__REG, &data);
-
-	return comres;
-}
-
-static ssize_t bma250_softreset_store(struct device *dev,
-		struct device_attribute *attr,
-		const char *buf, size_t count)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct bma250_data *bma250 = i2c_get_clientdata(client);
-
-	if (bma250_soft_reset(bma250->bma250_client) < 0)
-		return -EINVAL;
-
-	return count;
-}
 
 static ssize_t bma250_fast_calibration_x_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
+	unsigned char data;
 	struct i2c_client *client = to_i2c_client(dev);
 	struct bma250_data *bma250 = i2c_get_clientdata(client);
 
-	return sprintf(buf, "%d\n", atomic_read(&bma250->fast_calib_x_rslt));
+	if (bma250_get_offset_target_x(bma250->bma250_client, &data) < 0)
+		return sprintf(buf, "Read error\n");
 
-#if 0
-		if (bma250_get_offset_target_x(bma250->bma250_client, &data) < 0)
-			return sprintf(buf, "Read error\n");
-
-		return sprintf(buf, "%d\n", data);
-#endif
+	return sprintf(buf, "%d\n", data);
 }
 
 static ssize_t bma250_fast_calibration_x_store(struct device *dev,
@@ -1238,48 +1195,23 @@ static ssize_t bma250_fast_calibration_x_store(struct device *dev,
 	struct i2c_client *client = to_i2c_client(dev);
 	struct bma250_data *bma250 = i2c_get_clientdata(client);
 
-	struct bma250acc acc_cal;
-	struct bma250acc acc_cal_pre;
-
 	error = strict_strtoul(buf, 10, &data);
 	if (error)
 		return error;
 
-	bma250_read_accel_xyz(bma250->bma250_client, &acc_cal_pre);
-	mdelay(50);
-
-	if (bma250_set_offset_target_x(bma250->bma250_client, (unsigned char)data) < 0)
+	if (bma250_set_offset_target_x(bma250->bma250_client,
+				(unsigned char)data) < 0)
 		return -EINVAL;
 
 	if (bma250_set_cal_trigger(bma250->bma250_client, 1) < 0)
 		return -EINVAL;
 
-	atomic_set(&bma250->fast_calib_x_rslt, 0);
-
 	do {
 		mdelay(2);
 		bma250_get_cal_ready(bma250->bma250_client, &tmp);
 
-		bma250_read_accel_xyz(bma250->bma250_client, &acc_cal);
-
-		if( (tmp == 0)	&&
-			((abs(acc_cal.x - acc_cal_pre.x) > BMA250_SHAKING_DETECT_THRESHOLD)
-				|| (abs((acc_cal.y - acc_cal_pre.y)) > BMA250_SHAKING_DETECT_THRESHOLD)
-				|| (abs((acc_cal.z - acc_cal_pre.z)) > BMA250_SHAKING_DETECT_THRESHOLD))
-		  )
-		{
-			printk(KERN_INFO "fast calibration for x-axis is failed due to BMA250_SHAKING\n");
-			printk(KERN_INFO "(%d, %d), (%d, %d), (%d, %d)\n", acc_cal.x, acc_cal_pre.x, acc_cal.y, acc_cal_pre.y, acc_cal.z, acc_cal_pre.z);
-			return count;
-		}
-		else
-		{
-			acc_cal_pre.x = acc_cal.x;
-			acc_cal_pre.y = acc_cal.y;
-			acc_cal_pre.z = acc_cal.z;
-		}
-
-		printk(KERN_INFO "wait 2ms and got cal ready flag is %d\n", tmp);
+		printk(KERN_INFO "wait 2ms and got cal ready flag is %d\n",
+				tmp);
 		timeout++;
 		if (timeout == 1000) {
 			printk(KERN_INFO "get fast calibration ready error\n");
@@ -1288,8 +1220,6 @@ static ssize_t bma250_fast_calibration_x_store(struct device *dev,
 
 	} while (tmp == 0);
 
-	atomic_set(&bma250->fast_calib_x_rslt, 1);
-
 	printk(KERN_INFO "x axis fast calibration finished\n");
 	return count;
 }
@@ -1297,17 +1227,17 @@ static ssize_t bma250_fast_calibration_x_store(struct device *dev,
 static ssize_t bma250_fast_calibration_y_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
+
+
+	unsigned char data;
 	struct i2c_client *client = to_i2c_client(dev);
 	struct bma250_data *bma250 = i2c_get_clientdata(client);
 
-	return sprintf(buf, "%d\n", atomic_read(&bma250->fast_calib_y_rslt));
-
-#if 0
 	if (bma250_get_offset_target_y(bma250->bma250_client, &data) < 0)
 		return sprintf(buf, "Read error\n");
 
 	return sprintf(buf, "%d\n", data);
-#endif
+
 }
 
 static ssize_t bma250_fast_calibration_y_store(struct device *dev,
@@ -1321,47 +1251,23 @@ static ssize_t bma250_fast_calibration_y_store(struct device *dev,
 	struct i2c_client *client = to_i2c_client(dev);
 	struct bma250_data *bma250 = i2c_get_clientdata(client);
 
-	struct bma250acc acc_cal;
-	struct bma250acc acc_cal_pre;
-
 	error = strict_strtoul(buf, 10, &data);
 	if (error)
 		return error;
 
-	bma250_read_accel_xyz(bma250->bma250_client, &acc_cal_pre);
-	mdelay(50);
-
-	if (bma250_set_offset_target_y(bma250->bma250_client, (unsigned char)data) < 0)
+	if (bma250_set_offset_target_y(bma250->bma250_client,
+				(unsigned char)data) < 0)
 		return -EINVAL;
 
 	if (bma250_set_cal_trigger(bma250->bma250_client, 2) < 0)
 		return -EINVAL;
 
-	atomic_set(&bma250->fast_calib_y_rslt, 0);
-
 	do {
 		mdelay(2);
 		bma250_get_cal_ready(bma250->bma250_client, &tmp);
 
-		bma250_read_accel_xyz(bma250->bma250_client, &acc_cal);
-		if( (tmp == 0)	&&
-			((abs(acc_cal.x - acc_cal_pre.x) > BMA250_SHAKING_DETECT_THRESHOLD)
-				|| (abs((acc_cal.y - acc_cal_pre.y)) > BMA250_SHAKING_DETECT_THRESHOLD)
-				|| (abs((acc_cal.z - acc_cal_pre.z)) > BMA250_SHAKING_DETECT_THRESHOLD))
-		  )
-		{
-			printk(KERN_INFO "fast calibration for y-axis is failed due to BMA250_SHAKING\n");
-			printk(KERN_INFO "(%d, %d), (%d, %d), (%d, %d)\n", acc_cal.x, acc_cal_pre.x, acc_cal.y, acc_cal_pre.y, acc_cal.z, acc_cal_pre.z);
-			return count;
-		}
-		else
-		{
-			acc_cal_pre.x = acc_cal.x;
-			acc_cal_pre.y = acc_cal.y;
-			acc_cal_pre.z = acc_cal.z;
-		}
-
-		printk(KERN_INFO "wait 2ms and got cal ready flag is %d\n", tmp);
+		printk(KERN_INFO "wait 2ms and got cal ready flag is %d\n",
+				tmp);
 		timeout++;
 		if (timeout == 1000) {
 			printk(KERN_INFO "get fast calibration ready error\n");
@@ -1370,8 +1276,6 @@ static ssize_t bma250_fast_calibration_y_store(struct device *dev,
 
 	} while (tmp == 0);
 
-	atomic_set(&bma250->fast_calib_y_rslt, 1);
-
 	printk(KERN_INFO "y axis fast calibration finished\n");
 	return count;
 }
@@ -1379,16 +1283,17 @@ static ssize_t bma250_fast_calibration_y_store(struct device *dev,
 static ssize_t bma250_fast_calibration_z_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
+
+
+	unsigned char data;
 	struct i2c_client *client = to_i2c_client(dev);
 	struct bma250_data *bma250 = i2c_get_clientdata(client);
 
-	return sprintf(buf, "%d\n", atomic_read(&bma250->fast_calib_z_rslt));
-#if 0
 	if (bma250_get_offset_target_z(bma250->bma250_client, &data) < 0)
 		return sprintf(buf, "Read error\n");
 
 	return sprintf(buf, "%d\n", data);
-#endif
+
 }
 
 static ssize_t bma250_fast_calibration_z_store(struct device *dev,
@@ -1402,48 +1307,23 @@ static ssize_t bma250_fast_calibration_z_store(struct device *dev,
 	struct i2c_client *client = to_i2c_client(dev);
 	struct bma250_data *bma250 = i2c_get_clientdata(client);
 
-	struct bma250acc acc_cal;
-	struct bma250acc acc_cal_pre;
-
 	error = strict_strtoul(buf, 10, &data);
 	if (error)
 		return error;
 
-	bma250_read_accel_xyz(bma250->bma250_client, &acc_cal_pre);
-	mdelay(50);
-
-	if (bma250_set_offset_target_z(bma250->bma250_client, (unsigned char)data) < 0)
+	if (bma250_set_offset_target_z(bma250->bma250_client,
+				(unsigned char)data) < 0)
 		return -EINVAL;
 
 	if (bma250_set_cal_trigger(bma250->bma250_client, 3) < 0)
 		return -EINVAL;
 
-		atomic_set(&bma250->fast_calib_z_rslt, 0);
-
 	do {
 		mdelay(2);
 		bma250_get_cal_ready(bma250->bma250_client, &tmp);
 
-		bma250_read_accel_xyz(bma250->bma250_client, &acc_cal);
-
-		if( (tmp == 0)	&&
-			((abs(acc_cal.x - acc_cal_pre.x) > BMA250_SHAKING_DETECT_THRESHOLD)
-				|| (abs((acc_cal.y - acc_cal_pre.y)) > BMA250_SHAKING_DETECT_THRESHOLD)
-				|| (abs((acc_cal.z - acc_cal_pre.z)) > BMA250_SHAKING_DETECT_THRESHOLD))
-		  )
-		{
-			printk(KERN_INFO "fast calibration for z-axis is failed due to BMA250_SHAKING\n");
-			printk(KERN_INFO "(%d, %d), (%d, %d), (%d, %d)\n", acc_cal.x, acc_cal_pre.x, acc_cal.y, acc_cal_pre.y, acc_cal.z, acc_cal_pre.z);
-			return count;
-		}
-		else
-		{
-			acc_cal_pre.x = acc_cal.x;
-			acc_cal_pre.y = acc_cal.y;
-			acc_cal_pre.z = acc_cal.z;
-		}
-
-		printk(KERN_INFO "wait 2ms and got cal ready flag is %d\n", tmp);
+		printk(KERN_INFO "wait 2ms and got cal ready flag is %d\n",
+				tmp);
 		timeout++;
 		if (timeout == 1000) {
 			printk(KERN_INFO "get fast calibration ready error\n");
@@ -1452,12 +1332,9 @@ static ssize_t bma250_fast_calibration_z_store(struct device *dev,
 
 	} while (tmp == 0);
 
-	atomic_set(&bma250->fast_calib_z_rslt, 1);
-
 	printk(KERN_INFO "z axis fast calibration finished\n");
 	return count;
 }
-// LGE_CHANGE_E [younglae.kim@lge.com] 2012-06-15
 
 static ssize_t bma250_eeprom_writing_store(struct device *dev,
 		struct device_attribute *attr,
@@ -1632,51 +1509,46 @@ static ssize_t bma250_offset_filt_z_store(struct device *dev,
 
 
 
-static DEVICE_ATTR(range, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(range, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
 		bma250_range_show, bma250_range_store);
-static DEVICE_ATTR(bandwidth, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(bandwidth, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
 		bma250_bandwidth_show, bma250_bandwidth_store);
-static DEVICE_ATTR(mode, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(mode, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
 		bma250_mode_show, bma250_mode_store);
 static DEVICE_ATTR(value, S_IRUGO,
 		bma250_value_show, NULL);
-static DEVICE_ATTR(delay, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(delay, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
 		bma250_delay_show, bma250_delay_store);
-static DEVICE_ATTR(enable, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(enable, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
 		bma250_enable_show, bma250_enable_store);
-static DEVICE_ATTR(update, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(update, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
 		NULL, bma250_update_store);
-static DEVICE_ATTR(selftest, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(selftest, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
 		bma250_selftest_show, bma250_selftest_store);
-static DEVICE_ATTR(fast_calibration_x, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(fast_calibration_x, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
 		bma250_fast_calibration_x_show,
 		bma250_fast_calibration_x_store);
-static DEVICE_ATTR(fast_calibration_y, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(fast_calibration_y, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
 		bma250_fast_calibration_y_show,
 		bma250_fast_calibration_y_store);
-static DEVICE_ATTR(fast_calibration_z, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(fast_calibration_z, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
 		bma250_fast_calibration_z_show,
 		bma250_fast_calibration_z_store);
 
-static DEVICE_ATTR(eeprom_writing, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(eeprom_writing, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
 		bma250_eeprom_writing_show, bma250_eeprom_writing_store);
 
-static DEVICE_ATTR(offset_filt_x, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(offset_filt_x, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
 		bma250_offset_filt_x_show,
 		bma250_offset_filt_x_store);
 
-static DEVICE_ATTR(offset_filt_y, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(offset_filt_y, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
 		bma250_offset_filt_y_show,
 		bma250_offset_filt_y_store);
 
-static DEVICE_ATTR(offset_filt_z, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(offset_filt_z, S_IRUGO|S_IWUSR|S_IWGRP|S_IWOTH,
 		bma250_offset_filt_z_show,
 		bma250_offset_filt_z_store);
-
-// LGE_CHANGE_S [younglae.kim@lge.com] 2012-06-15 , add for calibration(get from U0)
-static DEVICE_ATTR(softreset, S_IWUSR|S_IWGRP,
-		NULL, bma250_softreset_store);
-// LGE_CHANGE_E [younglae.kim@lge.com] 2012-06-15
 
 
 static struct attribute *bma250_attributes[] = {
@@ -1695,9 +1567,6 @@ static struct attribute *bma250_attributes[] = {
 	&dev_attr_offset_filt_x.attr,
 	&dev_attr_offset_filt_y.attr,
 	&dev_attr_offset_filt_z.attr,
-// LGE_CHANGE_S [younglae.kim@lge.com] 2012-06-15 , add for calibration(get from U0)
-	&dev_attr_softreset.attr,
-// LGE_CHANGE_E [younglae.kim@lge.com] 2012-06-15
 	NULL
 };
 

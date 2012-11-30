@@ -49,7 +49,7 @@
 #define CHARGER_TYPE_HOST		0x5
 #define CHARGER_TYPE_PC			0x6
 #define USB2PHY_CHGDETECTED		BIT(13)
-#define USB2PHY_RESTARTCHGDET		BIT(15)
+#define USB2PHY_RESTARTCHGDET BIT(15)
 #define USB2PHY_DISCHGDET		BIT(30)
 
 static struct clk *phyclk, *clk48m, *clk32k;
@@ -81,10 +81,10 @@ int omap4430_phy_init(struct device *dev)
 	/* Power down the phy */
 	__raw_writel(PHY_PD, ctrl_base + CONTROL_DEV_CONF);
 
-	/* Disable charger detection by default */
+/* Disable charger detection by default */
 	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
 	usb2phycore |= USB2PHY_DISCHGDET;
-	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);
+	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);	
 
 	if (!dev) {
 		iounmap(ctrl_base);
@@ -212,14 +212,17 @@ int omap4_charger_detect(void)
 	u32 usb2phycore = 0;
 	u32 chargertype = 0;
 
-	/* enable charger detection and restart it */
+	/* enable charger detection and restart it */ 
+	//omap4430_phy_power(NULL, 0, 1);
+
 	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
 	usb2phycore &= ~USB2PHY_DISCHGDET;
+
 	usb2phycore |= USB2PHY_RESTARTCHGDET;
 	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);
 	mdelay(2);
 	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
-	usb2phycore &= ~USB2PHY_RESTARTCHGDET;
+	usb2phycore &= ~USB2PHY_RESTARTCHGDET;	
 	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);
 
 	timeout = jiffies + msecs_to_jiffies(500);
@@ -248,9 +251,9 @@ int omap4_charger_detect(void)
 		pr_info("PS/2 detected!\n");
 		break;
 	default:
-		pr_err("Unknown charger detected! %d\n", chargertype);
+		pr_err(KERN_ERR"Unknown charger detected! %d\n", chargertype);
 	}
-
+	//omap4430_phy_power(NULL, 0, 0);
 	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
 	usb2phycore |= USB2PHY_DISCHGDET;
 	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);
@@ -300,8 +303,10 @@ int omap4430_phy_suspend(struct device *dev, int suspend)
 		/* Enable the internel phy clcoks */
 		omap4430_phy_set_clk(dev, 1);
 		/* power on the phy */
-		if (__raw_readl(ctrl_base + CONTROL_DEV_CONF) & PHY_PD)
+		if (__raw_readl(ctrl_base + CONTROL_DEV_CONF) & PHY_PD) {
 			__raw_writel(~PHY_PD, ctrl_base + CONTROL_DEV_CONF);
+			//mdelay(300);
+		}
 
 		/* restore the context */
 		__raw_writel(usbotghs_control, ctrl_base + USBOTGHS_CONTROL);

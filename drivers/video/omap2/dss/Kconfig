@@ -139,6 +139,27 @@ choice
 		bool "User Set Value"
 endchoice
 
+config COSMO_GAMMA
+	bool "COSMO LCD Gamma"
+	depends on MACH_LGE_COSMO
+	default n
+	help
+	   COSMO LCD Gamma Value Enable.
+
+choice
+        prompt "Memory split"
+	depends on MACH_LGE_COSMO
+        default COSMO_S_CURVE
+        help
+          Select the desired split between kernel and user memory.
+
+          If you are not absolutely sure what you are doing, leave this
+          option alone!
+
+	config COSMO_S_CURVE
+		bool "User Set Value"
+endchoice
+
 config OMAP2_DSS_FAKE_VSYNC
 	bool "Fake VSYNC irq from manual update displays"
 	default n

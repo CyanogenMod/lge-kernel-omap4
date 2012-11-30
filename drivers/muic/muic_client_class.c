@@ -31,11 +31,13 @@
 #include <linux/charger_rt9524.h>
 
 struct class *muic_client_class;
+static atomic_t device_count;
 
 static int muic_notifier_callback(struct notifier_block *self,
 				 unsigned long event, void *data)
 {
 	struct muic_client_device *mcdev;
+	//struct muic_device *mdev = data;
 
 	mcdev = container_of(self, struct muic_client_device, muic_notif);
 	
@@ -60,11 +62,6 @@ static int muic_notifier_callback(struct notifier_block *self,
 	case MUIC_LG_TA:
 		if(mcdev->ops->on_lg_ta) {
 			mcdev->ops->on_lg_ta(mcdev);
-		}
-		break;
-	case MUIC_TA_1A:
-		if(mcdev->ops->on_1a_ta) {
-			mcdev->ops->on_1a_ta(mcdev);
 		}
 		break;
 	case MUIC_AP_UART:
@@ -103,11 +100,24 @@ static int muic_client_register(struct muic_client_device *mcdev)
 {
 	memset(&mcdev->muic_notif, 0, sizeof(mcdev->muic_notif));
 	mcdev->muic_notif.notifier_call = muic_notifier_callback;
-	mcdev->muic_notif.priority = mcdev->ops->notifier_priority;
 	muic_register_client(mcdev);
 	
 	return 0;
 }
+
+/*
+static int create_muic_client_class(void)
+{
+	if (!muic_client_class) {
+		muic_client_class = class_create(THIS_MODULE, "muic-client");
+		if (IS_ERR(muic_client_class))
+			return PTR_ERR(muic_client_class);
+		atomic_set(&device_count, 0);
+	}
+
+	return 0;
+}
+*/
 
 static void muic_client_device_release(struct device *dev)
 {
@@ -150,6 +160,8 @@ EXPORT_SYMBOL_GPL(muic_client_dev_register);
 
 void muic_client_dev_unregister(struct muic_client_device *mcdev)
 {
+	//device_remove_file(mcdev->dev, &dev_attr_name);
+	//device_remove_file(mcdev->dev, &dev_attr_state);
 	device_destroy(muic_client_class, MKDEV(0, mcdev->index));
 	dev_set_drvdata(&mcdev->dev, NULL);
 }
@@ -169,6 +181,9 @@ static int __init muic_client_class_init(void)
 		return PTR_ERR(muic_client_class);
 	}
 
+	//muic_class->dev_attrs = muic_device_attributes;
+	//muic_class->suspend = muic_suspend;
+	//muic_class->resume = muic_resume;
 	return 0;
 }
 

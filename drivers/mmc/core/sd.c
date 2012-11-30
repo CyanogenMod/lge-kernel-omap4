@@ -1051,7 +1051,7 @@ static void mmc_sd_detect(struct mmc_host *host)
 		break;
 	}
 	if (!retries) {
-#ifdef CONFIG_MACH_LGE_P2
+#if defined(CONFIG_MACH_LGE_P2) || defined(CONFIG_MACH_LGE_COSMO)
 		WARN(1, "%s(%s): Unable to re-detect card (%d)\n", __func__, mmc_hostname(host), err);
 #else
 		printk(KERN_ERR "%s(%s): Unable to re-detect card (%d)\n",

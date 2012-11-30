@@ -4,20 +4,7 @@
 #include <linux/platform_device.h>
 #include <linux/types.h>
 #include <linux/lge/lm3533.h>
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-#endif
 
-#define LGE_TEMPERATURE_ADAPTED_BACKLIGHT
-
-#ifdef LGE_TEMPERATURE_ADAPTED_BACKLIGHT
-#include <linux/syscalls.h>	/* open, close */
-#include <linux/workqueue.h>
-#include <linux/i2c/twl6030-gpadc.h>
-static struct workqueue_struct *thermal_wq;
-static struct delayed_work thermal_wk;
-static struct lm3533_platform_data*	pdata_t;
-#endif
 
 #define LM3533_DEBUG 0
  #if LM3533_DEBUG
@@ -25,265 +12,45 @@ static struct lm3533_platform_data*	pdata_t;
  #else
  #define DEBUG_MSG(args...)
  #endif
-
+ 
 
 static int	old_brightness	=	-1;
-static int	reg_adr = 0x40;
 
-#ifdef LGE_TEMPERATURE_ADAPTED_BACKLIGHT
-#define PCB_THM_ADC_CHANNEL 4
-#define HOT_THRESHOLD_VALUE 45000
-#define VERY_HOT_THRESHOLD_VALUE 50000
-#define PANIC_HOT_THRESHOLD_VALUE 55000
-
-typedef enum  {
-PCB_THM_NORMAL,
-PCB_THM_HOT,
-PCB_THM_VERY_HOT,
-PCB_THM_PANIC_HOT
-} pcb_thm_stage;
-
-static pcb_thm_stage curr_stage=PCB_THM_NORMAL,prev_stage=PCB_THM_NORMAL;
-static bool hot_stage_enable = false;
-
-#define ADC_START_VALUE 126
-#define ADC_END_VALUE   978
-/*
- * Temperature values in milli degrees celsius ADC code values from 978 to 126
- */
-int adc_to_temp[] = {
-	-40000, -40000, -40000, -40000, -40000, -37000, -35000, -33000, -31000,
-	-29000, -28000, -27000, -25000, -24000, -23000, -22000, -21000, -20000,
-	-19000, -18000, -17000, -17000, -16000, -15000, -14000, -14000, -13000,
-	-12000, -12000, -11000, -11000, -10000, -10000, -9000, -8000, -8000,
-	-7000, -7000, -6000, -6000, -6000, -5000, -5000, -4000, -4000, -3000,
-	-3000, -3000, -2000, -2000, -1000, -1000, -1000, 0, 0, 0, 1000, 1000,
-	1000, 2000, 2000, 2000, 3000, 3000, 3000, 4000, 4000, 4000, 5000, 5000,
-	5000, 6000, 6000, 6000, 6000, 7000, 7000, 7000, 8000, 8000, 8000, 8000,
-	9000, 9000, 9000, 9000, 10000, 10000, 10000, 10000, 11000, 11000,
-	11000, 11000, 12000, 12000, 12000, 12000, 12000, 13000, 13000, 13000,
-	13000, 14000, 14000, 14000, 14000, 14000, 15000, 15000, 15000, 15000,
-	15000, 16000, 16000, 16000, 16000, 16000, 17000, 17000, 17000, 17000,
-	17000, 18000, 18000, 18000, 18000, 18000, 19000, 19000, 19000, 19000,
-	19000, 20000, 20000, 20000, 20000, 20000, 20000, 21000, 21000, 21000,
-	21000, 21000, 22000, 22000, 22000, 22000, 22000, 22000, 23000, 23000,
-	23000, 23000, 23000, 23000, 24000, 24000, 24000, 24000, 24000, 24000,
-	25000, 25000, 25000, 25000, 25000, 25000, 25000, 26000, 26000, 26000,
-	26000, 26000, 26000, 27000, 27000, 27000, 27000, 27000, 27000, 27000,
-	28000, 28000, 28000, 28000, 28000, 28000, 29000, 29000, 29000, 29000,
-	29000, 29000, 29000, 30000, 30000, 30000, 30000, 30000, 30000, 30000,
-	31000, 31000, 31000, 31000, 31000, 31000, 31000, 32000, 32000, 32000,
-	32000, 32000, 32000, 32000, 33000, 33000, 33000, 33000, 33000, 33000,
-	33000, 33000, 34000, 34000, 34000, 34000, 34000, 34000, 34000, 35000,
-	35000, 35000, 35000, 35000, 35000, 35000, 35000, 36000, 36000, 36000,
-	36000, 36000, 36000, 36000, 36000, 37000, 37000, 37000, 37000, 37000,
-	37000, 37000, 38000, 38000, 38000, 38000, 38000, 38000, 38000, 38000,
-	39000, 39000, 39000, 39000, 39000, 39000, 39000, 39000, 39000, 40000,
-	40000, 40000, 40000, 40000, 40000, 40000, 40000, 41000, 41000, 41000,
-	41000, 41000, 41000, 41000, 41000, 42000, 42000, 42000, 42000, 42000,
-	42000, 42000, 42000, 43000, 43000, 43000, 43000, 43000, 43000, 43000,
-	43000, 43000, 44000, 44000, 44000, 44000, 44000, 44000, 44000, 44000,
-	45000, 45000, 45000, 45000, 45000, 45000, 45000, 45000, 45000, 46000,
-	46000, 46000, 46000, 46000, 46000, 46000, 46000, 47000, 47000, 47000,
-	47000, 47000, 47000, 47000, 47000, 47000, 48000, 48000, 48000, 48000,
-	48000, 48000, 48000, 48000, 48000, 49000, 49000, 49000, 49000, 49000,
-	49000, 49000, 49000, 49000, 50000, 50000, 50000, 50000, 50000, 50000,
-	50000, 50000, 51000, 51000, 51000, 51000, 51000, 51000, 51000, 51000,
-	51000, 52000, 52000, 52000, 52000, 52000, 52000, 52000, 52000, 52000,
-	53000, 53000, 53000, 53000, 53000, 53000, 53000, 53000, 53000, 54000,
-	54000, 54000, 54000, 54000, 54000, 54000, 54000, 54000, 55000, 55000,
-	55000, 55000, 55000, 55000, 55000, 55000, 55000, 56000, 56000, 56000,
-	56000, 56000, 56000, 56000, 56000, 56000, 57000, 57000, 57000, 57000,
-	57000, 57000, 57000, 57000, 57000, 58000, 58000, 58000, 58000, 58000,
-	58000, 58000, 58000, 58000, 59000, 59000, 59000, 59000, 59000, 59000,
-	59000, 59000, 59000, 60000, 60000, 60000, 60000, 60000, 60000, 60000,
-	60000, 61000, 61000, 61000, 61000, 61000, 61000, 61000, 61000, 61000,
-	62000, 62000, 62000, 62000, 62000, 62000, 62000, 62000, 62000, 63000,
-	63000, 63000, 63000, 63000, 63000, 63000, 63000, 63000, 64000, 64000,
-	64000, 64000, 64000, 64000, 64000, 64000, 64000, 65000, 65000, 65000,
-	65000, 65000, 65000, 65000, 65000, 66000, 66000, 66000, 66000, 66000,
-	66000, 66000, 66000, 66000, 67000, 67000, 67000, 67000, 67000, 67000,
-	67000, 67000, 68000, 68000, 68000, 68000, 68000, 68000, 68000, 68000,
-	68000, 69000, 69000, 69000, 69000, 69000, 69000, 69000, 69000, 70000,
-	70000, 70000, 70000, 70000, 70000, 70000, 70000, 70000, 71000, 71000,
-	71000, 71000, 71000, 71000, 71000, 71000, 72000, 72000, 72000, 72000,
-	72000, 72000, 72000, 72000, 73000, 73000, 73000, 73000, 73000, 73000,
-	73000, 73000, 74000, 74000, 74000, 74000, 74000, 74000, 74000, 74000,
-	75000, 75000, 75000, 75000, 75000, 75000, 75000, 75000, 76000, 76000,
-	76000, 76000, 76000, 76000, 76000, 76000, 77000, 77000, 77000, 77000,
-	77000, 77000, 77000, 77000, 78000, 78000, 78000, 78000, 78000, 78000,
-	78000, 79000, 79000, 79000, 79000, 79000, 79000, 79000, 79000, 80000,
-	80000, 80000, 80000, 80000, 80000, 80000, 81000, 81000, 81000, 81000,
-	81000, 81000, 81000, 82000, 82000, 82000, 82000, 82000, 82000, 82000,
-	82000, 83000, 83000, 83000, 83000, 83000, 83000, 83000, 84000, 84000,
-	84000, 84000, 84000, 84000, 84000, 85000, 85000, 85000, 85000, 85000,
-	85000, 85000, 86000, 86000, 86000, 86000, 86000, 86000, 87000, 87000,
-	87000, 87000, 87000, 87000, 87000, 88000, 88000, 88000, 88000, 88000,
-	88000, 88000, 89000, 89000, 89000, 89000, 89000, 89000, 90000, 90000,
-	90000, 90000, 90000, 90000, 91000, 91000, 91000, 91000, 91000, 91000,
-	91000, 92000, 92000, 92000, 92000, 92000, 92000, 93000, 93000, 93000,
-	93000, 93000, 93000, 94000, 94000, 94000, 94000, 94000, 94000, 95000,
-	95000, 95000, 95000, 95000, 96000, 96000, 96000, 96000, 96000, 96000,
-	97000, 97000, 97000, 97000, 97000, 97000, 98000, 98000, 98000, 98000,
-	98000, 99000, 99000, 99000, 99000, 99000, 100000, 100000, 100000,
-	100000, 100000, 100000, 101000, 101000, 101000, 101000, 101000, 102000,
-	102000, 102000, 102000, 102000, 103000, 103000, 103000, 103000, 103000,
-	104000, 104000, 104000, 104000, 104000, 105000, 105000, 105000, 105000,
-	106000, 106000, 106000, 106000, 106000, 107000, 107000, 107000, 107000,
-	108000, 108000, 108000, 108000, 108000, 109000, 109000, 109000, 109000,
-	110000, 110000, 110000, 110000, 111000, 111000, 111000, 111000, 112000,
-	112000, 112000, 112000, 112000, 113000, 113000, 113000, 114000, 114000,
-	114000, 114000, 115000, 115000, 115000, 115000, 116000, 116000, 116000,
-	116000, 117000, 117000, 117000, 118000, 118000, 118000, 118000, 119000,
-	119000, 119000, 120000, 120000, 120000, 120000, 121000, 121000, 121000,
-	122000, 122000, 122000, 123000, 123000, 123000, 124000, 124000, 124000,
-	124000, 125000, 125000, 125000, 125000, 125000, 125000, 125000, 125000,
-	125000, 125000, 125000, 125000,
-};
-
-int adc_to_temp_conversion(int adc_val)
+/* 20120522 jeonghoon.cho@lge.com change backlight brightness step [LGE_START]*/
+static int get_brightness(int data)
 {
-	if ((adc_val < ADC_START_VALUE) ||
-		(adc_val > ADC_END_VALUE)) {
-		pr_err("%s:Temp read is invalid %i\n", __func__, adc_val);
-		return -EINVAL;
-	}
+	int mLcdBacklightValues[] =   {
+	0x52,0x52,0x53,0x53,0x56,0x56,0x58,0x59,0x5A,0x5B,
+	0x5C,0x5D,0x5F,0x5F,0x60,0x61,0x62,0x63,0x64,0x65,
+	0x67,0x68,0x6A,0x6A,0x6B,0x6C,0x6E,0x6F,0x70,0x71,
+	0x72,0x73,0x74,0x75,0x78,0x79,0x7E,0x80,0x83,0x84,
+	0x86,0x87,0x88,0x89,0x8D,0x8D,0x8F,0x90,0x91,0x92,
+	0x93,0x94,0x95,0x96,0x97,0x98,0x9A,0x9B,0x9C,0x9D,
+	0x9E,0x9F,0xA0,0xA1,0xA3,0xA4,0xA5,0xA6,0xA7,0xA8,
+	0xA9,0xAA,0xAC,0xAC,0xAD,0xAD,0xAE,0xAE,0xAF,0xB0,
+	0xB2,0xB3,0xB4,0xB5,0xB6,0xB7,0xB8,0xB8,0xB9,0xB9,
+	0xBA,0xBB,0xBD,0xBE,0xBF,0xC0,0xC1,0xC2,0xC4,0xC4,
+	0xC4,0xC5,0xC5,0xC5,0xC6,0xC6,0xC7,0xC7,0xC8,0xC8,
+	0xC9,0xC9,0xCA,0xCA,0xCA,0xCB,0xCB,0xCB,0xCC,0xCE,
+	0xCF,0xD0,0xD1,0xD2,0xD3,0xD3,0xD4,0xD4,0xD5,0xD5,
+	0xD6,0xD6,0xD7,0xD7,0xD8,0xD9,0xDA,0xDA,0xDA,0xDA,
+	0xDB,0xDB,0xDC,0xDC,0xDE,0xDE,0xDF,0xDF,0xE0,0xE0,
+	0xE0,0xE1,0xE1,0xE1,0xE2,0xE2,0xE3,0xE4,0xE5,0xE5,
+	0xE5,0xE5,0xE6,0xE6,0xE6,0xE6,0xE7,0xE7,0xE7,0xE8,
+	0xE8,0xE8,0xE9,0xE9,0xEA,0xEA,0xEB,0xEB,0xEB,0xEC,
+	0xEC,0xEC,0xED,0xED,0xEF,0xEF,0xF0,0xF0,0xF1,0xF1,
+	0xF2,0xF2,0xF3,0xF3,0xF4,0xF4,0xF5,0xF5,0xF6,0xF6,
+	0xF6,0xF7,0xF7,0xF7,0xF8,0xF8,0xF8,0xF9,0xF9,0xF9,
+	0xFA,0xFA,0xFB,0xFB,0xFC,0xFC,0xFC,0xFC,0xFC,0xFC,
+	0xFD,0xFD,0xFE,0xFE,0xFF,0xFF,
+	};
 
-	return adc_to_temp[ADC_END_VALUE - adc_val];
+	return (mLcdBacklightValues[data-30]);
 }
-
-static int write_intToFile(const char *path, int i)
-{
-	char buf[1024];
-	int fd = sys_open(path, O_WRONLY | O_NONBLOCK,0);
-
-	if (fd == -1) {
-		return -1;
-	}
-
-	sprintf(buf, "%d", i);
-
-	size_t count = sys_write(fd, buf, strlen(buf));
-
-	sys_close(fd);
-	return count;
-}
-
-int get_pcb_therm()
-{
-	struct twl6030_gpadc_request req;
-	int ret;
-
-	req.channels = (1 << PCB_THM_ADC_CHANNEL);
-	req.method = TWL6030_GPADC_SW2;
-	req.func_cb = NULL;
-	ret = twl6030_gpadc_conversion(&req);
-
-	return adc_to_temp_conversion(req.buf[PCB_THM_ADC_CHANNEL].code);
-}
-
-int reduce_brightness_by_stage()
-{
-	int brightness;
-
-	if (old_brightness == 0)
-		return old_brightness;
-	
-	switch (curr_stage)
-	{
-		case PCB_THM_NORMAL :
-			brightness = old_brightness;
-			break;
-
-		case PCB_THM_HOT :
-			brightness = old_brightness - 3; // 1%
-			break;
-
-		case PCB_THM_VERY_HOT :
-			brightness = old_brightness - 6; // 2%
-			break;
-
-		case PCB_THM_PANIC_HOT :
-			brightness = old_brightness - 9; // 3%
-			break;
-	}
-
-	if (brightness < 30)	// MIN brightness to be off
-		brightness	=	30;
-
-	return brightness;
-}
-
-
-static void tab_work_func(struct work_struct *work)
-{
-	int current_pcb_thm;
-	int	brightness = old_brightness;
-
-	current_pcb_thm = get_pcb_therm();
-
-	if (current_pcb_thm >= PANIC_HOT_THRESHOLD_VALUE)
-		curr_stage = PCB_THM_PANIC_HOT;
-	else if (current_pcb_thm >= VERY_HOT_THRESHOLD_VALUE)
-		curr_stage = PCB_THM_VERY_HOT;
-	else if (current_pcb_thm >= HOT_THRESHOLD_VALUE)
-		curr_stage = PCB_THM_HOT;
-	else
-		curr_stage = PCB_THM_NORMAL;
-
-
-	if (curr_stage !=  PCB_THM_NORMAL)
-		hot_stage_enable = true;
-	else
-		hot_stage_enable = false;
-
-	//printk("[TAB]thermal backlight work!!! pcb thm:%d\n",current_pcb_thm);
-
-	if (prev_stage != curr_stage)
-	{
-		brightness = reduce_brightness_by_stage();
-		printk("[TAB]thermal backlight work!!! pcb thm:%d stage:%d brightness:%d\n",current_pcb_thm,curr_stage,brightness);
-		lm3533_set_brightness_control(&pdata_t->private, brightness);
-		prev_stage = curr_stage;
-	}
-
-	queue_delayed_work(thermal_wq, &thermal_wk, 10*HZ);
-}
-
-static int lm3533bl_early_suspend()
-{
-	cancel_delayed_work(&thermal_wk);
-
-	return 0;
-}
-
-static int lm3533bl_late_resume()
-{
-	queue_delayed_work(thermal_wq, &thermal_wk, 10*HZ);
-
-	return 0;
-}
-
-#endif
-
-static int lm3533bl_shutdown(struct i2c_client* client)
-{
-	struct	lm3533_platform_data*	pdata;
-
-	pdata	=	client->dev.platform_data;
-
-#ifdef LGE_TEMPERATURE_ADAPTED_BACKLIGHT
-	cancel_delayed_work(&thermal_wk);
-#endif
-
-	lm3533_set_hwen(&pdata->private, pdata->gpio_hwen, 0);
-
-	return 0;
-}
-
+/* 20120522 jeonghoon.cho@lge.com change backlight brightness step [LGE_END]*/
 
 /* SYSFS for brightness control */
-static ssize_t	brightness_show(struct device* dev,
+static ssize_t	brightness_show(struct device* dev, 
 		struct device_attribute* attr, char* buf)
 {
 	struct	lm3533_platform_data*	pdata	=	dev->platform_data;
@@ -295,13 +62,13 @@ static ssize_t	brightness_show(struct device* dev,
 	return	snprintf(buf, PAGE_SIZE, "%d\n", old_brightness);
 }
 
-static ssize_t	brightness_store(struct device* dev,
+static ssize_t	brightness_store(struct device* dev, 
 		struct device_attribute* attr, const char* buf, size_t count)
 {
 	struct	lm3533_platform_data*	pdata	=	dev->platform_data;
 	int	brightness	=	simple_strtol(buf, NULL, 10);
 
-	printk("[LCD_BL] brightness_store = [%d] line:%d \n",brightness, __LINE__);
+	DEBUG_MSG("brightness_store = [%d] \n",brightness);
 
 	if (brightness > 0 && brightness < 30)	// MIN brightness to be off
 		brightness	=	30;
@@ -316,79 +83,23 @@ static ssize_t	brightness_store(struct device* dev,
 		lm3533_set_hwen(&pdata->private, pdata->gpio_hwen, 0);
 		old_brightness	=	brightness;
 		goto	exit;
-	}
+	}	
 		if(old_brightness==0)
-			lm3533_set_hwen(&pdata->private, pdata->gpio_hwen, 1);
-
-	old_brightness	=	brightness;
-
-#ifdef LGE_TEMPERATURE_ADAPTED_BACKLIGHT
-	if (hot_stage_enable == true)
-		brightness= reduce_brightness_by_stage();
-#endif
-
+			lm3533_set_hwen(&pdata->private, pdata->gpio_hwen, 1);	
 	lm3533_set_brightness_control(&pdata->private, brightness);
 	//printk("[dyotest]lm3533 brightness UI value=%d, reg=0x%x\n",brightness,get_brightness(brightness));
 
+	old_brightness	=	brightness;
+
 exit:
-	printk("[LCD_BL] BL_EN_GPIO=%x, brightness:%d, %s",__gpio_get_value(pdata->gpio_hwen), brightness, __func__);
 	return	count;
 }
 
-
-/* SYSFS for brightness control */
-
-static ssize_t	reg_read_show(struct device* dev,
-		struct device_attribute* attr, const char* buf)
-{
-	struct	lm3533_platform_data*	pdata	=	dev->platform_data;
-	int reg_val;
-
-	reg_val = lm3533_read_byte(&pdata->private, reg_adr);
-
-	printk("%s, reg_adr=%x, reg_val=%x", __func__, reg_adr, reg_val);
-
-	return	snprintf(buf, PAGE_SIZE, "reg_adr: %x, reg_val: %x\n", reg_adr, reg_val);
-}
-
-static ssize_t	reg_read_store(struct device* dev,
-		struct device_attribute* attr, const char* buf, size_t count)
-{
-	struct	lm3533_platform_data*	pdata	=	dev->platform_data;
-	int reg_val;
-
-	sscanf(buf, "%x", &reg_adr);
-
-	reg_val = lm3533_read_byte(&pdata->private, reg_adr);
-
-	printk("%s, reg_adr=%x, reg_val=%x", __func__, reg_adr, reg_val);
-
-	return count;
-}
-
-static ssize_t	reg_write_store(struct device* dev,
-		struct device_attribute* attr, const char* buf, size_t count)
-{
-	struct	lm3533_platform_data*	pdata	=	dev->platform_data;
-	int	reg_val;
-
-	sscanf(buf, "%x,%x", &reg_adr, &reg_val);
-
-	lm3533_write_byte(&pdata->private, reg_adr, reg_val);
-
-	printk("%s, reg_adr=%x, reg_val=%x", __func__, reg_adr, reg_val);
-
-	return count;
-}
-
 static DEVICE_ATTR(brightness, 0660, brightness_show, brightness_store);
-static DEVICE_ATTR(reg_read, 0660, reg_read_show, reg_read_store);
-static DEVICE_ATTR(reg_write, 0220, NULL , reg_write_store);
-
 
 /* SYSFS for LCD backlight ON/OFF
  */
-static ssize_t	enable_show(struct device* dev,
+static ssize_t	enable_show(struct device* dev, 
 		struct device_attribute* attr, char *buf)
 {
 	struct	lm3533_platform_data*	pdata	=	dev->platform_data;
@@ -397,12 +108,12 @@ static ssize_t	enable_show(struct device* dev,
 	return	snprintf(buf, PAGE_SIZE, "%d\n", val);
 }
 
-static ssize_t	enable_store(struct device* dev,
+static ssize_t	enable_store(struct device* dev, 
 		struct device_attribute* attr, const char* buf, size_t count)
 {
 	struct	lm3533_platform_data*	pdata	=	dev->platform_data;
 
-	printk("enable_store = [%d] \n",(int)simple_strtol(buf, NULL, 10));
+	DEBUG_MSG("enable_store = [%d] \n",(int)simple_strtol(buf, NULL, 10));
 
 	lm3533_set_hwen(&pdata->private, pdata->gpio_hwen, (int)simple_strtol(buf, NULL, 10));
 
@@ -423,34 +134,12 @@ static int __devinit lm3533bl_probe(struct i2c_client* client,
 	gpio_request(pdata->gpio_hwen, "backlight_enable");
 	gpio_direction_output(pdata->gpio_hwen, 1);	// OUTPUT
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#ifdef LGE_TEMPERATURE_ADAPTED_BACKLIGHT
-	pdata_t = client->dev.platform_data;
-	pdata->early_suspend.suspend = lm3533bl_early_suspend;
-	pdata->early_suspend.resume = lm3533bl_late_resume;
-	pdata->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN - 40;
-	register_early_suspend(&pdata->early_suspend);
-#endif
-#endif
-
 	lm3533_init(&pdata->private, client);
 
 	ret = device_create_file(&client->dev, &dev_attr_brightness);
 	ret = device_create_file(&client->dev, &dev_attr_enable);
-	ret = device_create_file(&client->dev, &dev_attr_reg_read);
-	ret = device_create_file(&client->dev, &dev_attr_reg_write);
 
 	old_brightness	=	lm3533_get_brightness_control(&pdata->private);
-
-#ifdef LGE_TEMPERATURE_ADAPTED_BACKLIGHT
-	thermal_wq = create_workqueue("tab_workqueue");
-	if (thermal_wq != NULL)
-	{
-		INIT_DELAYED_WORK_DEFERRABLE(&thermal_wk,tab_work_func);
-	 	queue_delayed_work(thermal_wq,&thermal_wk, 240*HZ);
-		printk("[TAB] init TAB work queue! first check time is 240sec after boot\n");
-	}
-#endif
 
 	return	ret;
 }
@@ -458,9 +147,7 @@ static int __devinit lm3533bl_probe(struct i2c_client* client,
 static int __devexit lm3533bl_remove(struct i2c_client* client)
 {
 	device_remove_file(&client->dev, &dev_attr_brightness);
-	device_remove_file(&client->dev, &dev_attr_enable);
-	device_remove_file(&client->dev, &dev_attr_reg_read);
-	device_remove_file(&client->dev, &dev_attr_reg_write);
+	device_remove_file(&client->dev, &dev_attr_enable);	
 	return	0;
 }
 
@@ -473,7 +160,6 @@ static struct i2c_driver lm3533bl_driver = {
 	.probe		= lm3533bl_probe,
 	.remove		= __devexit_p(lm3533bl_remove),
 	.id_table	= lm3533bl_ids,
-	.shutdown   = lm3533bl_shutdown,
 	.driver = {
 		.name	= LM3533_I2C_NAME,
 		.owner	= THIS_MODULE,

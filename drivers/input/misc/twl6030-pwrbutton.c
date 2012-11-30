@@ -44,6 +44,12 @@ struct twl6030_pwr_button {
 	int report_key;
 };
 
+//mo2haewoon.you@lge.com => [START]  keylock command
+#ifdef CONFIG_MACH_LGE_COSMO
+extern int atcmd_keylock;
+#endif
+//mo2haewoon.you@lge.com <= [END]
+
 static inline int twl6030_readb(struct twl6030_pwr_button *twl,
 		u8 module, u8 address)
 {
@@ -84,11 +90,23 @@ static irqreturn_t powerbutton_irq(int irq, void *_pwr)
 	hw_state = twl6030_readb(pwr, TWL6030_MODULE_ID0, STS_HW_CONDITIONS);
 	pwr_val = !(hw_state & PWR_PWRON_IRQ);
     printk("%s: power button status %d\n", __func__, pwr_val);
+//mo2haewoon.you@lge.com => [START]  keylock command
+#ifdef CONFIG_MACH_LGE_COSMO
+	if ((prev_hw_state != pwr_val) && (prev_hw_state != 0xFFFF) && (!atcmd_keylock)) {
+#else
 	if ((prev_hw_state != pwr_val) && (prev_hw_state != 0xFFFF)) {
+#endif
+//mo2haewoon.you@lge.com <= [END]
 		push_release_flag = 0;
 		input_report_key(pwr->input_dev, pwr->report_key, pwr_val);
 		input_sync(pwr->input_dev);
+//mo2haewoon.you@lge.com => [START]  keylock command
+#ifdef CONFIG_MACH_LGE_COSMO
+	} else if ((!push_release_flag) && (!atcmd_keylock)) {
+#else
 	} else if (!push_release_flag) {
+#endif
+//mo2haewoon.you@lge.com <= [END]
 		push_release_flag = 1;
 		input_report_key(pwr->input_dev, pwr->report_key, !pwr_val);
 		input_sync(pwr->input_dev);

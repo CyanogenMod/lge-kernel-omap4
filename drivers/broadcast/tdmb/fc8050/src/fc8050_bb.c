@@ -38,7 +38,7 @@ int fc8050_probe(HANDLE hDevice)
 {
 	fci_u16 ver;
 	bbm_word_read(hDevice, BBM_QDD_CHIP_IDL, &ver);
-//	printk("fc8050_probe 0x%x\n", ver);
+
 	return (ver == 0x8050)? BBM_OK : BBM_NOK;
 }
 
@@ -256,7 +256,8 @@ int fc8050_init(HANDLE hDevice)
 	bbm_write(hDevice, BBM_QDD_BW_CTRL_LOCK, 0x50);
 	bbm_write(hDevice, BBM_QDD_DC_CTRL, 0x3f);
 
-	bbm_write(hDevice, BBM_RS_CONTROL, 0x09);
+	//bbm_write(hDevice, BBM_RS_CONTROL, 0x09); /* Send error-indicator set packet to host */
+	bbm_write(hDevice, BBM_RS_CONTROL, 0x01); /* Not send error-indicator set packet to host */
 	bbm_word_write(hDevice, BBM_RS_BER_PERIOD, 0x14e);
 	
 #if defined(POWER_SAVE_MODE)
@@ -418,7 +419,7 @@ int fc8050_scan_status(HANDLE hDevice) {
 				return BBM_NOK;
 			
 			bbm_read(hDevice, BBM_SYNC_DET_STATUS, &status);
-	//		printk("OFDM Detect Status 0x%x \n", status);
+			
 			if(status & 0x01)
 				break;
 		}
@@ -435,7 +436,6 @@ int fc8050_scan_status(HANDLE hDevice) {
 				return BBM_NOK;
 			
 			bbm_read(hDevice, BBM_SYNC_STATUS, &sync_status);
-	//		printk("FRS Status 0x%x \n", status);
 			
 			if(sync_status & 0x01)
 				break;
@@ -450,7 +450,6 @@ int fc8050_scan_status(HANDLE hDevice) {
 				return BBM_NOK;
 			
 			bbm_read(hDevice, BBM_SYNC_STATUS, &sync_status);
-	//		printk("Digital Lock Status 0x%x \n", status);
 			
 			if(sync_status & 0x20)
 				return BBM_OK;

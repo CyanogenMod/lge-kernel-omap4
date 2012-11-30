@@ -551,7 +551,7 @@ void __init omap_vram_reserve_sdram_memblock(void)
 	if (!size)
 		return;
 
-	size = ALIGN(size, SZ_2M);
+	size = ALIGN(size, SZ_1M);
 
 	if (paddr) {
 		if (paddr & ~PAGE_MASK) {
@@ -576,7 +576,7 @@ void __init omap_vram_reserve_sdram_memblock(void)
 			return;
 		}
 	} else {
-		paddr = memblock_alloc(size, SZ_2M);
+		paddr = memblock_alloc(size, SZ_1M);
 	}
 
 	memblock_free(paddr, size);
@@ -584,7 +584,11 @@ void __init omap_vram_reserve_sdram_memblock(void)
 
 	omap_vram_add_region(paddr, size);
 
-	pr_info("Reserving %u bytes SDRAM for VRAM at address 0x%x\n", size,paddr); // 1G Dynamic alloc - 18827
+#if defined(CONFIG_MACH_LGE_COSMO)
+	pr_info("Reserving %u bytes SDRAM for VRAM at address 0x%x\n", size,paddr);
+#else
+	pr_info("Reserving %u bytes SDRAM for VRAM\n", size);
+#endif
 }
 
 /*

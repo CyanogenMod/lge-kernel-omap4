@@ -32,6 +32,8 @@
 #include "SynaImage_p760.h"
 #elif defined(CONFIG_MACH_LGE_U2_P768)
 #include "SynaImage_p768.h"
+#elif defined(CONFIG_MACH_LGE_COSMO_SU760)
+#include "SynaImage_su760.h"
 #else
 #include "SynaImage.h"
 #endif
@@ -169,10 +171,43 @@ int synaptics_ts_get_data(struct i2c_client *client, struct t_data* data, struct
 	u8 finger_index=0;
 	u8 index=0;
 	u8 cnt;
+	int retry = 5;
 
 	*total_num = 0;
 	if (unlikely(touch_debug_mask & DEBUG_TRACE))
 		TOUCH_DEBUG_MSG("\n");
+
+	if (unlikely(touch_i2c_read(client, INTERRUPT_STATUS_REG,
+			sizeof(ts->ts_data.interrupt_status_reg),
+			&ts->ts_data.interrupt_status_reg) < 0)) {
+		TOUCH_ERR_MSG("INTERRUPT_STATUS_REG read fail\n");
+		goto err_synaptics_getdata;
+	}
+
+	if (unlikely(touch_debug_mask & DEBUG_GET_DATA))
+		TOUCH_INFO_MSG("Interrupt_status : 0x%x\n", ts->ts_data.interrupt_status_reg);
+
+	/* Insert check routine for Interrupt status register */
+	while((retry-- > 0) && (ts->ts_data.interrupt_status_reg ==0)){
+		msleep(5);
+		touch_i2c_read(client, INTERRUPT_STATUS_REG,
+			sizeof(ts->ts_data.interrupt_status_reg),
+			&ts->ts_data.interrupt_status_reg);
+	if (unlikely(touch_debug_mask & DEBUG_GET_DATA))
+		TOUCH_INFO_MSG("Interrupt_status[%d] When retries read it : 0x%x\n",retry, ts->ts_data.interrupt_status_reg);		
+	}
+
+	/* IC bug Exception handling - Interrupt status reg is 0 when interrupt occur */
+	if (ts->ts_data.interrupt_status_reg == 0) {
+		TOUCH_ERR_MSG("Interrupt_status reg is 0. Something is wrong in IC\n");
+		goto err_synaptics_device_damage;
+	}
+
+	/* Because of ESD damage... */
+	if (unlikely(ts->ts_data.interrupt_status_reg & ts->interrupt_mask.flash)){
+		TOUCH_ERR_MSG("Impossible Interrupt\n");
+		goto err_synaptics_device_damage;
+	}
 
 	if (unlikely(touch_i2c_read(client, DEVICE_STATUS_REG,
 			sizeof(ts->ts_data.interrupt_status_reg),
@@ -192,30 +227,7 @@ int synaptics_ts_get_data(struct i2c_client *client, struct t_data* data, struct
 		TOUCH_ERR_MSG("Touch IC resetted internally. Reconfigure register setting\n");
 		goto err_synaptics_device_damage;
 	}
-
-	if (unlikely(touch_i2c_read(client, INTERRUPT_STATUS_REG,
-			sizeof(ts->ts_data.interrupt_status_reg),
-			&ts->ts_data.interrupt_status_reg) < 0)) {
-		TOUCH_ERR_MSG("INTERRUPT_STATUS_REG read fail\n");
-		goto err_synaptics_getdata;
-	}
-
-
-	if (unlikely(touch_debug_mask & DEBUG_GET_DATA))
-		TOUCH_INFO_MSG("Interrupt_status : 0x%x\n", ts->ts_data.interrupt_status_reg);
-
-	/* IC bug Exception handling - Interrupt status reg is 0 when interrupt occur */
-	if (ts->ts_data.interrupt_status_reg == 0) {
-		TOUCH_ERR_MSG("Interrupt_status reg is 0. Something is wrong in IC\n");
-		goto err_synaptics_device_damage;
-	}
-
-	/* Because of ESD damage... */
-	if (unlikely(ts->ts_data.interrupt_status_reg & ts->interrupt_mask.flash)){
-		TOUCH_ERR_MSG("Impossible Interrupt\n");
-		goto err_synaptics_device_damage;
-	}
-
+	
 	/* Finger */
 	if (likely(ts->ts_data.interrupt_status_reg & ts->interrupt_mask.abs)) {
 		if (unlikely(touch_i2c_read(client, FINGER_STATE_REG,

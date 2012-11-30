@@ -18,17 +18,20 @@
 #ifndef __LINUX_MUIC_CLIENT_H__
 #define __LINUX_MUIC_CLIENT_H__
 
+//#include <linux/muic.h>
 typedef enum {
-		MUIC_CLIENT_NOTI_DP3T	= 0,	/* LAST */
-		MUIC_CLIENT_NOTI_USIF,
-		MUIC_CLIENT_NOTI_MUIC,
-		MUIC_CLIENT_NOTI_POWER_MHL,		/* FIRST */
+	MUIC_CLIENT_NOTI_DP3T   = 0,    /* LAST */
+	MUIC_CLIENT_NOTI_USIF,
+	MUIC_CLIENT_NOTI_MUIC,
+	MUIC_CLIENT_NOTI_POWER_MHL,             /* FIRST */
 } MUIC_ORDER_OF_NOTIFICATION;
 
 struct muic_client_device;
 
 struct muic_client_ops {
+#ifdef CONFIG_MUIC_TSU5611
 	int notifier_priority;
+#endif
 	int (*on_unknown)(struct muic_client_device *);
 	int (*on_none)(struct muic_client_device *);
 	int (*on_na_ta)(struct muic_client_device *);

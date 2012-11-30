@@ -2,6 +2,9 @@
 # Makefile for the LGE u2 board
 #
 
+#[SJIT] mohamed.khadri@lge.com - Added wifi control device for BCM4330
+obj-y += ../board-lg-wifi.o
+
 obj-y += u2.o \
 		 u2_i2c.o \
 		 u2_mux.o \

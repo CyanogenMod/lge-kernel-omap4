@@ -37,6 +37,15 @@
 #endif
 // LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [END]
 
+// mo2haewoon.you@lge.com [START]
+#if defined(HSI_LL_WAKE_LOCK)
+#include <linux/wakelock.h>
+ 
+static struct wake_lock hsi_acwake_lock;
+static struct wake_lock hsi_cawake_lock;
+#endif
+// mo2haewoon.you@lge.com [END]
+
 #if !defined(HSI_LL_DATA_MUL_OF_16)
 
 #define HSI_LL_GET_SIZE_IN_WORDS(size)                       \
@@ -425,7 +434,9 @@ static void hsi_ll_read_complete_cb(struct hsi_device *dev, unsigned int size)
 {
 	int ret;
 	unsigned int channel = 0, param = 0, ll_msg_type = 0;
-    unsigned int ipc_temp = 0; // ipc temp.
+#ifndef CONFIG_MACH_LGE_COSMO
+	unsigned int ipc_temp = 0; // ipc temp.
+#endif
 
 	spin_lock_bh(&hsi_ll_if.rd_cmd_cb_lock);
 
@@ -440,6 +451,7 @@ static void hsi_ll_read_complete_cb(struct hsi_device *dev, unsigned int size)
 // LGE_UPDATE_START 20120605 seunghwan.jin@lge.com
     if(simple_hsi_log_debug_enable == '1')
         printk("HSI_LL: channel %d CP => AP CMD = 0x%x.\n", channel, hsi_ll_data.rx_cmd);
+#ifndef CONFIG_MACH_LGE_COSMO
     // start ipc temp.
     else
     {
@@ -449,6 +461,7 @@ static void hsi_ll_read_complete_cb(struct hsi_device *dev, unsigned int size)
             printk("HSI_LL: CP closed ch[%d] successfully.\n", channel);
     }
     // end ipc start
+#endif
 #if defined (HSI_LL_ENABLE_CRITICAL_LOG)
     if(simple_hsi_log_debug_enable != '1')
         printk("\nHSI_LL: channel %d CP => AP CMD = 0x%x.\n", channel, hsi_ll_data.rx_cmd);
@@ -920,7 +933,9 @@ static int hsi_ll_wr_ctrl_ch_th(void *data)
 	int ret, i;
 	unsigned int command, channel;
 	unsigned int phy_id;
-    unsigned int ipc_temp = 0; // ipc temp.
+#ifndef CONFIG_MACH_LGE_COSMO
+	unsigned int ipc_temp = 0; // ipc temp.
+#endif
 
 	wait_event_interruptible(hsi_ll_if.reg_complete,
 							 hsi_ll_if.reg_complete_flag == 1);
@@ -1030,6 +1045,15 @@ static int hsi_ll_wr_ctrl_ch_th(void *data)
 																 &channel,
 																 &phy_id)) {
 #if defined (HSI_LL_ENABLE_PM)
+// mo2haewoon.you@lge.com [START]
+/* Wait for some time(3HZ) and starts to suspend */
+#if defined (HSI_LL_WAKE_LOCK)
+				if(wake_lock_active(&hsi_acwake_lock))
+					wake_unlock(&hsi_acwake_lock);
+				wake_lock_timeout(&hsi_acwake_lock, HSI_LL_AC_WAKE_TIMEOUT);
+#endif
+// mo2haewoon.you@lge.com [END]
+
 			wait_event_interruptible_timeout(hsi_ll_if.msg_avaliable,
 											 hsi_ll_if.msg_avaliable_flag == 1,
 											 HSI_LL_PV_READ_CMD_Q_TIMEOUT);
@@ -1065,11 +1089,20 @@ static int hsi_ll_wr_ctrl_ch_th(void *data)
 #if defined (HSI_LL_ENABLE_DEBUG_LOG)
 			printk("\nHSI_LL: Requesting AC wake line High.\n");
 #endif
+
+// mo2haewoon.you@lge.com [START]
+#if defined (HSI_LL_WAKE_LOCK)
+			if(wake_lock_active(&hsi_acwake_lock))
+				wake_unlock(&hsi_acwake_lock);
+			wake_lock(&hsi_acwake_lock);
+#endif
+// mo2haewoon.you@lge.com [END]
 			hsi_ll_wakeup_cp(HSI_LL_WAKE_LINE_HIGH);
 		}
 // LGE_UPDATE_START 20120605 seunghwan.jin@lge.com
         if (simple_hsi_log_debug_enable == '1')
             printk("HSI_LL: channel %d : AP => CP CMD = 0x%x \n", channel, command);
+#ifndef CONFIG_MACH_LGE_COSMO
         // start ipc temp.
         else
         {
@@ -1079,6 +1112,7 @@ static int hsi_ll_wr_ctrl_ch_th(void *data)
                 printk("HSI_LL: AP closed ch[%d] successfully.\n", channel);
         }
         // end ipc temp
+#endif
 #if defined (HSI_LL_ENABLE_CRITICAL_LOG)
         if (simple_hsi_log_debug_enable != '1')
             printk("\nHSI_LL: channel %d : AP => CP CMD = 0x%x \n", channel, command);
@@ -1995,12 +2029,32 @@ static void hsi_ll_port_event_cb(
 		printk("\nHSI_LL:CA wakeup line UP detected.%s %d\n",
 				  __func__, __LINE__);
 #endif
+// mo2haewoon.you@lge.com [START]
+#if defined (HSI_LL_WAKE_LOCK)
+		if(dev->n_ch == 0) {
+                        printk("[%s]UP:CA wakeup line UP detected. all channel\n",  __func__);
+			if(wake_lock_active(&hsi_cawake_lock))
+				wake_unlock(&hsi_cawake_lock);
+			wake_lock(&hsi_cawake_lock);
+		}
+#endif
+// mo2haewoon.you@lge.com [END]
 		break;
 	case HSI_EVENT_CAWAKE_DOWN:
 #if defined (HSI_LL_ENABLE_DEBUG_LOG)
 		printk("\nHSI_LL:CA wakeup line DOWN detected.%s %d\n",
 				  __func__, __LINE__);
 #endif
+// mo2haewoon.you@lge.com [START]
+/* Wait for some time(3HZ) and starts to suspend */
+#if defined (HSI_LL_WAKE_LOCK)
+		if(dev->n_ch == 0) {
+                        printk("[%s]DOWN:CA wakeup line DOWN detected. all channel\n\n",  __func__); 
+			wake_unlock(&hsi_cawake_lock);
+			wake_lock_timeout(&hsi_cawake_lock, HSI_LL_CA_WAKE_TIMEOUT);
+		}
+#endif
+// mo2haewoon.you@lge.com [END]
 		break;
 	case HSI_EVENT_HSR_DATAAVAILABLE:
 #if defined (HSI_LL_ENABLE_DEBUG_LOG)
@@ -2128,6 +2182,14 @@ int hsi_ll_init(int port, const hsi_ll_notify cb)
 			hsi_ll_data.state = HSI_LL_IF_STATE_UN_INIT;
 			goto quit_init;
 		}
+
+// mo2haewoon.you@lge.com [START]
+#if defined (HSI_LL_WAKE_LOCK)
+		wake_lock_init(&hsi_acwake_lock, WAKE_LOCK_SUSPEND, "hsi-acwake-lock");
+		wake_lock_init(&hsi_cawake_lock, WAKE_LOCK_SUSPEND, "hsi-cawake-lock");
+#endif
+// mo2haewoon.you@lge.com [END]
+
 #endif
 #if defined (HSI_LL_ENABLE_TX_RETRY_WQ)
 		hsi_ll_if.hsi_tx_retry_wq = create_workqueue("hsi_tx_retry_wq");
@@ -2159,6 +2221,14 @@ int hsi_ll_shutdown(void)
 		kthread_stop(hsi_ll_if.rd_th);
 		kthread_stop(hsi_ll_if.wr_th);
 #if defined (HSI_LL_ENABLE_PM)
+
+// mo2haewoon.you@lge.com [START]
+#if defined (HSI_LL_WAKE_LOCK)
+		wake_lock_destroy(&hsi_acwake_lock);
+		wake_lock_destroy(&hsi_cawake_lock);
+#endif
+// mo2haewoon.you@lge.com [END]
+
 		kthread_stop(hsi_ll_if.psv_th);
 #endif
 #if defined (HSI_LL_ENABLE_TIMERS)
@@ -2249,6 +2319,13 @@ int hsi_ll_reset(void)
 #endif
 
 #if defined (HSI_LL_ENABLE_PM)
+// mo2haewoon.you@lge.com [START]
+#if defined (HSI_LL_WAKE_LOCK)
+	wake_unlock(&hsi_acwake_lock);
+	wake_unlock(&hsi_cawake_lock);
+#endif
+// mo2haewoon.you@lge.com [END]
+
 	hsi_ll_if.psv_event_flag = HSI_LL_PSV_EVENT_PSV_DISABLE;
 
 	// LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [START]

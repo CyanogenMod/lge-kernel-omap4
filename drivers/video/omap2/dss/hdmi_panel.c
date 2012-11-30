@@ -30,6 +30,7 @@
 #include "dss.h"
 
 #include <video/hdmi_ti_4xxx_ip.h>
+#include <linux/earlysuspend.h>
 
 static struct {
 	struct mutex hdmi_lock;
@@ -208,6 +209,37 @@ static struct attribute_group hdmi_panel_attr_group = {
 	.attrs = hdmi_panel_attrs,
 };
 
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY)
+extern int hdmi_enable_s3d (struct omap_dss_device *dssdev, bool enable);
+extern int hdmi_get_s3d_enabled (struct omap_dss_device *dssdev);
+extern int hdmi_set_s3d_disp_type (struct omap_dss_device *dssdev, struct s3d_disp_info *info);
+extern int hdmi_get_s3d_disp_type (struct omap_dss_device *dssdev, struct s3d_disp_info *info);
+
+
+int hdmi_panel_enable_s3d (struct omap_dss_device *dssdev, bool enable)
+{
+        hdmi_enable_s3d(dssdev, enable);
+        return 0;
+}
+
+int hdmi_panel_get_s3d_enabled(struct omap_dss_device *dssdev)
+{
+        return hdmi_get_s3d_enabled(dssdev);
+}
+
+int hdmi_panel_set_s3d_disp_type(struct omap_dss_device *dssdev, struct s3d_disp_info *info)
+{
+
+        hdmi_set_s3d_disp_type(dssdev, info);
+        return 0;
+}
+int hdmi_panel_get_s3d_disp_type(struct omap_dss_device *dssdev, struct s3d_disp_info *info)
+{
+
+        return hdmi_get_s3d_disp_type(dssdev, info);
+}
+#endif
+
 static int hdmi_panel_probe(struct omap_dss_device *dssdev)
 {
 	DSSDBG("ENTER hdmi_panel_probe\n");
@@ -294,7 +326,7 @@ static int hdmi_panel_suspend(struct omap_dss_device *dssdev)
 {
 	int r = 0;
 
-	HDMIDBG("ENTER \n");
+	HDMIDBG("ENTER  state=%d\n", dssdev->state);
 	mutex_lock(&hdmi.hdmi_lock);
 
 	if (dssdev->state != OMAP_DSS_DISPLAY_ACTIVE) {
@@ -315,7 +347,7 @@ static int hdmi_panel_resume(struct omap_dss_device *dssdev)
 {
 	int r = 0;
 
-	HDMIDBG("ENTER \n");
+	HDMIDBG("ENTER state=%d \n", dssdev->state);
 	mutex_lock(&hdmi.hdmi_lock);
 
 	if (dssdev->state != OMAP_DSS_DISPLAY_SUSPENDED) {
@@ -332,6 +364,14 @@ err:
 	HDMIDBG("error:%d \n", r);
 	return r;
 }
+
+#ifndef CONFIG_MHL_TX_SII9244_LEGACY      //mo2sanghyun.lee 2012.07.13      
+static struct early_suspend hdmi_panel_earlysuspend = {
+	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB,
+	.suspend = hdmi_panel_suspend,
+	.resume = hdmi_panel_resume,
+};
+#endif
 
 enum {
 	HPD_STATE_OFF,
@@ -478,6 +518,12 @@ static struct omap_dss_driver hdmi_driver = {
 	.check_timings	= hdmi_check_timings,
 	.get_modedb	= hdmi_get_modedb,
 	.set_mode	= omapdss_hdmi_display_set_mode,
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY)	  //mo2sanghyun.lee 2012.06.12   3d setting
+	.enable_s3d     = hdmi_panel_enable_s3d,
+	.get_s3d_enabled    = hdmi_panel_get_s3d_enabled,
+	.set_s3d_disp_type  = hdmi_panel_set_s3d_disp_type,
+	.get_s3d_disp_type      = hdmi_panel_get_s3d_disp_type,
+#endif	
 	.driver			= {
 		.name   = "hdmi_panel",
 		.owner  = THIS_MODULE,
@@ -489,7 +535,9 @@ int hdmi_panel_init(void)
 	mutex_init(&hdmi.hdmi_lock);
 	hdmi.hpd_switch.name = "hdmi";
 	switch_dev_register(&hdmi.hpd_switch);
-
+#ifndef CONFIG_MHL_TX_SII9244_LEGACY      //mo2sanghyun.lee 2012.07.13      
+	register_early_suspend(&hdmi_panel_earlysuspend);  
+#endif
 	my_workq = create_singlethread_workqueue("hdmi_hotplug");
 	INIT_DELAYED_WORK(&hpd_work.dwork, hdmi_hotplug_detect_worker);
 	omap_dss_register_driver(&hdmi_driver);

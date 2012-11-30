@@ -69,13 +69,6 @@
 #define TWL6040_EP_VOL_MASK	0x1E
 #define TWL6040_EP_VOL_SHIFT	1
 
-//LGE_BSP seungdae.goh@lge.com 2012-08-09
-#define MAIN_MIC_BIAS_CONTROL  //klaus.hwang@lge.com
-#ifdef MAIN_MIC_BIAS_CONTROL
-#define TWL6040_MMICBPD    0x40
-#define TWL6040_MMICBENA     0x10
-#endif
-
 struct twl6040_output {
 	u16 active;
 	u16 left_vol;
@@ -133,7 +126,6 @@ struct twl6040_data {
 	struct delayed_work hookkey_dwork;
 	int longkey_count;
 	int is_hook_enabled;
-	int is_jack_detect_working; //LGE_BSP seungdae.goh@lge.com 2012-09-03
 #endif
 };
 
@@ -151,15 +143,15 @@ static const u8 twl6040_reg[TWL6040_CACHEREGNUM] = {
 	0x60, /* TWL6040_HPPLLCTL	0x07	*/
 	0x00, /* TWL6040_LPPLLCTL	0x08	*/
 	0x4A, /* TWL6040_LPPLLDIV	0x09	*/
-#ifdef MAIN_MIC_BIAS_CONTROL
-	0x44, /* TWL6040_AMICBCTL	0x0A	*/
-#else
 	0x54, /* TWL6040_AMICBCTL	0x0A	*/
-#endif
 	0x00, /* TWL6040_DMICBCTL	0x0B	*/
 	0x18, /* TWL6040_MICLCTL	0x0C	- No input selected on Left Mic */
 	0x18, /* TWL6040_MICRCTL	0x0D	- No input selected on Right Mic */
+#if defined(CONFIG_MACH_LGE_U2_P760)
+	0x1B, /* TWL6040_MICGAIN	0x0E	*/  // LGE_CHANGE , 120611 , jimin.oh@lge.com
+#else
 	0x00, /* TWL6040_MICGAIN	0x0E	*/
+#endif
 #if 1  //LGE_D1_BSP_ICS seungdae.goh@lge.com 2012-05-03  "Aux FM Volume"  must be 0
 	0x00, /* TWL6040_LINEGAIN	0x0F	*/
 #else // Ti origi
@@ -428,17 +420,8 @@ static void hs_hook_report(struct snd_soc_codec *codec, int state)
 		dev_err(codec->dev, "%s: input handle is NULL\n", __func__);
 		return;
 	}
-// LGE_CHANGE_S [younglae.kim@lge.com] 2012-07-06, do not report hook key event if the gkpd mode is enabled
-#if defined(CONFIG_INPUT_LGE_GKPD)
-	if ( !(gkpd_get_test_mode()) ) {
-        input_report_key(input, KEY_HOOK, state);
-        input_sync(input);
-    }
-#else
-    input_report_key(input, KEY_HOOK, state);
-    input_sync(input);
-#endif
-// LGE_CHANGE_E [younglae.kim@lge.com] 2012-07-06
+	input_report_key(input, KEY_HOOK, state);
+	input_sync(input);
 }
 
 /* LGE_SJIT 2011-12-07 [dojip.kim@lge.com] from P940 GB
@@ -449,11 +432,9 @@ static inline void hs_hook_disable(struct snd_soc_codec *codec)
 {
 	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
 
-//LGE_BSP seungdae.goh@lge.com 2012-09-03  // Do not make "HOOK RELEASE" event
-//	hs_hook_report(codec, 0);
-//	priv->longkey_count = 0;
+	hs_hook_report(codec, 0);
+	priv->longkey_count = 0;
 	priv->is_hook_enabled = 0;
-	priv->is_jack_detect_working = 0; //LGE_BSP seungdae.goh@lge.com 2012-09-03
 
 	twl6040_clear_reg_bit(codec, TWL6040_REG_HKCTL1, TWL6040_HKEN);
 }
@@ -497,8 +478,7 @@ static inline int is_without_mic(struct snd_soc_codec *codec)
 	/* samin.ryu 111004, delay time is not enough for detecting mic.
 	 * it need more test
 	 */
-	 //LGE_BSP seungdae.goh@lge.com 2012-09-03   Disable msleep(200)  <-- too long time
-	//msleep(200);
+	msleep(200);
 	return is_hookkey_pressed(codec);
 }
 #endif /* CONFIG_SND_OMAP_SOC_LGE_JACK */
@@ -1107,14 +1087,8 @@ static int twl6040_hf_dac_event(struct snd_soc_dapm_widget *w,
 			struct snd_kcontrol *kcontrol, int event)
 {
 	/* HFDAC settling time */
-//	usleep_range(80, 200);
-
-#if defined(CONFIG_MACH_LGE_U2_P769)
-	usleep_range(500, 1000);  /* 20120709 klaus.hwang@lge.com Remove tic noise in idle mode */ 
-#else
-	//usleep_range(200, 300);  /* 20120615 klaus.hwang@lge.com Remove tic noise in idle mode */ 
-	usleep_range(1000, 2000);
-#endif
+	//usleep_range(80, 200);
+	usleep_range(200, 300);  // MO2_COSMO_SKT_ICS, mo2sujin.kim, 120816, Remove tic noise in idle mode
 
 	return 0;
 }
@@ -1150,8 +1124,7 @@ static void set_twl6040_jack_status(struct snd_soc_codec *codec,struct snd_soc_j
 
     mutex_lock(&priv->mutex);
 
-    //LGE_BSP seungdae.goh@lge.com 2012-09-03
-    //cancel_delayed_work_sync(&priv->hookkey_dwork);
+    cancel_delayed_work_sync(&priv->hookkey_dwork);
 
     switch(state)
     {
@@ -1214,19 +1187,16 @@ static int twl6040_hs_jack_report(struct snd_soc_codec *codec,
         state = 0;
     else
     {
-        //LGE_BSP seungdae.goh@lge.com 2012-09-03 [
-        // pre hook_enableed , bias_enabled by INT
-        //hs_mic_bias_enable(codec);
-        //hs_hook_enable(codec);
+        hs_mic_bias_enable(codec);
+        hs_hook_enable(codec);
 
         if (is_without_mic(codec) == 1)
             state = SND_JACK_HEADPHONE;
         else
             state = SND_JACK_HEADSET;
 
-        //hs_hook_disable(codec);
-        //hs_mic_bias_disable(codec);
-        //LGE_BSP seungdae.goh@lge.com 2012-09-03 ]
+        hs_hook_disable(codec);
+        hs_mic_bias_disable(codec);
     }
 	mutex_unlock(&priv->mutex);
 
@@ -1268,16 +1238,10 @@ void twl6040_hs_jack_detect(struct snd_soc_codec *codec,
 	hs_jack->jack = jack;
 	hs_jack->report = report;
 
-        //LGE_BSP_S  seungdae.goh@lge.com 2012-09-03  Jack Detect [START_LGE]
-        twl6040_set_reg_bit(codec, TWL6040_REG_HKCTL1, TWL6040_HKEN );
-        twl6040_set_reg_bit(codec, TWL6040_REG_AMICBCTL, (TWL6040_HMICENA | TWL6040_HMICBPD) );
-        msleep(200);
-        //LGE_BSP_E  seungdae.goh@lge.com 2012-09-03  Jack Detect [END_LGE]
-
     state = twl6040_hs_jack_report(codec, hs_jack->jack, hs_jack->report);
     set_twl6040_jack_status(codec, hs_jack->jack, hs_jack->report,state);
 
-    priv_jack = state; //LGE_BSP seungdae.goh@lge.com 2012-08-23
+    priv_jack = -1;
 
     return;
 }
@@ -1304,66 +1268,23 @@ static void twl6040_accessory_work(struct work_struct *work)
 	struct snd_soc_codec *codec = priv->codec;
 	struct twl6040_jack_data *hs_jack = &priv->hs_jack;
     int state;
-//LGE_BSP seungdae.goh@lge.com 2012-09-03  //Modified Re check module
-    int recheck_cnt;
-
-
 
     state = twl6040_hs_jack_report(codec, hs_jack->jack, hs_jack->report);
 
-    //LGE_BSP seungdae.goh@lge.com 2012-08-23 [  //adjust delay time for hook detecting in jack unplug case
-    if( state == 0 && ( priv_jack == SND_JACK_HEADSET  || priv_jack == SND_JACK_HEADPHONE ) )
-    {                      
-        hs_plug_interrupt_enable(codec);//LGE_BSP seungdae.goh@lge.com 2012-09-05  move here for catching interrupt ( don't miss INT )
-        printk(KERN_DEBUG">> JACK Removed State is Matched [%d]-> %d hook_n:%d\n",priv_jack, state,   priv->longkey_count );
-       set_twl6040_jack_status(codec, hs_jack->jack, hs_jack->report,state);
-        priv_jack = state;
-        //hs_plug_interrupt_enable(codec);
-        priv->is_jack_detect_working = 0;
-    }
-    else if( ( priv_jack & ( ~ 0x1000 )) ==  state )
+    if(state == priv_jack)
     {
-        hs_plug_interrupt_enable(codec); //LGE_BSP seungdae.goh@lge.com 2012-09-05  move here for catching interrupt ( don't miss INT )
-        printk(KERN_DEBUG">> Headset JACK State is Matched 0x%x -> %d hook_n:%d\n",priv_jack, state,   priv->longkey_count);
+        printk(KERN_DEBUG"Headset JACK State is Matched %d\n",state);
         set_twl6040_jack_status(codec, hs_jack->jack, hs_jack->report,state);
-        priv_jack = state;
-        //hs_plug_interrupt_enable(codec);
-        priv->is_jack_detect_working = 0;
+        priv_jack = -1;
     }
     else
     {
-        recheck_cnt = ( 0x0F00 & priv_jack ) >> 8 ;
-#if 0
-        if( recheck_cnt <= 0 || recheck_cnt > 10 ) {
-            recheck_cnt = 1; // ( 1 + 1 ) X  200ms recheck
-        }
-        else if( (priv_jack & 0xFF ) ==  state) { //LGE_BSP seungdae.goh@lge.com 2012-09-05  If diff state  make retry 2 time
-            recheck_cnt--;
-        }
-        if( recheck_cnt == 0 ) {
-            twl6040_set_reg_bit(codec, TWL6040_REG_HKCTL1, TWL6040_HKEN );
-            twl6040_set_reg_bit(codec, TWL6040_REG_AMICBCTL, (TWL6040_HMICENA | TWL6040_HMICBPD) );
-        }
-#else
-        if( (priv_jack & 0xFF ) ==  state) { //LGE_BSP seungdae.goh@lge.com 2012-09-05  If diff state  make retry 2 time
-            recheck_cnt--;
-        }
-        else { /* Unstable state */
-            recheck_cnt = 5; // ( 5 + 1 ) X  200ms recheck
-            twl6040_set_reg_bit(codec, TWL6040_REG_HKCTL1, TWL6040_HKEN );
-            twl6040_set_reg_bit(codec, TWL6040_REG_AMICBCTL, (TWL6040_HMICENA | TWL6040_HMICBPD) );
-        }
-#endif
-
-        wake_lock_timeout(&priv->wake_lock, 2 * HZ); //LGE_BSP seungdae.goh@lge.com 2012-09-05
-
-        printk(KERN_DEBUG"Headset JACK State changed 0x%x -> [%d] : take read [%d] more \n",priv_jack, state, ( recheck_cnt +1 ));
+        printk(KERN_DEBUG"Headset JACK State is Not Matched %d - %d \n",priv_jack, state);
         cancel_delayed_work_sync(&priv->hookkey_dwork);
         queue_delayed_work(priv->workqueue, &priv->delayed_work, msecs_to_jiffies(200)); 
-
-        priv_jack = ( 0x1000 | state) | ( 0x0F00 & ( recheck_cnt << 8  ));
+        priv_jack = state;
     }
-    //LGE_BSP seungdae.goh@lge.com 2012-08-23 ]
+
     return;
 }
 #else
@@ -1387,24 +1308,17 @@ static irqreturn_t twl6040_audio_handler(int irq, void *data)
 	u8 intid;
 	
 //LGE_START,20120331,myungwon.kim@lge.com, Fast Popup Noise Remove
-//LGE_BSP seungdae.goh@lge.com 2012-09-03
-//    twl6040_clear_reg_bit(codec, TWL6040_REG_AMICBCTL, TWL6040_HMICENA);
+    twl6040_clear_reg_bit(codec, TWL6040_REG_AMICBCTL, TWL6040_HMICENA);
 
-    printk(KERN_DEBUG"===================================== JACK %s\n",__func__);
+    printk(KERN_DEBUG"=============================================%s\n",__func__);
 	intid = twl6040_reg_read(twl6040, TWL6040_REG_INTID);
 
 #if defined(CONFIG_SND_OMAP_SOC_LGE_JACK)
-#if 0  //LGE_BSP seungdae.goh@lge.com 2012-09-03   for debug
-        // TWL6040_UNPLUGINT  --> PLUG Interrupt case
-        //  TWL6040_PLUGINT      --> UNPLUG Interrupt case
-        printk(KERN_DEBUG"__sdko__ INT_ID: 0x%x \n", intid  );
-#endif
 	if ((intid & TWL6040_PLUGINT) && priv->is_hook_enabled) {
         //When Unplugged, To Reduce POPUP Noise[myungwon.kim]
 //		hs_mic_bias_disable(codec);
 		twl6040_clear_reg_bit(codec, TWL6040_REG_HKCTL1, TWL6040_HKEN);
-//		twl6040_set_reg_bit(codec, TWL6040_REG_AMICBCTL, TWL6040_HMICBPD);
-		twl6040_clear_reg_bit(codec, TWL6040_REG_AMICBCTL,  TWL6040_HMICENA );
+		twl6040_set_reg_bit(codec, TWL6040_REG_AMICBCTL, TWL6040_HMICBPD);
 	}
 
 	hs_plug_interrupt_disable(codec);
@@ -1413,22 +1327,15 @@ static irqreturn_t twl6040_audio_handler(int irq, void *data)
 	if ((intid & TWL6040_PLUGINT) || (intid & TWL6040_UNPLUGINT)) {
 #if defined(CONFIG_SND_OMAP_SOC_LGE_JACK)
 		hs_hook_interrupt_disable(codec);
-		//LGE_BSP seungdae.goh@lge.com 2012-09-03
-		//__cancel_delayed_work(&priv->hookkey_dwork);
+		__cancel_delayed_work(&priv->hookkey_dwork);
 #endif
 		wake_lock_timeout(&priv->wake_lock, 2 * HZ);
-#if 0 //LGE_BSP seungdae.goh@lge.com 2012-08-23   adjust delay time for hook detecting in jack unplug case
 		queue_delayed_work(priv->workqueue, &priv->delayed_work,
 				   msecs_to_jiffies(200));
-#else
-                priv->is_jack_detect_working = 1; //LGE_BSP seungdae.goh@lge.com 2012-09-03
-                queue_delayed_work(priv->workqueue, &priv->delayed_work,
-				   msecs_to_jiffies(20));
-#endif
 	}
 #if defined(CONFIG_SND_OMAP_SOC_LGE_JACK)
-    //LGE_BSP seungdae.goh@lge.com 2012-09-03  Jack detect --> INT disable
-    //hs_plug_interrupt_enable(codec);
+		
+    hs_plug_interrupt_enable(codec);
 #endif
 
 	return IRQ_HANDLED;
@@ -1445,13 +1352,11 @@ static void twl6040_hs_hookkey_detect_work(struct work_struct *work)
 			struct twl6040_data, hookkey_dwork.work);
 	struct snd_soc_codec *codec = priv->codec;
 	struct twl6040_jack_data *hs_jack = &priv->hs_jack;
-	//printk(KERN_DEBUG"================== %s ()  (%d hk_env:%d jackdet:%d )\n",__func__, (hs_jack->jack!=0), priv->is_hook_enabled, priv->is_jack_detect_working);
 
 	/* sanghyuk.kwon@lge.com 2011/08/22 If ear-mic is not exist,
 	 * do not send hook event
 	 */
-    //LGE_BSP seungdae.goh@lge.com 2012-09-03
-	if ((hs_jack->jack) && priv->is_hook_enabled && !priv->is_jack_detect_working ) {
+	if ((hs_jack->jack) && priv->is_hook_enabled) {
 		 /* ty.lee@lge.com 2010-12-21, for longkey event */
 
 		 wake_lock_timeout(&priv->wake_lock, 2 * HZ); //LGE_D1_BSP_ICS seungdae.goh@lge.com 2012-04-09
@@ -1462,64 +1367,14 @@ static void twl6040_hs_hookkey_detect_work(struct work_struct *work)
 			/* sanghyuk.kwon@lge.com 2011.10.24 wake_lock for
 			 * hook long key
 			 */
-#if 0 //LGE_BSP seungdae.goh@lge.com 2012-08-23   //adjust delay time for hook detecting in jack unplug case
 #if defined(CONFIG_INPUT_LGE_GKPD)
 			if (gkpd_get_test_mode() == 1)
 				gkpd_write_value(KEY_HOOK);
 #endif
 			hs_hook_report(codec, 1);
 			dev_info(codec->dev, "%s: hook interrupt\n", __func__);
-#else
-                        //LGE_BSP seungdae.goh@lge.com 2012-09-06  // If receive INT  make key event  : don't check pressed state
-//                        if (is_hookkey_pressed(codec)) {
-#if 0 //LGE_BSP seungdae.goh@lge.com 2012-09-03
-#if defined(CONFIG_INPUT_LGE_GKPD)
-                            if (gkpd_get_test_mode() == 1)
-                                gkpd_write_value(KEY_HOOK);
-#endif
-                            hs_hook_report(codec, 1);
-                            printk( KERN_DEBUG"%s: hook interrupt ------>>>>\n", __func__);
-
-                            queue_delayed_work(priv->workqueue, &priv->hookkey_dwork,
-                            msecs_to_jiffies(50));
-                            priv->longkey_count++;
-#else
-                            queue_delayed_work(priv->workqueue, &priv->hookkey_dwork,
-                            msecs_to_jiffies(50));
-                            priv->longkey_count++;
-#endif
-//			}
-#endif
-
 		}
-		else
-//LGE_BSP seungdae.goh@lge.com 2012-08-23  //adjust delay time for hook detecting in jack unplug case  [END]
 		if (is_hookkey_pressed(codec)) {
-//LGE_BSP seungdae.goh@lge.com 2012-08-23 [    //adjust delay time for hook detecting in jack unplug case
-#if 1 //LGE_BSP seungdae.goh@lge.com 2012-09-03
-                        if( priv->longkey_count == 1 ) {
-#if defined(CONFIG_INPUT_LGE_GKPD)
-                                if (gkpd_get_test_mode() == 1)
-                                        gkpd_write_value(KEY_HOOK);
-#endif
-                                hs_hook_report(codec, 1);
-                                printk( KERN_DEBUG"%s: hook: Press key ------>>>>\n", __func__);
-                        }
-#endif
-                        //LGE_BSP seungdae.goh@lge.com 2012-09-13  prevent key pressed state when 3pole --> 4pole Jack miss detected case
-                        if( priv->longkey_count > 200 ) {  // 200 * 50ms == 10sec
-                            hs_hook_report(codec, 0);
-                            priv->longkey_count = 0;
-                            printk( KERN_DEBUG"%s: hook: Release key - %d <<<<----- \n", __func__,priv->longkey_count);
-                        }
-                        else {
-                           queue_delayed_work(priv->workqueue,
-						&priv->hookkey_dwork,
-						msecs_to_jiffies(50));
-				priv->longkey_count++;
-			}
-//LGE_BSP seungdae.goh@lge.com 2012-08-23 ]
-#if 0
 //LGE_START,20120518,myungwon.kim@lge.com, Remove Release Hook Key After 1Sec
 //			if (priv->longkey_count < 15) { /* 1 sec */
 				/* sanghyuk.kwon@lge.com 2011.10.25
@@ -1536,55 +1391,21 @@ static void twl6040_hs_hookkey_detect_work(struct work_struct *work)
 //				priv->longkey_count = 0;
 //				dev_info(codec->dev, "%s: hook: longkey\n", __func__);
 //			}
-#endif
 		}
 		else {
-#if 1 //LGE_BSP seungdae.goh@lge.com 2012-09-03
-                        if( priv->longkey_count == 1 ) {
-#if defined(CONFIG_INPUT_LGE_GKPD)
-                                if (gkpd_get_test_mode() == 1)
-                                        gkpd_write_value(KEY_HOOK);
-#endif
-                                hs_hook_report(codec, 1);
-                                printk( KERN_DEBUG"%s: hook: Press key ------>>>>\n", __func__);
-                        }
-#endif
 			/* shortkey event */
 			hs_hook_report(codec, 0);
 			priv->longkey_count = 0;
-			printk( KERN_DEBUG"%s: hook: Release key - %d <<<<----- \n", __func__,priv->longkey_count);
-			//dev_info(codec->dev, "%s: hook: Release key - %d <<<<----- \n", __func__,priv->longkey_count);
+			dev_info(codec->dev, "%s: hook: Release key - %d \n", __func__,priv->longkey_count);
 //LGE_END,20120518,myungwon.kim@lge.com, Remove Release Hook Key After 1Sec
 		}
 	}
-    //LGE_BSP seungdae.goh@lge.com 2012-09-03 [
-	else if( (priv->longkey_count > 1 ) && ( !priv->is_hook_enabled || priv->is_jack_detect_working )) {
-            printk(KERN_DEBUG"________longkey_count[%d] hook_key_release send by unpluged\n", priv->longkey_count );
-            wake_lock_timeout(&priv->wake_lock, 2 * HZ);
-
-            if( priv->longkey_count  == 0xFFFF ){
-                hs_hook_report(codec, 0);
-                priv->longkey_count = 0;
-            }
-            else{
-                priv->longkey_count  = 0xFFFF;
-                queue_delayed_work(priv->workqueue, &priv->hookkey_dwork,
-                                msecs_to_jiffies(1000));
-            }
-	}
-	else {
-	    priv->longkey_count = 0;
-	}
-    //LGE_BSP seungdae.goh@lge.com 2012-09-03 ]
 }
 
 static irqreturn_t twl6040_hookkey_handler(int irq, void *data)
 {
 	struct snd_soc_codec *codec = data;
 	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
-	printk(KERN_DEBUG"======================= %s ()  det:%d\n",__func__, priv->is_jack_detect_working);
-
-	wake_lock_timeout(&priv->wake_lock, 2 * HZ); //LGE_D1_BSP_ICS seungdae.goh@lge.com 2012-04-09
 
 	/* LGE_SJIT 2011-12-09 [dojip.kim@lge.com]
 	 * use it instead of 'cancel_delayed_work_sync'
@@ -1594,13 +1415,8 @@ static irqreturn_t twl6040_hookkey_handler(int irq, void *data)
 	/* samin.ryu@lge.com 2011/06/10 for hook key disable in earjack
 	 * plug/unplug status, modify 110629
 	 */
-#if 0 //LGE_BSP seungdae.goh@lge.com 2012-08-23  adjust delay time for hook detecting in jack unplug case
 	queue_delayed_work(priv->workqueue, &priv->hookkey_dwork,
 			msecs_to_jiffies(100));
-#else
-	queue_delayed_work(priv->workqueue, &priv->hookkey_dwork,
-			msecs_to_jiffies(20));
-#endif
 	priv->longkey_count = 0;
 
 	return IRQ_HANDLED;
@@ -1871,25 +1687,6 @@ static int twl6040_headset_power_put_enum(struct snd_kcontrol *kcontrol,
 
 //LGE_D1_BSP_ICS_S  seungdae.goh@lge.com 2012-04-24    [START_LGE]
 /* Codec Pre Power On */
-
-static const char *twl6040_earpiece_fir_texts[] = {
-    "Off", "On",
-};
-
-#ifdef MAIN_MIC_BIAS_CONTROL
-static const char *twl6040_main_mic_bias_texts[] = {
-    "Off", "On",
-};
-
-static const struct soc_enum twl6040_main_mic_bias_enum =
-    SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(twl6040_main_mic_bias_texts),
-        twl6040_main_mic_bias_texts);
-#endif
-
-static const struct soc_enum twl6040_earpiece_fir_enum =
-    SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(twl6040_earpiece_fir_texts),
-        twl6040_earpiece_fir_texts);
-
 static const char *twl6040_codec_power_texts[] = {
 	"Off", "On",
 };
@@ -1899,136 +1696,6 @@ static const struct soc_enum twl6040_codec_power_enum =
 			twl6040_codec_power_texts);
 
 static int set_codec_power(struct snd_soc_codec *codec, int pwr_on );
-
-#ifdef MAIN_MIC_BIAS_CONTROL
-static int twl6040_main_mic_bias_get_enum(struct snd_kcontrol *kcontrol,
-        struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
-
-    int ret;
-    int value;
-
-	//printk(KERN_DEBUG"=============================================%s\n",__func__);
-#if 0  //LGE_BSP seungdae.goh@lge.com 2012-08-23  use cache
-    ret = twl6040_read_reg_volatile(codec, TWL6040_REG_AMICBCTL);
-    if (ret < 0) {
-        dev_err(codec->dev, "%s: failed to read the twl6040 register\n", __func__);
-        return ret;
-    }
-#else
-         ret = twl6040_read_reg_cache(codec, TWL6040_REG_AMICBCTL);
-#endif
-    value = ret & TWL6040_MMICBENA;
-
-    if(value)
-	    ucontrol->value.enumerated.item[0] = 0;
-    else
-	    ucontrol->value.enumerated.item[0] = 1;
-
-    return 0;
-}
-static int twl6040_main_mic_bias_put_enum(struct snd_kcontrol *kcontrol,
-        struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
-
-	//printk(KERN_DEBUG"=============================================%s\n",__func__);
-
-	int value = ucontrol->value.enumerated.item[0];
-	unsigned int reg_value;
-	int ret;
-
-#if 0 //LGE_BSP seungdae.goh@lge.com 2012-08-23  use cache
-        ret = twl6040_read_reg_volatile(codec, TWL6040_REG_AMICBCTL);
-        if (ret < 0) {
-            dev_err(codec->dev, "%s: failed to read the twl6040 register\n", __func__);
-            return ret;
-        }
-#else
-         ret = twl6040_read_reg_cache(codec, TWL6040_REG_AMICBCTL);
-#endif
-
-        if(value) {
-            reg_value =  (unsigned int)( ret | TWL6040_MMICBENA );
-
-            ret = twl6040_write(codec, TWL6040_REG_AMICBCTL, reg_value);
-            //printk(KERN_DEBUG"Turn on Main mic bias~~~~~~~~\n");
-        }
-        else {
-            reg_value =  (unsigned int)( ret & ( ~ TWL6040_MMICBENA ) );
-
-            ret = twl6040_write(codec, TWL6040_REG_AMICBCTL, reg_value);
-            //printk(KERN_DEBUG"Turn off Main mic bias_________\n");
-        }
-
-    return ret;
-}
-#endif
-
-static int twl6040_earpiece_fir_get_enum(struct snd_kcontrol *kcontrol,
-        struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
-    
-    int ret;
-    int value; 
-
-#if 0  //LGE_BSP seungdae.goh@lge.com 2012-08-23  use cache
-    ret = twl6040_read_reg_volatile(codec, TWL6040_REG_EARCTL);
-    if (ret < 0) {
-        dev_err(codec->dev, "%s: failed to read the twl6040 register\n", __func__);
-        return ret;
-    }
-#else
-         ret = twl6040_read_reg_cache(codec, TWL6040_REG_EARCTL);
-#endif
-    value = ret & 0x20;
-
-    if(value)
-	    ucontrol->value.enumerated.item[0] = 0;
-    else
-	    ucontrol->value.enumerated.item[0] = 1;
-    
-    
-    return 0;
-}
-static int twl6040_earpiece_fir_put_enum(struct snd_kcontrol *kcontrol,
-        struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
-	int value = ucontrol->value.enumerated.item[0];
-	unsigned int reg_value;
-	int ret;
-
-#if 0  //LGE_BSP seungdae.goh@lge.com 2012-08-23  use cache
-    if(value)
-        ret = twl6040_clear_reg_bit(codec,TWL6040_REG_EARCTL, 0x20);
-    else
-        ret= twl6040_set_reg_bit(codec,TWL6040_REG_EARCTL, 0x20);
-#else
-         ret = twl6040_read_reg_cache(codec, TWL6040_REG_EARCTL);
-
-        if(value) {
-            reg_value =  (unsigned int)( ret & ( ~ 0x20 )  /*FIR filter enable */ );
-
-            ret = twl6040_write(codec, TWL6040_REG_EARCTL, reg_value);
-            //printk(KERN_DEBUG"Turn on FIR filter ##### \n");
-        }
-        else {
-            reg_value =  (unsigned int)( ret | 0x20  );
-
-            ret = twl6040_write(codec, TWL6040_REG_EARCTL, reg_value);
-            //printk(KERN_DEBUG"Turn off ___ FIR filter____\n");
-        }
-#endif
-    return ret;
-}
-
 
 static int twl6040_codec_power_get_enum(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
@@ -2081,7 +1748,6 @@ static const struct snd_kcontrol_new twl6040_snd_controls[] = {
 		TWL6040_REG_HFLGAIN, TWL6040_REG_HFRGAIN, 0, 0x1D, 1,
 		twl6040_get_volsw_2r, twl6040_put_volsw_2r_vu, hf_tlv),
 #endif		
-
 	SOC_SINGLE_EXT_TLV("Earphone Playback Volume",
 		TWL6040_REG_EARCTL, 1, 0xF, 1,
 		twl6040_get_volsw, twl6040_put_volsw, ep_tlv),
@@ -2093,18 +1759,6 @@ static const struct snd_kcontrol_new twl6040_snd_controls[] = {
 	SOC_ENUM_EXT("TWL Codec Power", twl6040_codec_power_enum,
 		twl6040_codec_power_get_enum,
 		twl6040_codec_power_put_enum),
-
-    SOC_ENUM_EXT("Earpiece FIR Enable",twl6040_earpiece_fir_enum,
-        twl6040_earpiece_fir_get_enum,
-        twl6040_earpiece_fir_put_enum),
-
-#ifdef MAIN_MIC_BIAS_CONTROL
-	SOC_ENUM_EXT("Main MIC bias Enable",twl6040_main_mic_bias_enum,
-	   twl6040_main_mic_bias_get_enum,
-	   twl6040_main_mic_bias_put_enum),
-#endif
-
-
 };
 
 static const struct snd_soc_dapm_widget twl6040_dapm_widgets[] = {
@@ -2400,8 +2054,6 @@ static int twl6040_set_bias_level(struct snd_soc_codec *codec,
 
 		/* initialize vdd/vss registers with reg_cache */
 		twl6040_init_vdd_regs(codec);
-
-                cdc_tcxo_set_req_int(CDC_TCXO_CLK3, 1); //LGE_BSP seungdae.goh@lge.com 2012-08-09   for tcxo error  case  defence code
 
 		break;
 	case SND_SOC_BIAS_OFF:

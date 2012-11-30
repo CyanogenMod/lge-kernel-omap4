@@ -67,7 +67,7 @@ typedef struct __battery_graph_prop
 
 //LGE_CHANGE [euiseop.shin@lge.com] 2011-07-11,[P940] moved here from charger_rt9524.h
 #define SAFE_SHUTDOWN_SOC_CON	5
-#define SHUTDOWN_SOC_CON	1 //6 //5 /*[SU540][MR] charger issue fixed - charger is not able to chrge up 100% capacity  */
+#define SHUTDOWN_SOC_CON	6 //5 /*[SU540][MR] charger issue fixed - charger is not able to chrge up 100% capacity  */
 
 
 #define FG_CONTROL_ENABLE	1704301
@@ -111,12 +111,12 @@ typedef enum {
 	MAX17043_STATE_MAX
 } max17043_status;
 
-int max17043_get_capacity(void);
-int max17043_get_voltage(void);
-int max17043_do_calibrate(void);
-int max17043_set_rcomp_by_temperature(int temp);
-int max17043_set_alert_level(int level);
-int max17043_update_by_other(void);
+extern int max17043_get_capacity(void);
+extern int max17043_get_voltage(void);
+extern int max17043_do_calibrate(void);
+extern int max17043_set_rcomp_by_temperature(int temp);
+extern int max17043_set_alert_level(int level);
+extern int max17043_update_by_other(void);
 int max17043_get_ui_capacity(void);
 int max17043_reverse_get_ui_capacity(int level);
 int max17043_quickstart(void);

@@ -1265,12 +1265,13 @@ static int _enable(struct omap_hwmod *oh)
 
 	pr_debug("omap_hwmod: %s: enabling\n", oh->name);
 
+//Enable clocks before deasserting hardreset
 	_add_initiator_dep(oh, mpu_oh);
-	if (oh->_clk && oh->_clk->clkdm) {
-		hwsup = clkdm_is_idle(oh->_clk->clkdm);
-		clkdm_wakeup(oh->_clk->clkdm);
-	}
-	_enable_clocks(oh);
+		if (oh->_clk && oh->_clk->clkdm) {
+			hwsup = clkdm_is_idle(oh->_clk->clkdm);
+			clkdm_wakeup(oh->_clk->clkdm);
+		}
+		_enable_clocks(oh);
 
 	/*
 	 * If an IP contains only one HW reset line, then de-assert it in order
@@ -1280,7 +1281,14 @@ static int _enable(struct omap_hwmod *oh)
 	if ((oh->_state == _HWMOD_STATE_INITIALIZED ||
 	     oh->_state == _HWMOD_STATE_DISABLED) && oh->rst_lines_cnt == 1)
 		_deassert_hardreset(oh, oh->rst_lines[0].name);
-	
+#if 0//Enable clocks before deasserting hardreset
+	_add_initiator_dep(oh, mpu_oh);
+	if (oh->_clk && oh->_clk->clkdm) {
+		hwsup = clkdm_is_idle(oh->_clk->clkdm);
+		clkdm_wakeup(oh->_clk->clkdm);
+	}
+	_enable_clocks(oh);
+#endif	
 	r = _wait_target_ready(oh);
 	if (!r) {
 		if (oh->_clk && oh->_clk->clkdm && hwsup)

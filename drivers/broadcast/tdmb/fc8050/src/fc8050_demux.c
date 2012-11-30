@@ -274,8 +274,7 @@ int ts_dmb_gather(fci_u8* data, fci_u32 length) {
 
 int fc8050_demux(fci_u8* data, fci_u32 length) {
 	int res = BBM_OK;
-//	fci_u32 i, pos;
-      fci_u32 i;	//LGE_BROADCAST_I
+	fci_u32 i;
 	fci_u8  sync_error = 0;
 
 	for(i = 0; i < length; i += 188)  {

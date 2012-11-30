@@ -151,15 +151,6 @@ struct omap_overlay_manager *find_dss_mgr(int display_ix);
 void swap_rb_in_ovl_info(struct dss2_ovl_info *oi);
 void swap_rb_in_mgr_info(struct dss2_mgr_info *mi);
 
-#ifdef CONFIG_DSSCOMP_COPY_FOR_ROT
-/*
- * Buffer for Rotation functions
- */
-void dsscomp_rotbuf_mgr_init(void);
-void dsscomp_rotbuf_mgr_deinit(void);
-void dsscomp_dbg_rotbuf_mgr(struct seq_file *s);
-#endif
-
 /*
  * Debug functions
  */

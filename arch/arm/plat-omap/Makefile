@@ -36,3 +36,9 @@ obj-$(CONFIG_OMAP_PM_NOOP) += omap-pm-interface.o
 obj-$(CONFIG_OMAP_PM) += omap-pm-interface.o omap-pm-helper.o
 obj-$(CONFIG_DSSCOMP) += omap_dsscomp.o
 obj-$(CONFIG_ION_OMAP) += sgx_omaplfb.o
+
+# LGE err handler //hongkeon.kim 2012-0530
+obj-$(CONFIG_MACH_LGE_COSMO) += lge_err_handler.o
+
+#LGE nvdata handler
+obj-$(CONFIG_MACH_LGE_COSMO) += lge_nvdata_handler.o

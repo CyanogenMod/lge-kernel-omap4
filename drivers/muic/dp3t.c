@@ -22,11 +22,11 @@
 #include <asm/gpio.h>
 #include <lge/board.h> /* temporary board header file for gpio num */
 
-
 TYPE_DP3T_MODE dp3t_mode = DP3T_NC;
+//struct dp3t_switch_platform_data *dp3t_switch_data; 
 
-
-int dp3t_switch_ctrl_ops(struct muic_client_device* mcdev)
+//void dp3t_switch_ctrl(TYPE_DP3T_MODE mode)
+int dp3t_switch_ctrl_ops(struct muic_client_device *mcdev)
 {
 	struct dp3t_switch *dp3t;
 	unsigned long mode = mcdev->mode; 
@@ -66,21 +66,11 @@ int dp3t_switch_ctrl_ops(struct muic_client_device* mcdev)
 	return 0;
 }
 EXPORT_SYMBOL(dp3t_switch_ctrl_ops);
-int dp3t_on_none(struct muic_client_device *mcdev)
-{
-	struct dp3t_switch *dp3t;
-	
-	dp3t = dev_get_drvdata(&mcdev->dev);
-
-	pr_info("dp3t: dp3t_switch_ctrl, None is connected to MUIC UART\n");
-
-	dp3t_mode = MUIC_NONE;
-	return 0;
-}
 
 int dp3t_on_ap_uart(struct muic_client_device *mcdev)
 {
 	struct dp3t_switch *dp3t;
+	unsigned long mode = mcdev->mode; 
 	
 	dp3t = dev_get_drvdata(&mcdev->dev);
 	
@@ -89,13 +79,14 @@ int dp3t_on_ap_uart(struct muic_client_device *mcdev)
 	gpio_set_value(dp3t->ctrl_gpio2, 0);
 	pr_info("dp3t: dp3t_switch_ctrl, AP UART is connected to MUIC UART\n");
 
-	dp3t_mode = MUIC_AP_UART;
+	dp3t_mode = mode;
 	return 0;
 }
 
 int dp3t_on_cp_uart(struct muic_client_device *mcdev)
 {
 	struct dp3t_switch *dp3t;
+	unsigned long mode = mcdev->mode; 
 	
 	dp3t = dev_get_drvdata(&mcdev->dev);
 	
@@ -104,13 +95,14 @@ int dp3t_on_cp_uart(struct muic_client_device *mcdev)
 	gpio_set_value(dp3t->ctrl_gpio2, 1);
 	pr_info("dp3t: dp3t_switch_ctrl, CP UART is connected to MUIC UART\n");
 
-	dp3t_mode = MUIC_CP_UART;
+	dp3t_mode = mode;
 	return 0;
 }
 
 int dp3t_on_cp_usb(struct muic_client_device *mcdev)
 {
 	struct dp3t_switch *dp3t;
+	unsigned long mode = mcdev->mode; 
 	
 	dp3t = dev_get_drvdata(&mcdev->dev);
 	
@@ -119,14 +111,44 @@ int dp3t_on_cp_usb(struct muic_client_device *mcdev)
 	gpio_set_value(dp3t->ctrl_gpio2, 1);
 	pr_info("dp3t: dp3t_switch_ctrl, CP USB is connected to MUIC UART\n");
 
-	dp3t_mode = MUIC_CP_USB;
+	dp3t_mode = mode;
 	return 0;
 }
 
 void dp3t_switch_ctrl(TYPE_DP3T_MODE mode)
 {
 	pr_info("dp3t: dp3t_switch_ctrl()\n");
-
+#if 0 
+	printk("dp3t->ctrl_ifx_vbus_gpio = %d\n", dp3t->ctrl_ifx_vbus_gpio);
+	printk("dp3t->ctrl_gpio1 = %d\n", dp3t->ctrl_gpio1);
+	printk("dp3t->ctrl_gpio2 = %d\n", dp3t->ctrl_gpio2);
+	if (mode == DP3T_AP_UART) {
+		gpio_set_value(dp3t->ctrl_ifx_vbus_gpio, 0);
+		gpio_set_value(dp3t->ctrl_gpio1, 1);
+		gpio_set_value(dp3t->ctrl_gpio2, 0);
+		printk(KERN_INFO "[MUIC] dp3t_switch_ctrl, AP UART is connected to MUIC UART\n");
+	} else if (mode == DP3T_CP_UART) {
+		gpio_set_value(dp3t->ctrl_ifx_vbus_gpio, 0);
+		gpio_set_value(dp3t->ctrl_gpio1, 0);
+		gpio_set_value(dp3t->ctrl_gpio2, 1);
+		printk(KERN_INFO "[MUIC] dp3t_switch_ctrl, CP UART is connected to MUIC UART\n");
+	} else if (mode == DP3T_CP_USB) {
+		gpio_set_value(dp3t->ctrl_ifx_vbus_gpio, 1);
+		gpio_set_value(dp3t->ctrl_gpio1, 1);
+		gpio_set_value(dp3t->ctrl_gpio2, 1);
+		printk(KERN_INFO "[MUIC] dp3t_switch_ctrl, CP USB is connected to MUIC UART\n");
+	} else if (mode == DP3T_NC) {
+		gpio_set_value(dp3t->ctrl_ifx_vbus_gpio, 0);
+		gpio_set_value(dp3t->ctrl_gpio1, 0);
+		gpio_set_value(dp3t->ctrl_gpio2, 0);
+		printk(KERN_INFO "[MUIC] dp3t_switch_ctrl, None is connected to MUIC UART\n");
+	} else {
+		/* Just keep the current path */
+	}
+	
+	dp3t_mode = mode;
+	//printk(KERN_WARNING "[MUIC] dp3t_switch_ctrl(): dp3t_mode = %d\n", dp3t_mode);
+#else
 	if (mode == DP3T_AP_UART) {
 		gpio_set_value(GPIO_IFX_USB_VBUS_EN, 0);
 		gpio_set_value(GPIO_DP3T_IN_1, 1);
@@ -152,103 +174,86 @@ void dp3t_switch_ctrl(TYPE_DP3T_MODE mode)
 	}
 	
 	dp3t_mode = mode;
+	//printk(KERN_WARNING "[MUIC] dp3t_switch_ctrl(): dp3t_mode = %d\n", dp3t_mode);
 
+#endif
+	return;
 }
 EXPORT_SYMBOL(dp3t_switch_ctrl);
 
 static struct muic_client_ops dp3t_ops = {
-	.notifier_priority = MUIC_CLIENT_NOTI_DP3T,
-	.on_none = dp3t_on_none,
 	.on_ap_uart = dp3t_on_ap_uart,
 	.on_ap_usb = dp3t_on_ap_uart,
 	.on_cp_uart = dp3t_on_cp_uart,
 	.on_cp_usb = dp3t_on_cp_usb,
 };
 
+
 static int dp3t_switch_probe(struct platform_device *pdev)
 {
-	int ret = 0;
-	struct dp3t_switch* dp3t = NULL;
 	struct dp3t_switch_platform_data *pdata = pdev->dev.platform_data;
-	
-	dp3t = kzalloc(sizeof(struct dp3t_switch), GFP_KERNEL);
+	struct dp3t_switch *dp3t;
+	int ret = 0;
 
-	if(dp3t == NULL) {
-		dev_err(&pdev->dev, "%s: failed to alloc new_node\n", __func__);
-		return -ENOMEM;
-	}
+	
+	dp3t = kzalloc(sizeof(struct dp3t_switch), GFP_KERNEL); 
 
 	dp3t->pdev = pdev;
+
+	muic_client_dev_register(pdev->name, dp3t, &dp3t_ops);
+
 	dp3t->ctrl_gpio1 = pdata->ctrl_gpio1;
 	dp3t->ctrl_gpio2 = pdata->ctrl_gpio2;
 	dp3t->ctrl_ifx_vbus_gpio = pdata->ctrl_ifx_vbus_gpio;
 
-	ret = muic_client_dev_register(pdev->name, (void*)dp3t, &dp3t_ops);
-	if (ret < 0) {
-		dev_err(&pdev->dev, "%s: failed to muic_client_dev_register\n", __func__);
-		goto err_4;
-	}
 
 	/*
-	 * Initializes gpio_11 (UART_SW1) and gpio_12 (UART_SW2).
+	 * Initializes gpio_11 (OMAP_UART_SW) and gpio_12 (IFX_UART_SW).
 	 * Checks if other driver already occupied them.
 	 */
 	ret = gpio_request(dp3t->ctrl_gpio1, "DP3T switch control 1 GPIO");
 	if (ret < 0) {
-		dev_err(&pdev->dev, "%s: GPIO %d is already used!\\n",
-							__func__, dp3t->ctrl_gpio1);
-		goto err_4;
+		pr_err("dp3t: GPIO %d is already used!\n", dp3t->ctrl_gpio1);
+		return -ENOSYS;
 	}
 
 	ret = gpio_direction_output(dp3t->ctrl_gpio1, 0);
 	if (ret < 0) {
-		dev_err(&pdev->dev, "%s: GPIO %d direction initialization failed!\n",
-							__func__, dp3t->ctrl_gpio1);
-		goto err_3;
+		pr_err("dp3t: GPIO %d direction initialization failed!\n",
+				dp3t->ctrl_gpio1);
+		return -ENOSYS;
 	}
 	
 	ret = gpio_request(dp3t->ctrl_gpio2, "DP3T switch control 2 GPIO");
 	if (ret < 0) {
-		dev_err(&pdev->dev, "%s: GPIO %d is already used!\\n",
-							__func__, dp3t->ctrl_gpio2);
-		goto err_3;
+		pr_err("dp3t: GPIO %d is already used\n", dp3t->ctrl_gpio2);
+		return -ENOSYS;
 	}
 
 	ret = gpio_direction_output(dp3t->ctrl_gpio2, 0);
 	if (ret < 0) {
-		dev_err(&pdev->dev, "%s: GPIO %d direction initialization failed!\n",
-							__func__, dp3t->ctrl_gpio2);
-		goto err_2;
+		pr_err("dp3t: GPIO %d direction initialization failed!\n",
+				dp3t->ctrl_gpio2);
+		return -ENOSYS;
 	}
 
-	ret = gpio_request(dp3t->ctrl_ifx_vbus_gpio, "DP3T switch ifx vbus GPIO");
+	ret = gpio_request(dp3t->ctrl_ifx_vbus_gpio, "DP3T switch control 2 GPIO");
 	if (ret < 0) {
-		dev_err(&pdev->dev, "%s: GPIO %d is already used!\\n", 
-							__func__, dp3t->ctrl_ifx_vbus_gpio);
-		goto err_2;
+		pr_err("dp3t: GPIO %d is already used\n",
+				dp3t->ctrl_ifx_vbus_gpio);
+		return -ENOSYS;
 	}
 
 	ret = gpio_direction_output(dp3t->ctrl_ifx_vbus_gpio, 0);
 	if (ret < 0) {
-		dev_err(&pdev->dev, "%s: GPIO %d direction initialization failed!\n",
-						__func__, dp3t->ctrl_ifx_vbus_gpio);
-		goto err_1;
+		pr_err("dp3t: GPIO %d direction initialization failed!\n",
+				dp3t->ctrl_ifx_vbus_gpio);
+		return -ENOSYS;
 	}
-
+	
 	platform_set_drvdata(pdev, dp3t);
 
 	return 0;
-
-err_1:
-	gpio_free(pdata->ctrl_ifx_vbus_gpio);
-err_2:
-	gpio_free(pdata->ctrl_gpio2);
-err_3:	
-	gpio_free(pdata->ctrl_gpio1);
-err_4:
-	kfree(dp3t);
-
-	return ret;	
 }
 
 static int __devexit dp3t_switch_remove(struct platform_device *pdev)

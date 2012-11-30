@@ -4,5 +4,5 @@
 
 # Each configuration option enables a list of files.
 # LGE
-obj-$(CONFIG_LGE_BROADCAST_TDMB)	+= src/
+obj-$(CONFIG_LGE_BROADCAST_TDMB_FC8050)	+= src/
 #obj-y		+= src/

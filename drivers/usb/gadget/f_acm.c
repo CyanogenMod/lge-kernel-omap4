@@ -102,7 +102,7 @@ static inline struct f_acm *port_to_acm(struct gserial *p)
 /* LGE host Drvier Notify Size Fix */
 #define GS_NOTIFY_MAXPACKET		16	/* notification + 2 bytes */
 #else
-#define GS_NOTIFY_MAXPACKET		10	/* notification + 2 bytes */
+#define GS_NOTIFY_MAXPACKET             10      /* notification + 2 bytes */
 #endif
 /* LGE_SJIT_E 10/21/2011 [mohamed.khadri@lge.com] LG Gadget driver  */
 /* interface and class descriptors: */
@@ -660,11 +660,6 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 
 		/* copy descriptors, and track endpoint copies */
 		f->hs_descriptors = usb_copy_descriptors(acm_hs_function);
-/* Handle error condition (QCT patch) */	
-#if defined(CONFIG_LGE_ANDROID_USB)
-		if (!f->hs_descriptors)
-			goto fail;
-#endif
 
 		acm->hs.in = usb_find_endpoint(acm_hs_function,
 				f->hs_descriptors, &acm_hs_in_desc);
@@ -682,14 +677,6 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 	return 0;
 
 fail:
-/* Handle error condition (QCT patch) */	
-#if defined(CONFIG_LGE_ANDROID_USB)
-	if (f->hs_descriptors)
-		usb_free_descriptors(f->hs_descriptors);
-	if (f->descriptors)
-		usb_free_descriptors(f->descriptors);
-#endif
-
 	if (acm->notify_req)
 		gs_free_req(acm->notify, acm->notify_req);
 
@@ -714,15 +701,7 @@ acm_unbind(struct usb_configuration *c, struct usb_function *f)
 	if (gadget_is_dualspeed(c->cdev->gadget))
 		usb_free_descriptors(f->hs_descriptors);
 	usb_free_descriptors(f->descriptors);
-
-/* Handle error condition (QCT patch) */	
-#if defined(CONFIG_LGE_ANDROID_USB)
-	if (acm->notify_req)
-		gs_free_req(acm->notify, acm->notify_req);
-#else
 	gs_free_req(acm->notify, acm->notify_req);
-#endif
-
 	kfree(acm->port.func.name);
 	kfree(acm);
 }

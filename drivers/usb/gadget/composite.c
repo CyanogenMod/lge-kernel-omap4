@@ -559,16 +559,12 @@ int usb_add_config(struct usb_composite_dev *cdev,
 
 done:
 	if (status)
-#if defined(CONFIG_LGE_ANDROID_USB)		
-		WARN(cdev, "added config '%s'/%u --> %d\n", config->label,
-#else
 		DBG(cdev, "added config '%s'/%u --> %d\n", config->label,
-#endif
 				config->bConfigurationValue, status);
 	return status;
 }
 
-static int unbind_config(struct usb_composite_dev *cdev,
+static int remove_config(struct usb_composite_dev *cdev,
 			      struct usb_configuration *config)
 {
 	while (!list_empty(&config->functions)) {
@@ -583,6 +579,7 @@ static int unbind_config(struct usb_composite_dev *cdev,
 			/* may free memory for "f" */
 		}
 	}
+	//list_del(&config->list);
 	if (config->unbind) {
 		DBG(cdev, "unbind config '%s'/%p\n", config->label, config);
 		config->unbind(config);
@@ -605,7 +602,7 @@ int usb_remove_config(struct usb_composite_dev *cdev,
 
 	spin_unlock_irqrestore(&cdev->lock, flags);
 
-	return unbind_config(cdev, config);
+	return remove_config(cdev, config);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -864,13 +861,6 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 	struct usb_function		*f = NULL;
 	u8				endp;
 
-/* Handle error condition (QCT patch) */	
-#if defined(CONFIG_LGE_ANDROID_USB)
-	if (w_length > USB_BUFSIZ) {
-		WARN(cdev, "%s fail: w_length(%d) \n", __func__, w_length);
-	}
-#endif
-
 	/* partial re-init of the response message; the function or the
 	 * gadget might need to intercept e.g. a control-OUT completion
 	 * when we delegate to it.
@@ -1097,7 +1087,7 @@ composite_unbind(struct usb_gadget *gadget)
 		c = list_first_entry(&cdev->configs,
 				struct usb_configuration, list);
 		list_del(&c->list);
-		unbind_config(cdev, c);
+		remove_config(cdev, c);
 	}
 	if (composite->unbind)
 		composite->unbind(cdev);

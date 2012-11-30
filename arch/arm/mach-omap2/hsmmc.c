@@ -407,6 +407,11 @@ static int __init omap_hsmmc_pdata_init(struct omap2_hsmmc_info *c,
 
 	mmc->slots[0].remux = c->remux;
 	mmc->slots[0].init_card = c->init_card;
+//#ifdef CONFIG_MACH_LGE_COSMO
+#ifdef CONFIG_MACH_LGE_MMC_COVER
+	if (c->sd_cover)
+	mmc->slots[0].sd_cover = c->sd_cover;
+#endif
 
 	if (c->cover_only)
 		mmc->slots[0].cover = 1;
@@ -561,6 +566,7 @@ void __init omap_init_hsmmc(struct omap2_hsmmc_info *hsmmcinfo, int ctrl_nr)
 		pr_err("%s fails!\n", __func__);
 		goto done;
 	}
+	
 	omap_hsmmc_mux(mmc_data, (ctrl_nr - 1));
 
 	name = "omap_hsmmc";

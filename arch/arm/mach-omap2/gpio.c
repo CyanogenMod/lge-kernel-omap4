@@ -111,6 +111,15 @@ static int omap2_gpio_dev_init(struct omap_hwmod *oh, void *unused)
 		pdata->regs->fallingdetect = OMAP24XX_GPIO_FALLINGDETECT;
 		break;
 	case 2:
+//mo2haewoon.you@lge.com => [START]
+#ifdef CONFIG_MACH_LGE_COSMO_SU760
+#if defined(CONFIG_OMAP_HSI)
+		if (id == 4)
+			/* non-wakeup GPIO pins for OMAP4 Bank4 */
+			pdata->non_wakeup_gpios = 0x04000000; //OMAP_SEND(122)
+#endif
+#endif
+//mo2haewoon.you@lge.com <= [END]
 		pdata->regs->revision = OMAP4_GPIO_REVISION;
 		pdata->regs->direction = OMAP4_GPIO_OE;
 		pdata->regs->datain = OMAP4_GPIO_DATAIN;

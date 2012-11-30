@@ -27,23 +27,31 @@
 TYPE_USIF_MODE usif_mode = DP3T_NC;
 TYPE_USIF_CTRL usif_ctrl = USIF_CTRL_OK; //USIF can't switch
 
+//struct usif_switch_platform_data *usif_switch_data; 
 
+//USIF can't switch
+
+//mode USIF_CTRL_NOK,		// 0
+//	USIF_CTRL_OK,		// 1
 void usif_switch_none(TYPE_USIF_CTRL mode)
 {
 	pr_info("usif: %s: usif can't switch %d \n", __func__,mode);
  	usif_ctrl = mode;
 }
+//USIF can't switch
+
+
 
 int usif_switch_ctrl_ops(struct muic_client_device *mcdev)
 {
 	struct usif_switch *usif;
 	unsigned long mode = mcdev->mode; 
+//USIF can't switch
 	
 	if(!usif_ctrl){
 		pr_info("usif: %s: usif can't switch  \n", __func__);
 		return 1;
 	}
-
 	pr_info("usif: %s: mcdev->mode , %d\n", __func__, mcdev->mode);
 	usif = dev_get_drvdata(&mcdev->dev);
 	pr_info("usif: usif->ctrl_gpio = %d\n", usif->ctrl_gpio);
@@ -67,23 +75,25 @@ EXPORT_SYMBOL(usif_switch_ctrl_ops);
 int usif_on_none(struct muic_client_device *mcdev)
 {
 	struct usif_switch *usif;
+	unsigned long mode = mcdev->mode; 
+//USIF can't switch
 	
 	if(!usif_ctrl){
-		pr_info("%s: usif can't switch\n", __func__);
+		pr_info("usif: %s: usif can't switch  \n", __func__);
 		return 1;
 	}
 	
 	usif = dev_get_drvdata(&mcdev->dev);
-
 #if defined(CONFIG_MACH_LGE_P2_LU5400)
 	gpio_set_value(usif->ctrl_gpio, 1);
 #else
 	gpio_set_value(usif->ctrl_gpio, 0);
 #endif
 
-	pr_info("%s: CP UART is connected to AP\n", __func__);
 
-	usif_mode = USIF_AP;
+	pr_info("usif: usif_on_none, CP UART is connected to AP\n");
+
+	usif_mode = mode;
 
 	return 0;
 
@@ -92,23 +102,22 @@ int usif_on_none(struct muic_client_device *mcdev)
 int usif_on_ap_uart(struct muic_client_device *mcdev)
 {
 	struct usif_switch *usif;
+	unsigned long mode = mcdev->mode; 
+//USIF can't switch
 	
 	if(!usif_ctrl){
-		pr_info("%s: usif can't switch  \n", __func__);
+		pr_info("usif: %s: usif can't switch  \n", __func__);
 		return 1;
 	}
-
 	usif = dev_get_drvdata(&mcdev->dev);
-
 #if defined(CONFIG_MACH_LGE_P2_LU5400)
-	gpio_set_value(usif->ctrl_gpio, 1);
+	gpio_set_value(usif->ctrl_gpio, 1);		
 #else
 	gpio_set_value(usif->ctrl_gpio, 0);
 #endif
 
-	pr_info("%s: CP UART is connected to AP\n", __func__);
-
-	usif_mode = USIF_AP;
+	pr_info("usif: usif_on_ap_uart, CP UART is connected to AP\n");
+	usif_mode = mode;
 
 	return 0;
 }
@@ -117,19 +126,18 @@ int usif_on_cp_uart(struct muic_client_device *mcdev)
 {
 	struct usif_switch *usif;
 	unsigned long mode = mcdev->mode; 
+//USIF can't switch
 	
 	if(!usif_ctrl){
-		pr_info("%s: usif can't switch  \n", __func__);
+		pr_info("usif: %s: usif can't switch  \n", __func__);
 		return 1;
 	}
-
 	usif = dev_get_drvdata(&mcdev->dev);
+	
+	gpio_set_value(usif->ctrl_gpio, 1);
+	pr_info("usif: usif_on_cp_uart, CP UART is connected to DP3T (then, MUIC)\n");
 
-	gpio_set_value(usif->ctrl_gpio, 1);	
-
-	pr_info("%s: CP UART is connected to DP3T (then, MUIC)\n", __func__);
-
-	usif_mode = USIF_DP3T;
+	usif_mode = mode;
 
 	return 0;
 }
@@ -137,34 +145,35 @@ int usif_on_cp_uart(struct muic_client_device *mcdev)
 int usif_on_cp_usb(struct muic_client_device *mcdev)
 {
 	struct usif_switch *usif;
+	unsigned long mode = mcdev->mode; 
+//USIF can't switch
 	
 	if(!usif_ctrl){
-		pr_info("%s: usif can't switch  \n", __func__);
+		pr_info("usif: %s: usif can't switch  \n", __func__);
 		return 1;
 	}
 	
+	pr_info("usif: %s: mcdev->mode , %d\n", __func__, mcdev->mode);
 	usif = dev_get_drvdata(&mcdev->dev);
 #if defined(CONFIG_MACH_LGE_P2_LU5400)
 	gpio_set_value(usif->ctrl_gpio, 1);
-#else
-	gpio_set_value(usif->ctrl_gpio, 0);
 #endif
-	pr_info("%s: CP UART is connected to AP\n", __func__);
+	pr_info("usif: usif_on_cp_usb, CP USB is connected to DP3T (then, MUIC)\n");
 	
-	usif_mode = USIF_AP;
-	
+	usif_mode = mode;
+
 	return 0;
 }
 
 void usif_switch_ctrl(TYPE_USIF_MODE mode)
 {
 	pr_info("usif: %s()\n", __func__);
+//USIF can't switch
 	
 	if(!usif_ctrl){
 		pr_info("usif: %s: usif can't switch  \n", __func__);
-		return;
+		return 1;
 	}
-
 	if (mode == USIF_AP) {
 		gpio_set_value(GPIO_USIF_IN_1, 0);
 		pr_info("usif: usif_switch_ctrl, CP UART is connected to AP\n");
@@ -182,8 +191,8 @@ void usif_switch_ctrl(TYPE_USIF_MODE mode)
 EXPORT_SYMBOL(usif_switch_ctrl);
 
 static struct muic_client_ops usif_ops = {
-	.notifier_priority = MUIC_CLIENT_NOTI_USIF,
 	.on_none = usif_on_none,
+	.on_unknown = usif_on_none,
 	.on_ap_uart = usif_on_ap_uart,
 	.on_ap_usb = usif_on_ap_uart,
 	.on_cp_uart = usif_on_cp_uart,
@@ -196,6 +205,7 @@ static int usif_switch_probe(struct platform_device *pdev)
 	struct usif_switch *usif;
 	int ret = 0;
 
+	
 	usif = kzalloc(sizeof(struct usif_switch), GFP_KERNEL); 
 	if (!usif) {
 		pr_err("usif: %s: no memory\n", __func__);
@@ -215,27 +225,23 @@ static int usif_switch_probe(struct platform_device *pdev)
 		 * We know board_cosmo.c:ifx_n721_configure_gpio() performs a gpio_request on this pin first.
 		 * Because the prior gpio_request is also for the analog switch control, this is not a confliction.
 		 */
-		kfree(usif);
 		return -ENOSYS;
 	}
-
-	/* USIF can't switch */
-	usif_ctrl = USIF_CTRL_OK;
+	
+	usif_ctrl = USIF_CTRL_OK ; //USIF can't switch
 	
 #if defined(CONFIG_MACH_LGE_P2_LU5400)
+
 	ret = gpio_direction_output(usif->ctrl_gpio, 1);
 #else
 	ret = gpio_direction_output(usif->ctrl_gpio, 0);
+
 #endif
 	
 	if (ret < 0) {
 		pr_err("usif: gpio_16 USIF_IN_1_GPIO direction initialization failed!\n");
-		gpio_free(usif->ctrl_gpio);
-		kfree(usif);
 		return -ENOSYS;
 	}
-
-	usif_mode = USIF_AP;
 
 	platform_set_drvdata(pdev, usif);
 

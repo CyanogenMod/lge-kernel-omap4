@@ -222,7 +222,7 @@ static struct regulator_consumer_supply twl6030_vaux3_supply[] = {
 	};
 
 // LGE_SJIT 2011-10-18 [jongrak.kwon@lge.com] Match the constraint
-TWL6030_REGULATOR_DEVICE(vmmc,  3000000, 3000000, 0, 1);	// SD
+TWL6030_REGULATOR_DEVICE(vmmc,  1200000, 3300000, 0, 1);	// SD
 TWL6030_REGULATOR_DEVICE(vpp,   1800000, 1800000, 0, 0);	// OMAP_VPP_CUST
 #if defined(CONFIG_MACH_LGE_P2_P940) || defined(CONFIG_MACH_LGE_P2_DCM)
 TWL6030_REGULATOR_DEVICE(vusim, 3200000, 3200000, 0, 0);	// Vibrator

@@ -16,11 +16,13 @@ typedef enum {
 	MDM_HALT_SRDY,
 	MDM_AUTO_SHUTDOWN_SRDY,
 	MDM_HALT_MRDY,
-	MDM_AUTO_SHUTDOWN_MRDY,
-	// RIP-41061 : handling interrupt for at-channel ready : byeonggeun.kim@lge.com [START]
+	MDM_AUTO_SHUTDOWN_MRDY,	
+#ifdef CONFIG_MACH_LGE_U2
+	// RIP-41061 : handling interrupt for at-channel ready : byeonggeun.kim@
 	MDM_HALT_MODEM_SEND,
 	MDM_AUTO_SHUTDOWN_MODEM_SEND,
-	// RIP-41061 : handling interrupt for at-channel ready : byeonggeun.kim@lge.com [END]
+	// RIP-41061 : handling interrupt for at-channel ready : byeonggeun.kim@
+#endif
 #endif	
 	MDM_EVENT_MAX,
 } mdm_event_type;

@@ -677,10 +677,27 @@ bool dispc_go_busy(enum omap_channel channel)
 		return REG_GET(DISPC_CONTROL, bit, bit) == 1;
 }
 
+#if defined(CONFIG_LGE_HANDLE_PANIC) && defined(CONFIG_MACH_LGE_COSMO)
+//mo2haewoon.you@lge.com => [START]  HIDDEN_RESET
+// Hidden reset skip code
+extern int lh430wv2_panel_HiddenRestStatus( int CheckMode );
+//mo2haewoon.you@lge.com <= [END]
+#endif
+
 void dispc_go(enum omap_channel channel)
 {
 	int bit;
 	bool enable_bit, go_bit;
+
+#if defined(CONFIG_LGE_HANDLE_PANIC) && defined(CONFIG_MACH_LGE_COSMO)
+	//mo2haewoon.you@lge.com => [START]  HIDDEN_RESET
+	// Hidden reset skip code
+	if( lh430wv2_panel_HiddenRestStatus(2) == 1 )
+	{
+		return;
+	}	
+	//mo2haewoon.you@lge.com <= [END]
+#endif
 
 	if (channel == OMAP_DSS_CHANNEL_LCD ||
 			channel == OMAP_DSS_CHANNEL_LCD2)
@@ -716,7 +733,7 @@ void dispc_go(enum omap_channel channel)
 	DSSDBG("GO %s\n", channel == OMAP_DSS_CHANNEL_LCD ? "LCD" :
 		(channel == OMAP_DSS_CHANNEL_LCD2 ? "LCD2" : "DIGIT"));
 //LGE_CHANGE_S [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
-#if defined(CONFIG_P2_GAMMA) || defined(CONFIG_U2_GAMMA)
+#if defined(CONFIG_P2_GAMMA) || defined(CONFIG_U2_GAMMA) || defined(CONFIG_COSMO_GAMMA)
         REG_FLD_MOD(DISPC_CONFIG, 1, 3, 3);
         REG_FLD_MOD(DISPC_CONFIG, 1, 9, 9);
 #endif
@@ -1538,7 +1555,7 @@ static void _dispc_set_scale_param(enum omap_plane plane,
 {
 	int fir_hinc, fir_vinc;
 	int hscaleup, vscaleup;
-#if 0
+#if 0//20120629 mo2hyungmin.kim TI patch for up scaling bluring issue
 	hscaleup = orig_width <= out_width;
 	vscaleup = orig_height <= out_height;
 
@@ -1546,7 +1563,8 @@ static void _dispc_set_scale_param(enum omap_plane plane,
 #endif
 	fir_hinc = 1024 * orig_width / out_width;
 	fir_vinc = 1024 * orig_height / out_height;
-	_dispc_set_scale_coef(plane, fir_hinc, fir_vinc, five_taps, color_comp);
+
+	_dispc_set_scale_coef(plane, fir_hinc, fir_vinc, five_taps, color_comp);//20120629 mo2hyungmin.kim TI patch for up scaling bluring issue
 	_dispc_set_fir(plane, fir_hinc, fir_vinc, color_comp);
 }
 
@@ -3121,7 +3139,7 @@ int dispc_enable_gamma(enum omap_channel ch, u8 gamma)
         if (gamma > NO_OF_GAMMA_TABLES)
                 return -EINVAL;
 
-#if defined(CONFIG_P2_S_CURVE) || defined(CONFIG_U2_S_CURVE)
+#if defined(CONFIG_P2_S_CURVE) || defined(CONFIG_U2_S_CURVE) || defined(CONFIG_COSMO_S_CURVE) 
 	{
 		if(ch == 2)
 		{
@@ -3190,13 +3208,15 @@ int dispc_set_gamma_rgb(enum omap_channel ch, u8 gamma,int red,int green,int blu
         if (gamma > NO_OF_GAMMA_TABLES)
                 return -EINVAL;
 
-#if defined(CONFIG_P2_S_CURVE) || defined(CONFIG_U2_S_CURVE)
+#if defined(CONFIG_P2_S_CURVE) || defined(CONFIG_U2_S_CURVE) || defined(CONFIG_COSMO_S_CURVE)
 	#if defined(CONFIG_MACH_LGE_U2_P760)
 		tablePtr = GammaTable_p760;
 	#elif defined(CONFIG_MACH_LGE_U2_P769)
 		tablePtr = GammaTable_p769;
 	#elif defined(CONFIG_MACH_LGE_U2_P768)
 		tablePtr = GammaTable_p760;
+	#elif defined(CONFIG_MACH_LGE_COSMO)
+		tablePtr = GammaTable_LGD;	
 	#else
 		maker_id =gpio_get_value(GPIO_LCD_MAKER_ID);
 	        if(maker_id == 1){
@@ -3266,6 +3286,11 @@ void dispc_set_gamma_table()
 			lcd_gamma_rgb.table_type= PANEL_P760_NV;
 		else
 			lcd_gamma_rgb.table_type= PANEL_P760;
+	#elif defined(CONFIG_MACH_LGE_COSMO)
+		if(gamma_nv_flag == GAMMA_NV_ENABLED)
+			lcd_gamma_rgb.table_type= PANEL_LGD_NV;
+		else
+			lcd_gamma_rgb.table_type= PANEL_LGD;	
 	#else
 		maker_id = gpio_get_value(GPIO_LCD_MAKER_ID);
 
@@ -4721,8 +4746,8 @@ static int omap_dispchw_probe(struct platform_device *pdev)
 	_omap_dispc_initialize_irq();
 
 //LGE_CHANGE_S [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
-#if defined(CONFIG_P2_GAMMA) || defined(CONFIG_U2_GAMMA)
-#if defined(CONFIG_P2_S_CURVE) || defined(CONFIG_U2_S_CURVE)
+#if defined(CONFIG_P2_GAMMA) || defined(CONFIG_U2_GAMMA) || defined(CONFIG_COSMO_GAMMA)
+#if defined(CONFIG_P2_S_CURVE) || defined(CONFIG_U2_S_CURVE) || defined(CONFIG_COSMO_S_CURVE)
 printk("probe_CONFIG_P2_GAMMA\n");
 	dispc_set_gamma_table();
 	dispc_enable_gamma(OMAP_DSS_CHANNEL_LCD, 0);
@@ -4792,3 +4817,243 @@ static u32 __init gamma_rgb_data_dispc(char *str)
 }
 __setup("RGB=", gamma_rgb_data_dispc);
 //LGE_CHANGE_E [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
+
+//CHANGE_S mo2mk.kim@lge.com 2012-07-26 apply kcal code for gamma
+#if defined(CONFIG_COSMO_GAMMA)
+u32 gamma_rgb_data_dispc_for_extern(char *str)
+{
+	int output[3]={0,};
+
+	sscanf(str,"%d,%d,%d",&output[0],&output[1],&output[2]);
+	lcd_gamma_rgb.red = output[0];
+	lcd_gamma_rgb.green = output[1];
+	lcd_gamma_rgb.blue= output[2];
+
+	return 1;	
+}
+#endif
+//CHANGE_E mo2mk.kim@lge.com 2012-07-26 apply kcal code for gamma
+
+#ifdef CONFIG_DSSCOMP_ADAPT
+void dispc_set_wb_channel_out(enum omap_plane plane)
+{
+	int shift;
+	u32 val;
+
+	switch (plane) {
+	case OMAP_DSS_GFX:
+		shift = 8;
+		break;
+	case OMAP_DSS_VIDEO1:
+	case OMAP_DSS_VIDEO2:
+	case OMAP_DSS_VIDEO3:
+		shift = 16;
+		break;
+	default:
+		BUG();
+		return;
+	}
+
+	val = dispc_read_reg(DISPC_OVL_ATTRIBUTES(plane));
+	val = FLD_MOD(val, 0, shift, shift);
+	val = FLD_MOD(val, 3, 31, 30);
+
+	dispc_write_reg(DISPC_OVL_ATTRIBUTES(plane), val);
+	DSSDBG("Plane(%d) set wb input\n", plane);
+}
+
+/**
+ * Must be not tiller
+ */
+int dispc_setup_wb_with_row_inc(struct writeback_cache_data *wb, int row_inc)
+{
+	u8 rotation = wb->rotation;//, mirror = 0;
+//	unsigned long tiler_width, tiler_height;
+	u32 paddr = wb->paddr;
+	u32 puv_addr = wb->p_uv_addr; /* relevant for NV12 format only */
+	u16 out_width = wb->out_width;
+	u16 out_height = wb->out_height;
+	u16 width = wb->width;
+	u16 height = wb->height;
+//	int x_decim = 1, y_decim = 1;
+	bool ilace = false, fieldmode = false;
+	unsigned int offset0 = 0, offset1 = 0;
+	int truncate = 0;
+
+	enum omap_color_mode color_mode = wb->color_mode;  /* output color */
+//	int pixpg = (color_mode &
+//		(OMAP_DSS_COLOR_YUV2 | OMAP_DSS_COLOR_UYVY)) ? 2 : 1;
+
+	u32 fifo_low = wb->fifo_low;
+	u32 fifo_high = wb->fifo_high;
+	enum omap_writeback_source source = wb->source;
+
+	enum omap_plane plane = OMAP_DSS_WB;
+
+	int maxdownscale = 4;
+	bool five_taps = 1;
+	int cconv = 0;
+//	s32 row_inc;
+	s32 pix_inc;
+
+	DSSDBG("dispc_setup_wb\n");
+	DSSDBG("Maxds = %d\n", maxdownscale);
+	DSSDBG("out_width, width = %d, %d\n", (int) out_width, (int) width);
+	DSSDBG("out_height, height = %d, %d\n", (int) out_height, (int) height);
+
+	if (paddr == 0) {
+		printk(KERN_ERR "dispc_setup_wb paddr NULL\n");
+		return -EINVAL;
+	}
+
+#ifdef CONFIG_COSMO_ICS_MEM_OPT
+
+	if ( (paddr >= 0x60000000) && (paddr < 0x78000000)) {
+		printk(KERN_ERR "dispc_setup_wb_with_stride doesn't support tiler 2d address\n");
+		return -EINVAL;
+	}
+#else
+	if ( (paddr >= 0x60000000) && (paddr <= 0x7fffffff)) {
+		printk(KERN_ERR "dispc_setup_wb_with_stride doesn't support tiler address\n");
+		return -EINVAL;
+	}
+#endif
+
+
+	switch (color_mode) {
+	case OMAP_DSS_COLOR_RGB16:
+	case OMAP_DSS_COLOR_RGB24P:
+	case OMAP_DSS_COLOR_ARGB16:
+	case OMAP_DSS_COLOR_ARGB16_1555:
+	case OMAP_DSS_COLOR_RGBX16:
+		truncate = 1;
+		break;
+	case OMAP_DSS_COLOR_NV12:
+	case OMAP_DSS_COLOR_YUV2:
+	case OMAP_DSS_COLOR_UYVY:
+		cconv = 1;
+		break;
+	default:
+		/* check for invalid color format happens later */
+		break;
+	}
+
+	REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), truncate, 10, 10);
+
+	/* color conversion to NV12 reduces scaling factor */
+	if (cconv == 1 && color_mode == OMAP_DSS_COLOR_NV12)
+		maxdownscale = 2;
+
+	/* configure wb source */
+	if (source == OMAP_WB_TV)
+		REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), 2, 18, 16);
+	else if (source == OMAP_WB_LCD2)
+		REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), 1, 18, 16);
+	else
+		REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), source, 18, 16);
+
+	/*
+	 * configure wb mode:
+	 * 0-capture-mode; 1-memory-to-memory mode
+	 */
+	REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), wb->mode, 19, 19);
+
+	//Why needs this??
+//	/* predecimate */
+//	/* adjust for group-of-pixels*/
+//	if (rotation & 1)
+//		height /= pixpg;
+//	else
+//		width /= pixpg;
+
+//	tiler_width = out_width;
+//	tiler_height = out_height;
+
+	/* NV12 width has to be even (height apparently does not) */
+	if (color_mode == OMAP_DSS_COLOR_NV12)
+		out_width &= ~1;
+
+	/* validate scaling */
+	if (out_width < width / maxdownscale ||
+			out_width > width) {
+		printk(KERN_ERR "dispc_setup_wb out_width not in range\n");
+		return -EINVAL;
+	}
+
+	if (out_height < height / maxdownscale ||
+			out_height > height){
+		printk(KERN_ERR "dispc_setup_wb out_height not in range\n");
+		return -EINVAL;
+	}
+
+	pix_inc = 0x1;
+//	row_inc = stride;
+
+	//why needs this?
+//	/* adjust back to pixels */
+//	if (rotation & 1)
+//		height *= pixpg;
+//	else
+//		width *= pixpg;
+
+	DSSDBG("offset0 %u, offset1 %u, row_inc %d, pix_inc %d\n",
+			offset0, offset1, row_inc, pix_inc);
+
+	_dispc_set_color_mode(plane, color_mode);
+
+	_dispc_set_plane_ba0(plane, paddr + offset0);
+	_dispc_set_plane_ba1(plane, paddr + offset1);
+
+	if (OMAP_DSS_COLOR_NV12 == color_mode) {
+		_dispc_set_plane_ba0_uv(plane, puv_addr + offset0);
+		_dispc_set_plane_ba1_uv(plane, puv_addr + offset1);
+		/* DOUBLESTRIDE : 0 for 90-, 270-; 1 for 0- and 180- */
+		if (rotation == 1 || rotation == 3)
+			REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), 0x0, 22, 22);
+		else
+			REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), 0x1, 22, 22);
+	}
+
+	_dispc_set_row_inc(plane, row_inc);
+	_dispc_set_pix_inc(plane, pix_inc);
+
+	DSSDBG("%dx%d -> %p,%p %dx%d\n",
+	       width, height,
+	       (void *)paddr, (void *)puv_addr, out_width, out_height);
+
+	/*WB PIC_SIZE is the final destination size*/
+	_dispc_set_pic_size(plane, out_width, out_height);
+	/*WB size is the size delivered by the manager*/
+	_dispc_set_vid_size(plane, width, height);
+
+	dispc_setup_plane_fifo(plane, fifo_low, fifo_high);
+
+	_dispc_set_scaling(plane,
+			width, height,
+			out_width, out_height,
+			ilace, five_taps,
+			fieldmode, wb->color_mode,
+			rotation);
+	/* configure wb burst size  */
+	REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), wb->burst_size, 15, 14);
+	/*
+	 * configure delay of 'n' lines after framedone for WB pipe flush
+	 * TODO: delay value of 3 is empirical (working for all scenarios)
+	 * need to work out value based on pix.clock, FIFO HT, etc
+	 */
+	if (wb->mode == OMAP_WB_CAPTURE_MODE)
+		REG_FLD_MOD(DISPC_OVL_ATTRIBUTES2(plane), 0x3, 7, 0);
+
+	/* TODO: need correct calculation for truncation bit */
+	REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), 0x0, 10, 10);
+
+	if (cconv)
+		_dispc_setup_wb_color_conv_coef();
+
+	_dispc_set_vid_color_conv(plane, cconv);
+
+	//printk("WB_ATTRITBUTE reg: 0x%x\n", dispc_read_reg(DISPC_OVL_ATTRIBUTES(plane)));
+	return 0;
+}
+
+#endif

@@ -792,7 +792,7 @@ config TOUCHSCREEN_COMMON_SYNAPTICS_S3200
 
 config TOUCHSCREEN_COMMON_GHOST_SOLUTION
 	bool "Use ghost finger solution"
-	depends on TOUCHSCREEN_COMMON_SYNAPTICS || TOUCHSCREEN_COMMON_SYNAPTICS_S3200
+	depends on TOUCHSCREEN_COMMON_SYNAPTICS
 	help
 	  Say Y here to enable support for ghost finger solution
 

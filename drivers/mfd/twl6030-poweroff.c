@@ -24,6 +24,7 @@
 #include <linux/module.h>
 #include <linux/pm.h>
 #include <linux/i2c/twl.h>
+#include <linux/delay.h>
 
 #define APP_DEVOFF	(1<<0)
 #define CON_DEVOFF	(1<<1)
@@ -45,19 +46,27 @@ void twl6030_poweroff(void)
 		return;
 	}
 
+	int retry = 5;
 	/* LGE_BSP 2012-02-15 [myeonggyu.son@lge.com]
    * Add SW_RESET because of TWL6030 Bug by wonhui.lee@lge.command
    */
     //val |= APP_DEVOFF | CON_DEVOFF | MOD_DEVOFF;
-   val |= SW_RESET | APP_DEVOFF | CON_DEVOFF | MOD_DEVOFF;
+    do {
+    	val |= SW_RESET | APP_DEVOFF | CON_DEVOFF | MOD_DEVOFF;
 
 	err = twl_i2c_write_u8(TWL_MODULE_PM_MASTER, val,
 				   TWL6030_PHOENIX_DEV_ON);
 
 	if (err) {
 		pr_warning("I2C error %d writing PHOENIX_DEV_ON\n", err);
-		return;
+		//return;
+		retry--;
+		mdelay(5);
 	}
+	else {
+		break;
+	}
+    } while (retry > 0);
 
 	return;
 }

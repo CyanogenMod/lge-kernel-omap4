@@ -1,0 +1,14 @@
+menuconfig LG_NVDATA
+	bool "lg nv data interface"
+	help
+	  no help...
+
+if LG_NVDATA
+
+
+config LG_NVDATA_KOBJECT
+	tristate "lg_nvdata interface...."
+	help
+	  no help...
+
+endif # LG_NVDATA

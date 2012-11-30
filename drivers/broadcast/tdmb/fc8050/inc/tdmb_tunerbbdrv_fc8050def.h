@@ -118,7 +118,7 @@ extern 	int8 tunerbb_drv_fc8050_get_multi_data(uint8 subch_cnt, uint8* buf_ptr, 
 extern	int8 tunerbb_drv_fc8050_start_tii(void);
 extern	int8 tunerbb_drv_fc8050_check_tii(uint8 * pmain_tii,uint8 * psub_tii);
 extern	int8 tunerbb_drv_fc8050_reset_ch(void);
-extern void tunerbb_drv_fc8050_set_userstop(void);
+extern void tunerbb_drv_fc8050_set_userstop(int mode);
 extern int tunerbb_drv_fc8050_is_on(void);
 #endif	/* __TUNERBB_DRV_FC8050_H__ */
 

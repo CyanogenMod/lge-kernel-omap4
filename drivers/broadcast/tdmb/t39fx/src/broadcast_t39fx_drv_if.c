@@ -39,27 +39,32 @@ boolean broadcast_drv_if_read_data(void)
 		return FALSE;
 	}
 
-	read_buffer_ptr = gpMPI_Buffer + gBBBuffer_widx*TDMB_MPI_BUF_SIZE;
-	tunerbb_drv_t39fx_read_data(read_buffer_ptr, &read_buffer_size);
-
 	if(gBBBuffer_ridx == ((gBBBuffer_widx + 1)%TDMB_MPI_BUF_CHUNK_NUM))
-	{
+	{	
 		//printk("======================================\n");
 		printk("### buffer is full, skip the data (ridx=%d, widx=%d)  ###\n", gBBBuffer_ridx, gBBBuffer_widx);
 		//printk("======================================\n");
+
+		read_buffer_ptr = gpMPI_Buffer + gBBBuffer_widx*TDMB_MPI_BUF_SIZE;
+		tunerbb_drv_t39fx_read_data(read_buffer_ptr, &read_buffer_size);
 		return FALSE;
 	}
 
-	if(read_buffer_size > 0)
+	read_buffer_ptr = gpMPI_Buffer + gBBBuffer_widx*TDMB_MPI_BUF_SIZE;
+	
+	tunerbb_drv_t39fx_read_data(read_buffer_ptr, &read_buffer_size);
+	tdmb_real_read_size[gBBBuffer_widx] = read_buffer_size;
+
+	/* update write index */
+	if ( 0 < read_buffer_size )
 	{
-		tdmb_real_read_size[gBBBuffer_widx] = read_buffer_size;
 		gBBBuffer_widx = ((gBBBuffer_widx + 1)%TDMB_MPI_BUF_CHUNK_NUM);
-		return TRUE;
+		//printk("gBBBuffer_widx = %d \n", gBBBuffer_widx);
 	}
 
 	//printk("broadcast_drv_if_read_data, ridx=%d, widx=%d, wsize=%d\n",gBBBuffer_ridx, gBBBuffer_widx,  read_buffer_size);
 	
-	return FALSE;
+	return TRUE;		
 }
 
 int broadcast_drv_if_power_on(void)

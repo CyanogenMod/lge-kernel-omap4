@@ -76,6 +76,7 @@ static struct workqueue_struct *hsi_write_wq;
 #if defined (HSI_LL_ENABLE_RX_BUF_RETRY_WQ)
 static struct workqueue_struct *hsi_buf_retry_wq;
 #endif
+
 // LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [START]
 #define ENABLE_RECOVERY_WAKE_LOCK
 
@@ -187,9 +188,11 @@ static int hsi_ch_net_write(int chno, void *data, int len)
 	int n = 0;
 	int flag = 1;
 	int ret = 0;
+#ifndef CONFIG_MACH_LGE_COSMO
 /* [START] Workqueue Flag Check of hsi_write_work 2012-08-24 seunghwan.jin@lge.com */
-    unsigned int wq_flags = 0;
+        unsigned int wq_flags = 0;
 /* [END] Workqueue Flag Check of hsi_write_work 2012-08-24 seunghwan.jin@lge.com */
+#endif
 #ifdef XMD_TX_MULTI_PACKET
 	if (d && hsi_channels[chno].write_queued == HSI_TRUE) {
 		if (d->being_used == HSI_FALSE && (d->size + len) < HSI_MEM_LARGE_BLOCK_SIZE) {
@@ -238,36 +241,29 @@ static int hsi_ch_net_write(int chno, void *data, int len)
 			hsi_channels[chno].tx_blocked = 1;
 			hsi_mem_free(buf);
 			PREPARE_WORK(&hsi_channels[chno].write_work, hsi_write_work);
-/* [START] Workqueue Flag Check of hsi_write_work 2012-08-24 seunghwan.jin@lge.com */
-#if 0 /* ORIGINAL CODE */
-            queue_work(hsi_write_wq, &hsi_channels[chno].write_work);
+#ifndef CONFIG_MACH_LGE_COSMO
+			wq_flags = *((unsigned int *)hsi_write_wq);
+			if (wq_flags & WQ_DYING) {
+				printk("mcm: Workqueue Flag Check is done 0x%x.\n", wq_flags);
+			} else {
+				queue_work(hsi_write_wq, &hsi_channels[chno].write_work);
+			}
 #else
-            wq_flags = *((unsigned int *)hsi_write_wq);
-            if (wq_flags & WQ_DYING) {
-                printk("mcm: Workqueue Flag Check is done 0x%x.\n", wq_flags);
-            } else {
-                queue_work(hsi_write_wq, &hsi_channels[chno].write_work);
-            }
+			queue_work(hsi_write_wq, &hsi_channels[chno].write_work);
 #endif
-/* [END] Workqueue Flag Check of hsi_write_work 2012-08-24 seunghwan.jin@lge.com */
 			ret = -EBUSY;
 		} else if (n == 1) {
 			PREPARE_WORK(&hsi_channels[chno].write_work, hsi_write_work);
-/* [START] Workqueue Flag Check of hsi_write_work 2012-08-24 seunghwan.jin@lge.com */
-#if 0 /* ORIGINAL CODE */
-            queue_work(hsi_write_wq, &hsi_channels[chno].write_work);
+#ifndef CONFIG_MACH_LGE_COSMO
+			wq_flags = *((unsigned int *)hsi_write_wq);
+			if (wq_flags & WQ_DYING) {
+				printk("mcm: Workqueue Flag Check is done 0x%x.\n", wq_flags);
+			} else {
+				queue_work(hsi_write_wq, &hsi_channels[chno].write_work);
+			}
 #else
-            wq_flags = *((unsigned int *)hsi_write_wq);
-            if (wq_flags & WQ_DYING) {
-                printk("mcm: Workqueue Flag Check is done 0x%x.\n", wq_flags);
-            } else {
-                queue_work(hsi_write_wq, &hsi_channels[chno].write_work);
-            }
+			queue_work(hsi_write_wq, &hsi_channels[chno].write_work);
 #endif
-/* [END] Workqueue Flag Check of hsi_write_work 2012-08-24 seunghwan.jin@lge.com */
-
-
-
 			ret = 0;
 		}
 	}
@@ -291,6 +287,7 @@ static int hsi_ch_tty_write(int chno, void *data, int len)
 	hsi_channels[chno].write_happening = HSI_TRUE;
 
 	err = hsi_ll_write(chno, (unsigned char *)buf, len);
+
 	if (err < 0) {
 #if MCM_DBG_ERR_LOG
 		printk("\nmcm: hsi_ll_write(...) failed. err=%d\n",err);
@@ -300,6 +297,7 @@ static int hsi_ch_tty_write(int chno, void *data, int len)
 #if MCM_DBG_LOG
 		printk("\nmcm:locking mutex for ch: %d\n",chno);
 #endif
+
 /* LGE_UPDATE_START 2011.12.31_hyungsun.seo@lge.com_HSI pending issue during RIL Recovery*/
 #if 0  //ORGINAL
 		wait_event (hsi_channels[chno].write_wait,
@@ -633,8 +631,7 @@ static void hsi_buf_retry_work(struct work_struct *work)
 	}
 	/*GFP_NOFAIL not available so switching to while loop*/
 	while(temp_data.buffer == NULL) {
-		temp_data.buffer = kmalloc(temp_data.size,
-								   GFP_DMA | GFP_KERNEL);
+		temp_data.buffer = kmalloc(temp_data.size, GFP_DMA | GFP_KERNEL);
 	}
 #if MCM_DBG_LOG
 	printk("\nHSI_LL: Allocating mem(size=%d) in retry Q for ch %d\n",
@@ -855,7 +852,7 @@ void __init xmd_ch_init(void)
 	// LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [END]
 
 	/* Create and initialize work q */
-//BEGIN: RIP-28065 seunghwan.jin@lge.com 20120614
+//mo2haewoon.you@lge.com => [START]
 //RIP-28065 - Fix workqueue for HSI kernel panic
 #if 1
     hsi_read_wq = create_singlethread_workqueue("hsi-read-wq");
@@ -871,7 +868,7 @@ void __init xmd_ch_init(void)
 	hsi_buf_retry_wq = create_workqueue("hsi_buf_retry_wq");
 #endif
 //RIP-28065 - Fix workqueue for HSI kernel panic
-//END: RIP-28065 seunghwan.jin@lge.com 20120614
+//mo2haewoon.you@lge.com <= [END]
 #endif
 	INIT_WORK(&XMD_DLP_RECOVERY_wq, xmd_dlp_recovery_wq);
 

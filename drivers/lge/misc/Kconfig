@@ -7,7 +7,7 @@ config LGE_VIBRATOR
 config SENSORS_APDS9900
 	bool "Avago APDS9900 sensor"
 	default n
-    depends on MACH_LGE_P2
+    depends on MACH_LGE_P2 || MACH_LGE_COSMO
 	help
 	  If you say Y here you get support for the Avago APDS9900
 	  ambient light + proximity sensor.

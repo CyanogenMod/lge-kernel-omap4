@@ -373,7 +373,8 @@ void dsscomp_drop(dsscomp_t comp)
 	if (debug & DEBUG_COMPOSITIONS)
 		dev_info(DEV(cdev), "[%p] released\n", comp);
 
-	DO_IF_DEBUG_FS(list_del(&comp->dbg_q));
+	//DO_IF_DEBUG_FS(list_del(&comp->dbg_q));
+	DO_IF_DEBUG_FS({if (comp->dbg_q.next != LIST_POISON1 && comp->dbg_q.prev != LIST_POISON2) {list_del(&comp->dbg_q);}});
 
 	kfree(comp);
 }
@@ -481,6 +482,7 @@ static int dsscomp_apply(dsscomp_t comp)
 
 	BUG_ON(comp->state != DSSCOMP_STATE_APPLYING);
 
+	log_event(20*comp->ix + 20, 0, comp, "dsscomp_apply entered", 0, 0);
 	/* check if the display is valid and used */
 	r = -ENODEV;
 	d = &comp->frm;
@@ -638,6 +640,48 @@ skip_ovl_set:
 				dev_err(DEV(cdev),
 					"omap_dss_wb_apply failed %d", r);
 		}
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY) //##hwcho_20120522
+		//s3d display handling
+		if ( comp->frm.mgr.s3d_disp_info.type!=S3D_DISP_NONE )
+		{
+			if ( comp->frm.mgr.s3d_disp_info.type!=S3D_DISP_DECISION_IN_DSSCOMP)
+			{
+				//no need set type
+				if ( mgr->device!=NULL && mgr->device->driver!=NULL
+						&& mgr->device->driver->get_s3d_enabled
+						&& mgr->device->driver->enable_s3d )
+				{
+				        if ( mgr->device->driver->set_s3d_disp_type)  //mo2sanghyun.lee type setting
+                                        {      
+//                                                printk(KERN_INFO"set_s3d_disp_type \n");
+                                                mgr->device->driver->set_s3d_disp_type(mgr->device, &comp->frm.mgr.s3d_disp_info);
+                                        }
+
+					if ( !mgr->device->driver->get_s3d_enabled(mgr->device) )
+					{
+//						printk("Turn on s3d in display\n");
+						mgr->device->driver->enable_s3d(mgr->device, true);
+					}
+				}
+			}
+		}
+		else
+		{
+			//turn off s3d
+			//no need set type
+			if ( mgr->device!=NULL && mgr->device->driver!=NULL
+					&& mgr->device->driver->get_s3d_enabled
+					&& mgr->device->driver->enable_s3d )
+			{
+				if ( mgr->device->driver->get_s3d_enabled(mgr->device) )
+				{
+//					printk("Turn off s3d in display\n");
+					mgr->device->driver->enable_s3d(mgr->device, false);
+//					printk("Turn off s3d in display complete\n");
+				}
+			}
+		}
+#endif
 		r = mgr->apply(mgr);
 		if (r)
 			dev_err(DEV(cdev), "failed while applying %d", r);
@@ -685,6 +729,7 @@ skip_ovl_set:
 	}
 
 done:
+	log_event(20*comp->ix + 20, 0, comp, "dsscomp_apply done", 0, 0);
 	return r;
 }
 
@@ -861,3 +906,25 @@ void dsscomp_queue_exit(void)
 	}
 }
 EXPORT_SYMBOL(dsscomp_queue_exit);
+
+#ifdef CONFIG_DSSCOMP_ADAPT
+int dsscomp_queue_is_free_overlay(u32 ix)
+{
+	u32 i, mask = 1 << ix;
+	int free = 1;
+	if ( ix >= cdev->num_ovls )
+		return 0;
+	mutex_lock(&mtx);
+	for(i=0;i<cdev->num_mgrs;i++)
+	{
+		if ( mask & mgrq[i].ovl_qmask.mask )
+		{
+			printk("mask(0x%x) mgra[%d].ovl_qmask.mask(0x%x)\n", mask, i, mgrq[i].ovl_qmask.mask);
+			free = 0;
+			break;
+		}
+	}
+	mutex_unlock(&mtx);
+	return free;
+}
+#endif

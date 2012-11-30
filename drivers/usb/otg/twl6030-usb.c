@@ -103,15 +103,13 @@ struct twl6030_usb {
 
 	/* used to set vbus, in atomic path */
 	struct work_struct	set_vbus_work;
-
-/* hunsoo.lee@lge.com : Work queue for IRQ */
+	/* hunsoo.lee@lge.com : Work queue for IRQ */
 #if defined(CONFIG_MACH_LGE)
-	struct work_struct	usb_irq_work;
+		struct work_struct	usb_irq_work;
 #ifndef CONFIG_USB_MUSB_PERIPHERAL
-	struct work_struct	usbotg_irq_work;
+		struct work_struct	usbotg_irq_work;
 #endif
 #endif
-
 	int			irq1;
 	int			irq2;
 	unsigned int		usb_cinlimit_mA;
@@ -291,6 +289,13 @@ static ssize_t twl6030_usb_vbus_show(struct device *dev,
 }
 static DEVICE_ATTR(vbus, 0444, twl6030_usb_vbus_show, NULL);
 
+// LGE_UPDATE_S hunsoo.lee
+static struct work_struct twl6030_usb_irq_wq;
+static struct work_struct twl6030_usbotg_irq_wq;
+
+void *tmp_twl;
+void *tmp_twl_otg;
+
 /* hunsoo.lee@lge.com : Work queue for IRQ */
 #if defined(CONFIG_MACH_LGE)
 static void twl6030_usb_irq_work(struct work_struct *work)
@@ -378,11 +383,9 @@ static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 	schedule_work(&twl->usb_irq_work);
 	return IRQ_HANDLED;
 }
-
+#ifndef CONFIG_USB_MUSB_PERIPHERAL
 static void twl6030_usbotg_irq_work(struct work_struct *work)
 {
-
-#ifndef CONFIG_USB_MUSB_PERIPHERAL
 	struct twl6030_usb *twl = container_of(work, struct twl6030_usb, usbotg_irq_work);
 	int status = USB_EVENT_NONE;
 	u8 hw_state, misc2_data;
@@ -416,9 +419,8 @@ static void twl6030_usbotg_irq_work(struct work_struct *work)
 		twl6030_writeb(twl, TWL_MODULE_USB, 0x1, USB_ID_INT_EN_HI_SET);
 	}
 	twl6030_writeb(twl, TWL_MODULE_USB, status, USB_ID_INT_LATCH_CLR);
-#endif
 }
-
+#endif
 static irqreturn_t twl6030_usbotg_irq(int irq, void *_twl)
 {
 #ifndef CONFIG_USB_MUSB_PERIPHERAL
@@ -435,7 +437,29 @@ static irqreturn_t twl6030_usbotg_irq(int irq, void *_twl)
 #else /* CONFIG_MACH_LGE */
 static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 {
-	struct twl6030_usb *twl = _twl;
+	tmp_twl = _twl;
+
+	#if(ENABLE_QUEUE_WORK)
+	wake_lock_timeout(&twl_lock,2*HZ);	
+	//wake_lock(&twl_lock);	
+	queue_work(twl6030_usb_wq, &twl6030_usb_irq_wq);
+	#else
+	schedule_work(&twl6030_usb_irq_wq);
+	#endif
+	return IRQ_HANDLED;
+}
+static irqreturn_t twl6030_usbotg_irq(int irq, void *_twl)
+{
+	tmp_twl_otg= _twl;
+
+	schedule_work(&twl6030_usbotg_irq_wq);
+	return IRQ_HANDLED;
+}
+
+static void twl6030_usb_irq_wq_func(struct work_struct *twl6030_usb_irq_wq)
+//static irqreturn_t twl6030_usb_irq_wq_func(int irq, void *_twl)
+{
+	struct twl6030_usb *twl = tmp_twl;// hunsoo _twl;
 	int status;
 	u8 vbus_state, hw_state, misc2_data;
 	unsigned charger_type;
@@ -509,11 +533,12 @@ vbus_notify:
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t twl6030_usbotg_irq(int irq, void *_twl)
+static void twl6030_usbotg_irq_wq_func(struct work_struct *twl6030_usbotg_irq_wq)
+//static irqreturn_t twl6030_usbotg_irq(int irq, void *_twl)
 {
 
 #ifndef CONFIG_USB_MUSB_PERIPHERAL
-	struct twl6030_usb *twl = _twl;
+	struct twl6030_usb *twl = tmp_twl_otg; // hunsoo.lee _twl;
 	int status = USB_EVENT_NONE;
 	u8 hw_state, misc2_data;
 
@@ -715,14 +740,20 @@ static int __devinit twl6030_usb_probe(struct platform_device *pdev)
 	ATOMIC_INIT_NOTIFIER_HEAD(&twl->otg.notifier);
 
 	INIT_WORK(&twl->set_vbus_work, otg_set_vbus_work);
-
 /* hunsoo.lee@lge.com : Work queue for IRQ */
 #if defined(CONFIG_MACH_LGE)
-	INIT_WORK(&twl->usb_irq_work, twl6030_usb_irq_work);
+		INIT_WORK(&twl->usb_irq_work, twl6030_usb_irq_work);
 #ifndef CONFIG_USB_MUSB_PERIPHERAL
-	INIT_WORK(&twl->usbotg_irq_work, twl6030_usbotg_irq_work);
+		INIT_WORK(&twl->usbotg_irq_work, twl6030_usbotg_irq_work);
 #endif
+#else//#if defined(CONFIG_MACH_LGE)
+// LGE_UPDATE_S
+	INIT_WORK(&twl6030_usb_irq_wq, twl6030_usb_irq_wq_func);
+	INIT_WORK(&twl6030_usbotg_irq_wq, twl6030_usbotg_irq_wq_func);
+// LGE_UPDATE_E
 #endif
+
+
 
 	twl->vbus_enable = false;
 	twl->irq_enabled = true;
@@ -777,15 +808,13 @@ static int __exit twl6030_usb_remove(struct platform_device *pdev)
 	pdata->phy_exit(twl->dev);
 	device_remove_file(twl->dev, &dev_attr_vbus);
 	cancel_work_sync(&twl->set_vbus_work);
-
-/* hunsoo.lee@lge.com : Work queue for IRQ */
+	/* hunsoo.lee@lge.com : Work queue for IRQ */
 #if defined(CONFIG_MACH_LGE)
-	cancel_work_sync(&twl->usb_irq_work);
+		cancel_work_sync(&twl->usb_irq_work);
 #ifndef CONFIG_USB_MUSB_PERIPHERAL
-	cancel_work_sync(&twl->usbotg_irq_work);
+		cancel_work_sync(&twl->usbotg_irq_work);
 #endif
-#endif
-
+#endif	
 	kfree(twl);
 
 	return 0;
@@ -802,6 +831,13 @@ static struct platform_driver twl6030_usb_driver = {
 
 static int __init twl6030_usb_init(void)
 {
+	#if(ENABLE_QUEUE_WORK)
+    twl6030_usb_wq = create_singlethread_workqueue("twl6030_usb_wq");
+	if (!twl6030_usb_wq) {		
+		dbg_xceiv("[%s] twl6030_usb_wq is not created  \n",__func__);
+	}
+	#endif
+	
 	return platform_driver_register(&twl6030_usb_driver);
 }
 subsys_initcall(twl6030_usb_init);
@@ -809,6 +845,12 @@ subsys_initcall(twl6030_usb_init);
 static void __exit twl6030_usb_exit(void)
 {
 	platform_driver_unregister(&twl6030_usb_driver);
+
+	#if(ENABLE_QUEUE_WORK)
+	destroy_workqueue(twl6030_usb_wq);
+	twl6030_usb_wq = NULL;
+	#endif
+
 }
 module_exit(twl6030_usb_exit);
 

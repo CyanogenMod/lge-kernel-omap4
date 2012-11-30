@@ -1120,5 +1120,11 @@ lghdk			MACH_LGE_HDK		LGE_HDK			3000
 p2			MACH_LGE_P2		LGE_P2			5001
 ## LGE_SJIT_S 2011-10-31 [mohamed.khadri@lge.com] assigning  machine ID for IFF-K3.0
 iff			MACH_LGE_IFF		LGE_IFF			5002
-## LGE_SJIT_E 2011-10-31 [mohamed.khadri@lge.com] assigning  machine ID for IFF-K3.0
 u2			MACH_LGE_U2		LGE_U2			4444
+## LGE_SJIT_E 2011-10-31 [mohamed.khadri@lge.com] assigning  machine ID for IFF-K3.0
+## LGE_BPS_S 2012-04-25 [myeonggyu.son@lge.com] assigning  machine ID for CX2
+cx2			MACH_LGE_CX2	LGE_CX2			5003
+## LGE_BPS_E 2012-04-25 [myeonggyu.son@lge.com] assigning  machine ID for CX2
+## LGE_BPS_S 2012-04-25 [myeonggyu.son@lge.com] assigning  machine ID for COSMO
+cosmo		MACH_LGE_COSMO	LGE_COSMO		5004
+## LGE_BPS_E 2012-04-25 [myeonggyu.son@lge.com] assigning  machine ID for COSMO

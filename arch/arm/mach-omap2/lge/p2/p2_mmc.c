@@ -33,7 +33,7 @@ struct omap2_hsmmc_info mmc[] = {
 		.gpio_cd	=	40,
 		.gpio_wp	=	-EINVAL,
 		.nonremovable	=	false,
-		.ocr_mask	=	MMC_VDD_30_31,
+		.ocr_mask	=	MMC_VDD_32_33,
 #ifdef CONFIG_PM_RUNTIME
 		.power_saving	=	true,
 #endif

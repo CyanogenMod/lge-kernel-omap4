@@ -25,7 +25,7 @@ static int	lm3528_write_byte(struct lm3528_private_data* pdata, int reg, int val
 static void	lm3528_store(struct lm3528_private_data* pdata)
 {
 	lm3528_write_byte(pdata, LM3528_REG_GP, pdata->reg_gp);
-	lm3528_write_byte(pdata, LM3528_REG_BMAIN, pdata->reg_bmain);
+//	lm3528_write_byte(pdata, LM3528_REG_BMAIN, pdata->reg_bmain);
 	lm3528_write_byte(pdata, LM3528_REG_BSUB, pdata->reg_bsub);
 	lm3528_write_byte(pdata, LM3528_REG_HPG, pdata->reg_hpg);
 	lm3528_write_byte(pdata, LM3528_REG_GPIO, pdata->reg_gpio);
@@ -51,7 +51,9 @@ static void	lm3528_load(struct lm3528_private_data* pdata)
 int	lm3528_set_hwen(struct lm3528_private_data* pdata, int gpio, int status)
 {
 	if (status == 0) {
+		if (gpio_get_value(gpio)) {
 		lm3528_load(pdata);
+		}
 		gpio_set_value(gpio, 0);
 		return	0;
 	}
@@ -92,6 +94,7 @@ int	lm3528_init(struct lm3528_private_data* pdata, struct i2c_client* client)
 	pdata->client	=	client;
 
 	lm3528_load(pdata);
+	return 1;
 }
 
 EXPORT_SYMBOL(lm3528_init);

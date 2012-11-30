@@ -28,4 +28,8 @@
 #include <lge/board/lghdk.h>
 #endif
 
+#if defined(CONFIG_MACH_LGE_COSMO)
+#include <lge/board/cosmo.h>
+#endif
+
 #endif /* __LGE_PLAT_BOARD_H */

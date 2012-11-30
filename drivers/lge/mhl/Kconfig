@@ -1,6 +1,13 @@
+config MHL
+	bool "MHL driver"
+	default n
+	help
+	  Support for MHL driver.
+
 config MHL_TX_SII9244
 	bool "SII9244 MHL TX"
 	default n
+	depends on MHL
 	help
 	  Support for SII9244 MHL driver.
 	  This driver is came from GED device.
@@ -8,6 +15,7 @@ config MHL_TX_SII9244
 config MHL_TX_SII9244_LEGACY
 	bool "SII9244 MHL TX Legacy"
 	default n
+	depends on MHL
 	help
 	  Support for SII9244 MHL Legacy driver
 	  This driver was used in P2 GB version.
@@ -39,4 +47,3 @@ config MHL_INPUT_RCP
 	depends on MHL_TX_SII9244_LEGACY
 	help
 	  Use input event for MHL RCP
-

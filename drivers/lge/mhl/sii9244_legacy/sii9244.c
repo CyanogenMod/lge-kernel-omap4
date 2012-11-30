@@ -824,7 +824,6 @@ int mhl_on_mhl(struct muic_client_device *mcdev)
 	return 0;
 }
 static struct muic_client_ops mhl_ops = {
-	.notifier_priority = MUIC_CLIENT_NOTI_POWER_MHL,
 	.on_none = mhl_on_none,
 	.on_mhl = mhl_on_mhl,
 };

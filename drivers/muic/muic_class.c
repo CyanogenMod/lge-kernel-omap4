@@ -29,16 +29,15 @@
 #include <linux/muic/muic.h>
 #include <linux/charger_rt9524.h>
 
-static struct muic_device *_mdev = NULL;
+static struct muic_device *_mdev;
 
-struct class *muic_class = NULL;
+struct class *muic_class;
 static atomic_t device_count;
 
 static char *state[MUIC_MODE_NO] = {
 	[MUIC_NONE] = "NONE",
 	[MUIC_NA_TA] = "NA_TA",
 	[MUIC_LG_TA] = "LG_TA",
-	[MUIC_TA_1A] = "MUIC_TA_1A",
 	[MUIC_AP_UART] = "AP_UART",
 	[MUIC_CP_UART] = "CP_UART",
 	[MUIC_AP_USB] = "AP_USB",
@@ -67,6 +66,7 @@ static ssize_t state_store(struct device *dev, struct device_attribute *attr,
 	int set_mode = -1;
 	char *p;
 	int len;
+	int error = -EINVAL;
 
 	p = memchr(buf, '\n', count);
 	len = p ? p - buf : count;
@@ -77,32 +77,27 @@ static ssize_t state_store(struct device *dev, struct device_attribute *attr,
 	if(len > 7){ // max value is 7
 		printk(KERN_WARNING "%s, wrong command\n", __func__);
 		return -EINVAL;		
-	}
+	}		
 
-	do{
-		i--;
+	do{ 
+			i--;
+#if 0			
+			dev_info(dev,"muic %s, buf: %s, state[%d]: %s, size: %d, \n", 
+				__func__, buf, i, state[i], sizeof(state[i]) );
+#endif			
+			if(NULL != state[i]){
+				if(!strncmp(buf, state[i], len)){ //  min(len, sizeof(state[i])))){
+					dev_info(dev, "%s, store muic mode:%s\n", __func__,  state[i]);
+					set_mode = i;
+				}
+			}		
+	} while((set_mode<0) && (i>0));
 
-		if(NULL != state[i]){
-			if(!strncmp(buf, state[i], len)){
-				dev_info(dev, "%s, store muic mode:%s\n", __func__,  state[i]);
-				set_mode = i;
-			}
-		}		
-	} while((set_mode < 0) && (i > 0));
-
-	if(set_mode < 0){
+	if(set_mode<0){
 		printk(KERN_WARNING "%s, wrong command\n", __func__);
 		return -EINVAL;
 	}
-
-#if 0
-	if((_mdev->mode != MUIC_NONE)&&(_mdev->mode != MUIC_UNKNOWN)) {
-		dev_info(dev, "%s, MUIC_NONE before set_mode\n", __func__);
-		muic_set_mode(MUIC_NONE);
-		mdelay(2);
-	}
-#endif
-
+	
 	muic_set_mode(set_mode);
 	dev_info(dev, "%s, end\n", __func__);
 	
@@ -125,11 +120,19 @@ static ssize_t int_state_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
 	struct muic_device *mdev = (struct muic_device *)dev_get_drvdata(dev);
+	char *str;
+
+#if 0
+	if(state[mdev->mode])
+		str = state[mdev->mode];
+	else
+		str = "no registered state";
+#endif
 
 	if(!(mdev->read_int_state))
 		return -EPERM; 
 
-	return mdev->read_int_state(mdev, buf);
+	return mdev->read_int_state(mdev, buf); // sprintf(buf, "0x11");
 }
 
 static DEVICE_ATTR(int_state, S_IRUGO | S_IWUSR, int_state_show, NULL);
@@ -208,7 +211,7 @@ EXPORT_SYMBOL(muic_i2c_write_byte);
 TYPE_MUIC_MODE muic_get_mode(void)
 {
 	if(_mdev == NULL) {
-		printk(KERN_ERR "%s: muic device not installed!\n", __func__);
+		printk(KERN_ERR "muic device not installed!\n");
 		return MUIC_UNINITED;
 	}
 
@@ -219,15 +222,15 @@ EXPORT_SYMBOL(muic_get_mode);
 int muic_set_mode(TYPE_MUIC_MODE mode)
 {
 	if(_mdev == NULL) {
-		printk(KERN_ERR "%s: muic device not installed!\n", __func__);
+		printk(KERN_ERR "muic device not installed!\n");
 		return -ENODEV;
 	}
 
 	printk(KERN_INFO "muic: %s, mode:%s\n",
 		__func__, state[mode]);
-
+		
+	
 	_mdev->mode = mode;
-
 	muic_send_event(mode);
 	
 	return 0;
@@ -269,16 +272,23 @@ int muic_set_mode_in_retain(TYPE_MUIC_MODE mode)
 	}
 
 	printk(KERN_INFO "muic: %s, mode_in_retain:%s\n",
-		__func__, state[mode]);
-	
+			__func__, state[mode]);
+
 	_mdev->mode_in_retain = mode;
-	
+
 	return 0;
 }
 EXPORT_SYMBOL(muic_set_mode_in_retain);
 
 #endif
-
+#if 0
+//LGE_Changes_S chulhwhee.shim@lge.com, 2010.12.7  FOTA update 
+int fota_ebl_download(void)
+{
+   return 0;
+}
+//LGE_Changes_E chulhwhee.shim@lge.com, 2010.12.7  FOTA update
+#endif
 static int create_muic_class(void)
 {
 	if (!muic_class) {
@@ -300,26 +310,22 @@ int muic_device_register(struct muic_device *mdev, struct muic_ops *ops)
 		return -EINVAL;
 
 	if (_mdev != NULL) {
-		printk(KERN_ERR "muic device is already installed!\n");
+		printk(KERN_ERR "muic device is alread installed!\n");
 		return -EPERM;
 	}
 
 	if (!muic_class) {
 		ret = create_muic_class();
-		if (ret < 0) {
-			printk(KERN_ERR "%s: create_muic_class fails!\n", __func__);
+		if (ret < 0)
 			return ret;
-		}
 	}
 
 	mdev->index = atomic_inc_return(&device_count);
 	mdev->dev = device_create(muic_class, NULL,
 		MKDEV(0, mdev->index), mdev, mdev->name);
 
-	if (IS_ERR(mdev->dev)) {
-		printk(KERN_ERR "%s: device_create fails!\n", __func__);
+	if (IS_ERR(mdev->dev))
 		return PTR_ERR(mdev->dev);
-	}
 
 	ret = device_create_file(mdev->dev, &dev_attr_state);
 	if (ret < 0)
@@ -331,23 +337,18 @@ int muic_device_register(struct muic_device *mdev, struct muic_ops *ops)
 
 	ret = device_create_file(mdev->dev, &dev_attr_int_state);
 	if (ret < 0)
-		goto err_create_file_3;
+		goto err_create_file_2;
 
 
-	mdev->mode = MUIC_NONE;
-	mdev->mode_in_retain = MUIC_NONE;
-
+	mdev->mode = MUIC_UNKNOWN;
 	_mdev = mdev;
 	
 	return 0;
 
-err_create_file_3:
-	device_remove_file(mdev->dev, &dev_attr_name);
 err_create_file_2:
 	device_remove_file(mdev->dev, &dev_attr_state);
 err_create_file_1:
 	device_destroy(muic_class, MKDEV(0, mdev->index));
-
 	printk(KERN_ERR "muic: Failed to register driver %s\n", mdev->name);
 
 	return ret;
@@ -356,7 +357,6 @@ EXPORT_SYMBOL_GPL(muic_device_register);
 
 void muic_device_unregister(struct muic_device *mdev)
 {
-	device_remove_file(mdev->dev, &dev_attr_int_state);
 	device_remove_file(mdev->dev, &dev_attr_name);
 	device_remove_file(mdev->dev, &dev_attr_state);
 	device_destroy(muic_class, MKDEV(0, mdev->index));
@@ -370,6 +370,8 @@ static void __exit muic_class_exit(void)
 	class_destroy(muic_class);
 }
 
+struct class *muic_class;
+
 static int __init muic_class_init(void)
 {
 	muic_class = class_create(THIS_MODULE, "muic");
@@ -379,6 +381,9 @@ static int __init muic_class_init(void)
 		return PTR_ERR(muic_class);
 	}
 
+	//muic_class->dev_attrs = muic_device_attributes;
+	//muic_class->suspend = muic_suspend;
+	//muic_class->resume = muic_resume;
 	return 0;
 }
 

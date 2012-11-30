@@ -16,4 +16,5 @@ obj-$(CONFIG_PANEL_TX11D101VM_0EAA) += panel-tx11d101vm-0eaa.o
 obj-$(CONFIG_PANEL_DX11D100VM) += panel-dx11d100vm.o
 obj-$(CONFIG_PANEL_TX11D108VM_0BAA) += panel-tx11d108vm-0baa.o
 obj-$(CONFIG_PANEL_HX8389) += panel-hx8389.o
+obj-$(CONFIG_PANEL_LH430WV2_SD01) += panel-lh430wv2-sd01.o
 ## LGE_SJIT_E 2011-08-29 [choongryeol.lee@lge.com] Port on K3.0

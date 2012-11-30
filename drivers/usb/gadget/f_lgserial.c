@@ -192,6 +192,7 @@ static int lgserial_bind(struct usb_configuration *c, struct usb_function *f)
 
 	/* copy descriptors, and track endpoint copies */
 	f->descriptors = usb_copy_descriptors(lgserial_fs_function);
+
 	if (!f->descriptors)
 		goto fail;
 
@@ -213,8 +214,6 @@ static int lgserial_bind(struct usb_configuration *c, struct usb_function *f)
 
 		/* copy descriptors, and track endpoint copies */
 		f->hs_descriptors = usb_copy_descriptors(lgserial_hs_function);
-		if (!f->hs_descriptors)
-			goto fail;
 
 		lgserial->hs.in = usb_find_endpoint(lgserial_hs_function,
 				f->hs_descriptors, &lgserial_hs_in_desc);
@@ -229,11 +228,6 @@ static int lgserial_bind(struct usb_configuration *c, struct usb_function *f)
 	return 0;
 
 fail:
-	if (f->hs_descriptors)
-		usb_free_descriptors(f->hs_descriptors);
-	if (f->descriptors)
-		usb_free_descriptors(f->descriptors);
-
 	/* we might as well release our claims on endpoints */
 	if (lgserial->port.out)
 		lgserial->port.out->driver_data = NULL;

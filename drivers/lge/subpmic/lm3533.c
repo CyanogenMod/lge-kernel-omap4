@@ -12,7 +12,7 @@ int lm3533_get_lcd_on_off()
 #endif
 
 
-int	lm3533_read_byte(struct lm3533_private_data* pdata, int reg)
+static int	lm3533_read_byte(struct lm3533_private_data* pdata, int reg)
 {
 	int		ret;
 
@@ -23,7 +23,7 @@ int	lm3533_read_byte(struct lm3533_private_data* pdata, int reg)
 	return	ret;
 }
 
-int	lm3533_write_byte(struct lm3533_private_data* pdata, int reg, int value)
+static int	lm3533_write_byte(struct lm3533_private_data* pdata, int reg, int value)
 {
 	int		ret;
 
@@ -51,7 +51,7 @@ static void	lm3533_load(struct lm3533_private_data* pdata)
 {
 	pdata->reg_be   =	0x01;	// Only Bank A Enable.
 	pdata->reg_brt   =	lm3533_read_byte(pdata, LM3533_REG_BRT);	// brightness value.
-	pdata->reg_obps   =	lm3533_read_byte(pdata, LM3533_REG_OBPS);	// Boost OVP 24V for 10 LEDs.
+	pdata->reg_obps   =	0x0a;	// Boost OVP 24V for 10 LEDs.
 	pdata->reg_ocr   =	0x90;	// HVLED1, HVLED2 -> Bank A only use.
 	pdata->reg_ssttr   =	lm3533_read_byte(pdata, LM3533_REG_SSTTR);	// default 2.048ms
 	pdata->reg_rttr   =       lm3533_read_byte(pdata, LM3533_REG_RTTR);	// default 2.048ms
@@ -67,7 +67,6 @@ int	lm3533_set_hwen(struct lm3533_private_data* pdata, int gpio, int status)
 #if defined(CONFIG_MAX8971_CHARGER)&&  defined(CONFIG_MACH_LGE_P2_DCM)
 		bl_on_off=0;
 #endif
-		printk("[LCD_BL] BL_EN_GPIO=%x, status:%d, %s",__gpio_get_value(gpio), status, __func__);
 		return	0;
 	}
 
@@ -76,7 +75,6 @@ int	lm3533_set_hwen(struct lm3533_private_data* pdata, int gpio, int status)
 #if defined(CONFIG_MAX8971_CHARGER)&&  defined(CONFIG_MACH_LGE_P2_DCM)
 	bl_on_off=1;
 #endif
-	printk("[LCD_BL] BL_EN_GPIO=%x, status:%d, %s",__gpio_get_value(gpio), status, __func__);
 	return	1;
 }
 
@@ -141,8 +139,6 @@ EXPORT_SYMBOL(lm3533_set_hwen);
 EXPORT_SYMBOL(lm3533_get_hwen);
 EXPORT_SYMBOL(lm3533_set_brightness_control);
 EXPORT_SYMBOL(lm3533_get_brightness_control);
-EXPORT_SYMBOL(lm3533_write_byte);
-EXPORT_SYMBOL(lm3533_read_byte);
 
 MODULE_AUTHOR("LG Electronics (dongjin73.kim@lge.com)");
 MODULE_DESCRIPTION("Multi Display LED driver");

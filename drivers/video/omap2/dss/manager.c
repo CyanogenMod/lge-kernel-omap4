@@ -2603,3 +2603,293 @@ struct omap_overlay_manager *omap_dss_get_overlay_manager(int num)
 }
 EXPORT_SYMBOL(omap_dss_get_overlay_manager);
 
+#ifdef CONFIG_DSSCOMP_ADAPT
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//M2M WB implementation
+
+static int omap_dss_m2m_wb_ovl_to_cache(struct omap_overlay *ovl)
+{
+	struct overlay_cache_data *oc;
+	u32 size;
+
+	if ( ovl==NULL )
+	{
+		DSSDBG("ovl is NULL\n");
+		return -EINVAL;
+	}
+	if ( !ovl->info_dirty )
+		return 0;
+
+	//write cache
+	oc = &dss_cache.overlay_cache[ovl->id];
+	dss_ovl_cb(&oc->cb.cache, ovl->id,
+		   DSS_COMPLETION_ECLIPSED_CACHE);
+	oc->cb.cache = ovl->info.cb;
+	ovl->info.cb.fn = NULL;
+
+	ovl->info_dirty = false;
+	if (ovl->info.enabled || oc->enabled)
+		oc->dirty = true;
+	oc->enabled = ovl->info.enabled;
+	if (!oc->enabled)	//disable. no need to set others
+		return 0;
+
+	oc->paddr = ovl->info.paddr;
+	oc->vaddr = ovl->info.vaddr;
+	oc->p_uv_addr = ovl->info.p_uv_addr;
+	oc->screen_width = ovl->info.screen_width;
+	oc->width = ovl->info.width;
+	oc->height = ovl->info.height;
+	oc->color_mode = ovl->info.color_mode;
+	oc->rotation = ovl->info.rotation;
+	oc->rotation_type = ovl->info.rotation_type;
+	oc->mirror = ovl->info.mirror;
+	oc->pos_x = ovl->info.pos_x;
+	oc->pos_y = ovl->info.pos_y;
+	oc->out_width = ovl->info.out_width;
+	oc->out_height = ovl->info.out_height;
+	oc->global_alpha = ovl->info.global_alpha;
+	oc->pre_mult_alpha = ovl->info.pre_mult_alpha;
+	oc->zorder = ovl->info.zorder;
+	oc->min_x_decim = ovl->info.min_x_decim;
+	oc->max_x_decim = ovl->info.max_x_decim;
+	oc->min_y_decim = ovl->info.min_y_decim;
+	oc->max_y_decim = ovl->info.max_y_decim;
+
+	oc->cconv = ovl->info.cconv;
+	oc->replication = false;	//not sure
+
+	oc->ilace = false;
+
+	oc->channel = 3;	//it will be write back
+
+	oc->manual_update = false;
+
+	size = dispc_get_plane_fifo_size(ovl->id);
+	default_get_overlay_fifo_thresholds(ovl->id, size,
+			&oc->burst_size, &oc->fifo_low,
+			&oc->fifo_high);
+	return 0;
+}
+extern void dispc_set_wb_channel_out(enum omap_plane plane);
+
+static int configure_overlay_for_m2m_wb(enum omap_plane plane)
+{
+	struct overlay_cache_data *c;
+	u16 outw, outh;
+	u16 x, y, w, h;
+	u32 paddr;
+	int r;
+	u16 x_decim, y_decim;
+	bool five_taps;
+	u16 orig_w, orig_h, orig_outw, orig_outh;
+
+	c = &dss_cache.overlay_cache[plane];
+
+	if ( !c->dirty )
+		return 0;
+
+	if (!c->enabled) {
+		dispc_enable_plane(plane, 0);
+		c->dirty = false;
+		return 0;
+	}
+
+	x = c->pos_x;
+	y = c->pos_y;
+	w = c->width;
+	h = c->height;
+	outw = c->out_width == 0 ? c->width : c->out_width;
+	outh = c->out_height == 0 ? c->height : c->out_height;
+	paddr = c->paddr;
+
+	orig_w = w;
+	orig_h = h;
+	orig_outw = outw;
+	orig_outh = outh;
+
+	DSSDBG("configure_overlay_for_m2m_wb() plane:%d\n", plane);
+
+	DSSDBG("scaling_decision(%d,%d)->(%d,%d)\n", w, h, outw, outh);
+	r = dispc_scaling_decision(w, h, outw, outh,
+			       plane, c->color_mode, c->channel,
+			       c->rotation, c->rotation_type,
+			       c->min_x_decim, c->max_x_decim,
+			       c->min_y_decim, c->max_y_decim,
+			       &x_decim, &y_decim, &five_taps);
+	DSSDBG("setupPlane addr(0x%x) uv_addr(0x%x) (%d,%d) screen_width:%d, rotation:%d, rot_type:%d, mirror:%d-> (%d,%d)+(%d,%d)\n",
+			paddr, c->p_uv_addr, w, h, c->screen_width, c->rotation, c->rotation_type, c->mirror, x, y, outw, outh);
+	r = r ? : dispc_setup_plane(plane,
+			paddr,
+			c->screen_width,
+			x, y,
+			w, h,
+			outw, outh,
+			c->color_mode,
+			c->ilace, x_decim, y_decim, five_taps,
+			c->rotation_type,
+			c->rotation,
+			c->mirror,
+			c->global_alpha,
+			c->pre_mult_alpha,
+			c->channel,
+			c->p_uv_addr);
+
+	if (r) {
+		/* this shouldn't happen */
+		DSSERR("dispc_setup_plane failed for ovl %d\n", plane);
+		dispc_enable_plane(plane, 0);
+		return r;
+	}
+
+	dispc_enable_replication(plane, c->replication);
+
+	dispc_set_burst_size(plane, c->burst_size);
+	DSSDBG("zorder :%d\n", c->zorder);
+	dispc_set_zorder(plane, c->zorder);
+	dispc_enable_zorder(plane, 1);
+	if (!cpu_is_omap44xx())
+		dispc_setup_plane_fifo(plane, c->fifo_low, c->fifo_high);
+
+	if (plane != OMAP_DSS_GFX)
+		_dispc_setup_color_conv_coef(plane, &c->cconv);
+
+	DSSDBG("Plane %d to WB\n", plane);
+	dispc_set_wb_channel_out(plane);
+	/* for WB source, enable plane along with WB */
+	dispc_enable_plane(plane, 1);
+
+	c->dirty = false;
+	c->shadow_dirty = true;
+
+	return 0;
+}
+
+static int omap_dss_m2m_wb_wb_to_cache(struct omap_writeback *wb)
+{
+	struct writeback_cache_data *wbc;
+	if ( wb==NULL )
+		return -EINVAL;
+	if ( !wb->info_dirty )
+		return 0;
+	wbc = &dss_cache.writeback_cache;
+	if ( wb->info.enabled )
+	{
+		wbc->enabled = true;
+		wbc->mode = wb->info.mode;
+		wbc->color_mode = wb->info.dss_mode;
+		wbc->out_width = wb->info.out_width;
+		wbc->out_height = wb->info.out_height;
+		wbc->width = wb->info.width;
+		wbc->height = wb->info.height;
+
+		wbc->paddr = wb->info.paddr;
+		wbc->p_uv_addr = wb->info.p_uv_addr;
+
+		wbc->capturemode = wb->info.capturemode;
+		wbc->burst_size = OMAP_DSS_BURST_16x32;
+
+		/*
+		 * only these FIFO values work in WB capture mode for all
+		 * downscale scenarios. Other FIFO values cause a SYNC_LOST
+		 * on LCD due to b/w issues.
+		 */
+//		wbc->fifo_high = 0x10;
+//		wbc->fifo_low = 0x8;
+		wbc->fifo_high = 0x28A;
+		wbc->fifo_low = 0xFA;
+		wbc->source = wb->info.source;
+
+		wbc->rotation = wb->info.rotation;
+		wbc->rotation_type = wb->info.rotation_type;
+
+		wbc->dirty = true;
+		wbc->shadow_dirty = false;
+		DSSDBG("wbc set paddr:0x%x uvaddr:0x%x, size(%d,%d) out_size(%d,%d) input:%d, rotation:%d, rotation_type:%d\n",
+				wbc->paddr, wbc->p_uv_addr, wbc->width, wbc->height, wbc->out_width, wbc->out_height, wbc->source, wbc->rotation, wbc->rotation_type);
+
+	}
+	else if (wb && (wbc->enabled != wb->info.enabled))
+	{
+		/* disable WB if not disabled already*/
+		wbc->enabled = wb->info.enabled;
+		wbc->dirty = true;
+		wbc->shadow_dirty = false;
+	}
+	return 0;
+}
+
+extern int dispc_setup_wb_with_row_inc(struct writeback_cache_data *wb, int stride);
+int omap_dss_m2m_wb_apply(struct omap_overlay *ovl, struct omap_writeback *wb, int row_inc)
+{
+	struct writeback_cache_data *wbc;
+	unsigned long flags;
+	int r = 0;
+
+	if ( ovl==NULL || wb==NULL || wb->info.mode!= OMAP_WB_MEM2MEM_MODE || wb->info.source < OMAP_WB_GFX )
+	{
+		DSSDBG("omap_dss_m2m_wb_apply() param invalid ovl=%p, wb=0%p, wb->info.mode:%d, wb->info.srouce:%d\n", ovl, wb, wb->info.mode, wb->info.source);
+		return -EINVAL;
+	}
+
+	spin_lock_irqsave(&dss_cache.lock, flags);
+
+	//write wb to cache
+	r = omap_dss_m2m_wb_wb_to_cache(wb);
+	if ( r )
+	{
+		DSSDBG("wb to cache failed\n");
+		goto Done;
+	}
+	wbc = &dss_cache.writeback_cache;
+	//configure wb registers from cache
+	if ( wbc->enabled && wbc->dirty )
+	{
+		r = dispc_setup_wb_with_row_inc(wbc, row_inc);
+		if ( r )
+		{
+			DSSDBG("wb register setting failed\n");
+			goto Done;
+		}
+		wbc->dirty = false;
+		wbc->shadow_dirty = true;
+	}
+
+	//write ovl to cache
+	r = omap_dss_m2m_wb_ovl_to_cache(ovl);
+	if ( r )
+	{
+		DSSDBG("ovl to cache failed\n");
+		goto Done;
+	}
+	//configure overlay registers from cache
+	r = configure_overlay_for_m2m_wb(ovl->id);
+	if ( r )
+	{
+		DSSDBG("overlay register setting failed\n");
+		goto Done;
+	}
+
+	//trigger wb
+	if ( wbc->enabled )
+	{
+		dispc_enable_plane(OMAP_DSS_WB, 1);
+//		dispc_go_wb();
+		DSSDBG("Enable WB plane and go wb\n");
+		//Waiting reset of WB GO bit is correct. For convenience
+		wbc->shadow_dirty = false;
+		dss_cache.overlay_cache[ovl->id].shadow_dirty = false;
+	}
+	else
+	{
+		dispc_enable_plane(OMAP_DSS_WB, 0);
+		wbc->shadow_dirty = false;
+	}
+
+Done:
+	spin_unlock_irqrestore(&dss_cache.lock, flags);
+	return r;
+}
+
+#endif

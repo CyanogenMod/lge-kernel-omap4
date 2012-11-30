@@ -14,8 +14,8 @@ menuconfig NFC_DEVICES
 
 if NFC_DEVICES
 
-config LGE_NFC_PN544_C2
-	tristate "PN544 C2 NFC driver"
+config LGE_NFC_PN544
+	tristate "PN544 NFC driver"
 	depends on I2C
 	select CRC_CCITT
 	default n
@@ -26,34 +26,11 @@ config LGE_NFC_PN544_C2
 	  To compile this driver as a module, choose m here. The module will
 	  be called pn544.
 
-config LGE_NFC_PN544_C3
-	tristate "PN544 C3 NFC driver"
-	depends on I2C
-	select CRC_CCITT
-	default n
-	---help---
-	  Say yes if you want PN544 Near Field Communication driver.
-	  This is for i2c connected version. If unsure, say N here.
-
-	  To compile this driver as a module, choose m here. The module will
-	  be called pn544.
-
-config LGE_NFC_PRESTANDBY
+config LGE_NFC_PRESTANBY
 	bool "NFC STANBY MODE"
 	default n
 	---help---
 	  Say yes if you want to change a power state of pn544 to stanby mode in Kernel.
 	  If unsure, say N here.
-
-config LGE_NFC_SONY_CXD2235AGG
-	bool "CXD2235AGG NFC driver"
-	#depends on I2C && UART
-	default n
-	---help---
-	  Say yes if you want CDX2235AGG Near Field Communication driver.
-	  This is for i2c & UART connected version. If unsure, say N here.
-
-	  To compile this driver as a module, choose m here. The module will
-	  be called CDX2235AGG.
-
+	  	  
 endif # NFC_DEVICES

@@ -91,6 +91,9 @@ static ssize_t reset_store(struct device *dev,
 	zram = dev_to_zram(dev);
 	bdev = bdget_disk(zram->disk, 0);
 
+	if (!bdev)//mo2seongjae.jang 20120702 WBT issue modification
+		return -EINVAL;
+	
 	/* Do not reset an active device! */
 	if (bdev->bd_holders)
 		return -EBUSY;

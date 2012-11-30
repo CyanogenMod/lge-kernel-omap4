@@ -30,7 +30,11 @@
 #include <plat/dsscomp.h>
 
 static struct dsscomp_platform_data dsscomp_config = {
+#ifdef CONFIG_COSMO_ICS_MEM_OPT
+		.tiler1d_slotsz = (480*800*4*2),
+#else
 		.tiler1d_slotsz = SZ_16M,
+#endif
 };
 
 static struct platform_device omap_dsscomp_device = {

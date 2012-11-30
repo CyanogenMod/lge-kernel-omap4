@@ -259,17 +259,25 @@ extern int get_bat_present(void);
 
 void charging_ic_deactive()
 {
+	static int temp_deactive_cnt = 1;
 
 	printk("[CHG] charging_ic_status = %d\n", charging_ic_status);
 
-	if((charging_ic_status == POWER_SUPPLY_TYPE_BATTERY) ||
-	  ((charging_ic_status == POWER_SUPPLY_TYPE_FACTORY)
-	    && !get_bat_present()))
+	if(temp_deactive_cnt == 1)
 	{
-		D("[charger_rt9524]:: it's already  %s mode!! \n", __func__);
-		return;
+		temp_deactive_cnt = 0;
 	}
-
+	else
+	{
+		if((charging_ic_status == POWER_SUPPLY_TYPE_BATTERY) ||
+		  ((charging_ic_status == POWER_SUPPLY_TYPE_FACTORY)
+		    && !get_bat_present()))
+		{
+			D("[charger_rt9524]:: it's already  %s mode!! \n", __func__);
+			return;
+		}
+	}
+	
 	mutex_lock(&charging_lock);
 
 	gpio_set_value(CHG_EN_SET_N_OMAP, 1);

@@ -41,6 +41,14 @@
 #include <linux/elfcore.h>
 #include <plat/remoteproc.h>
 
+#define SENSOR_POWER_OFF
+
+#ifdef SENSOR_POWER_OFF
+// Sensor Power off for recovery
+#include <linux/gpio.h>
+// Sensor Power off for recovery
+#endif
+
 /* list of available remote processors on this board */
 static LIST_HEAD(rprocs);
 static DEFINE_SPINLOCK(rprocs_lock);
@@ -1294,6 +1302,13 @@ struct rproc *rproc_get(const char *name)
 	struct rproc *rproc, *ret = NULL;
 	struct device *dev;
 	int err;
+#ifdef SENSOR_POWER_OFF     
+    // Sensor Power off for recovery
+    u32 gpio_id;    
+    int gpio_num[3] = {24, 15, 22}; // sensor power gpio
+    int gpioRet, i;
+    // Sensor Power off for recovery
+#endif
 
 	rproc = __find_rproc_by_name(name);
 	if (!rproc) {
@@ -1334,6 +1349,23 @@ struct rproc *rproc_get(const char *name)
 	init_completion(&rproc->firmware_loading_complete);
 
 	dev_info(dev, "powering up %s\n", name);
+
+#ifdef SENSOR_POWER_OFF 
+    // Sensor Power off for recovery
+    for (i = 0; i < 3; i++) {
+        gpio_id = gpio_num[i];
+        gpio_free(gpio_id);
+        gpioRet = gpio_request(gpio_id, "ducati recovery");
+        if (!gpioRet) {
+            printk("Sensor power off gpio%d request success\n", gpio_id);
+            gpio_direction_output(gpio_id, 0);
+            gpio_free(gpio_id);
+        } else {
+            printk("Sensor power off gpio%d request fail %d\n", gpio_id, ret);
+        }
+    }
+    //Sensor Power off for recovery
+#endif
 
 	err = rproc_loader(rproc);
 	if (err) {

@@ -137,6 +137,9 @@ struct omap_mmc_platform_data {
 		 *   1 - open
 		 */
 		int (*get_cover_state)(struct device *dev, int slot);
+#ifdef CONFIG_MACH_LGE_MMC_COVER//nthyunjin.yang 120517 for sd card
+		int sd_cover;
+#endif		
 
 		const char *name;
 		u32 ocr_mask;
@@ -144,6 +147,9 @@ struct omap_mmc_platform_data {
 		/* Card detection IRQs */
 		int card_detect_irq;
 		int (*card_detect)(struct device *dev, int slot);
+#if defined(CONFIG_MACH_LGE_MMC_ENHANCED_COVER) && defined(CONFIG_MACH_LGE_MMC_COVER)	//20110409	KIMBYUNGCHUL SD_CARD_DETECTION_UPDATE_0409	[START]
+		int card_detect_irq_by_data3pin;
+#endif
 
 		/* Additional mmc configuration */
 		struct mmc_platform_data mmc_data;

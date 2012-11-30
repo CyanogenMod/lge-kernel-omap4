@@ -24,7 +24,7 @@ static struct ion_platform_data omap4_ion_data = {
 			.type = ION_HEAP_TYPE_CARVEOUT,
 			.id = OMAP_ION_HEAP_SECURE_INPUT,
 			.name = "secure_input",
-			.base = PHYS_ADDR_DUCATI_MEM + PHYS_ADDR_DUCATI_SIZE,
+			.base = PHYS_ADDR_DUCATI_MEM + PHYS_ADDR_DUCATI_SIZE, // 1G Dynamic alloc - 18827
 			.size = OMAP4_ION_HEAP_SECURE_INPUT_SIZE,
 		},
 		{	.type = OMAP_ION_HEAP_TYPE_TILER,
@@ -38,7 +38,11 @@ static struct ion_platform_data omap4_ion_data = {
 			.type = OMAP_ION_HEAP_TYPE_TILER,
 			.id = OMAP_ION_HEAP_NONSECURE_TILER,
 			.name = "nonsecure_tiler",
+#if defined(CONFIG_MACH_LGE_COSMO)
+			.base = PHYS_ADDR_DUCATI_MEM - OMAP4_ION_HEAP_TILER_SIZE - OMAP4_ION_HEAP_NONSECURE_TILER_SIZE, // 512MB - 18827 //0x80000000 + (SZ_1M * 389),
+#else
 			.base = 0x80000000 + SZ_512M + SZ_2M,
+#endif
 			.size = OMAP4_ION_HEAP_NONSECURE_TILER_SIZE,
 		},
 		{
@@ -72,14 +76,10 @@ void __init omap_ion_init(void)
 		    omap4_ion_data.heaps[i].type == OMAP_ION_HEAP_TYPE_TILER) {
 			ret = memblock_remove(omap4_ion_data.heaps[i].base,
 					      omap4_ion_data.heaps[i].size);
-
-			// 1G Dynamic alloc - 18827
-			printk(KERN_INFO "%s: ion_heap[%d] name=%s, size=%dMB, addr=0x%lx\n",
-				__func__, i, omap4_ion_data.heaps[i].name,
-				(omap4_ion_data.heaps[i].size >> 20),
-				omap4_ion_data.heaps[i].base);
-			// 1G Dynamic alloc - 18827
-
+			
+			if(omap4_ion_data.heaps[i].size==0)
+				continue;
+			
 			if (ret)
 				pr_err("memblock remove of %x@%lx failed\n",
 				       omap4_ion_data.heaps[i].size,

@@ -356,6 +356,9 @@ struct i2c_algorithm {
  */
 struct i2c_adapter {
 	struct module *owner;
+#ifdef CONFIG_MACH_LGE_COSMO //nthyunjin.yang
+	unsigned int id;//nthyunjin.yang 120412 add for CX2
+#endif
 	unsigned int class;		  /* classes to allow probing for */
 	const struct i2c_algorithm *algo; /* the algorithm to access the bus */
 	void *algo_data;

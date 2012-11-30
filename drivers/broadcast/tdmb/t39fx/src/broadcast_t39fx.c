@@ -2,6 +2,8 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/device.h>
+//#include <linux/slab.h>	/* kmalloc */
+//#include <linux/i2c.h>     /* HOST Interface I2C */
 #include <linux/spi/spi.h>         /* HOST Interface SPI */
 #include <linux/spi/spidev.h>   /* HOST Interface SPI */
 #include <linux/interrupt.h>        /* HOST Interface SPI */
@@ -18,6 +20,7 @@
 
 //#define PMIC_CLOCK_SHARING
 
+// PM QOS
 #include <linux/pm_qos_params.h>
 
 #ifdef PMIC_CLOCK_SHARING
@@ -40,6 +43,10 @@ struct tdmb_t39fx_ctrl_blk
 
 static struct tdmb_t39fx_ctrl_blk t39fx_ctrl_info;
 
+#ifdef PMIC_CLOCK_SHARING
+static const char *id = "TDMB";
+static struct msm_xo_voter *xo_handle_tdmb;
+#endif
 
 // -------------------------------------------------------------------- 
 // D1L DMB GPIOs
@@ -48,15 +55,8 @@ static struct tdmb_t39fx_ctrl_blk t39fx_ctrl_info;
 #define T39FX_DMB_EN              98    /* PWR_EN, OUT, HIGH_ACTIVE */
 //---------------------------------------------------------------------
 static uint32 user_stop_flg = 0;
-#ifdef PMIC_CLOCK_SHARING
-static const char *id = "TDMB";
-static struct msm_xo_voter *xo_handle_tdmb;
-#endif
 
 
-/* ============================================================== */
-/*  Internal Functions                                                                                                                */
-/* ============================================================== */
 static int broadcast_t39fx_probe(struct spi_device *spi);
 static int broadcast_t39fx_remove(struct spi_device *spi);
 static int broadcast_t39fx_suspend(struct spi_device *spi, pm_message_t mesg);
@@ -74,6 +74,7 @@ int tdmb_t39fx_mdelay(int32 ms)
 	int32	wait_loop =0;
 	int32	wait_ms = ms;
 
+	//mdelay_in_flg = 1;
 	if(ms > 100)
 	{
 		wait_loop = (ms /100);   /* 100, 200, 300 more only , Otherwise this must be modified e.g (ms + 40)/50 */
@@ -82,7 +83,7 @@ int tdmb_t39fx_mdelay(int32 ms)
 
 	do
 	{
-		mdelay(wait_ms);
+		msleep(wait_ms);
 		if(user_stop_flg == 1)
 		{
 			printk("~~~~~~~~ Ustop flag is set so return false ms =(%d)~~~~~~~\n", ms);
@@ -97,7 +98,7 @@ int tdmb_t39fx_mdelay(int32 ms)
 
 void tdmb_t39fx_must_mdelay(int32 ms)
 {
-	mdelay(ms);
+	msleep(ms);
 }
 
 int tdmb_t39fx_power_on(void)
@@ -126,19 +127,19 @@ int tdmb_t39fx_power_on(void)
 		/* T39fx Power On Sequence */
 		gpio_set_value(T39FX_DMB_EN, 0);
 		gpio_set_value(T39FX_DMB_RESET_N, 0);
-		udelay(200);
+		udelay(50);
 		
 		gpio_set_value(T39FX_DMB_EN, 1);
-		mdelay(3);
+		udelay(1000);
 
 		gpio_set_value(T39FX_DMB_RESET_N, 1);
-		mdelay(2);
+		udelay(1500);
 
 		gpio_set_value(T39FX_DMB_RESET_N, 0);
-		mdelay(1);
+		udelay(700);
 
 		gpio_set_value(T39FX_DMB_RESET_N, 1);
-		udelay(200);
+		udelay(100);
 
 		tdmb_t39fx_interrupt_free();
 		t39fx_ctrl_info.is_power_on = TRUE;

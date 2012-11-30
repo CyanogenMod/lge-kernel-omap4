@@ -12,7 +12,7 @@
 
 #define FC8050_USES_STATIC_BUFFER
 
-#define TDMB_MPI_BUF_SIZE 			(188*16*4 + 8)//interrupt size + sizeof(TDMB_BB_HEADER_TYPE)
+#define TDMB_MPI_BUF_SIZE 			(188*32 + 8)//interrupt size + sizeof(TDMB_BB_HEADER_TYPE)
 #define TDMB_MPI_BUF_CHUNK_NUM  	10
 
 static uint8*	gpMPI_Buffer = NULL;
@@ -41,19 +41,24 @@ int broadcast_drv_if_power_on(void)
 	if(tunerbb_drv_fc8050_is_on() == TRUE)
 	{
 		printk("tdmb_fc8050_power_on state true\n");
-		tunerbb_drv_fc8050_stop();
 
-		tunerbb_drv_fc8050_power_off();
+		retval = tunerbb_drv_fc8050_stop();
+		retval = tunerbb_drv_fc8050_power_off();
 
+		if(retval == TRUE)
+		{
+			res = OK;
+		}
 	}	
-//LGE_BROADCAST_I_0907
+
 	retval = tunerbb_drv_fc8050_power_on();
 
 	if(retval == TRUE)
 	{
 		res = OK;
 	}
-	tunerbb_drv_fc8050_set_userstop();
+
+	//tunerbb_drv_fc8050_set_userstop(1);
 	
 	return res;
 }
@@ -69,7 +74,7 @@ int broadcast_drv_if_power_off(void)
 	{
 		res = OK;
 	}
-	tunerbb_drv_fc8050_set_userstop();
+	//tunerbb_drv_fc8050_set_userstop(0);
 
 	return res;
 }
@@ -78,9 +83,10 @@ int broadcast_drv_if_open(void)
 {
 	int8 res = ERROR;
 	boolean retval = FALSE;
-	
-	retval = tunerbb_drv_fc8050_init();
 
+	printk("broadcast_drv_if_open In\n");
+	retval = tunerbb_drv_fc8050_init();
+	printk("broadcast_drv_if_open  Out\n");
 	if(retval == TRUE)
 	{
 		res = OK;
@@ -97,12 +103,13 @@ int broadcast_drv_if_close(void)
 	if(tunerbb_drv_fc8050_is_on() == TRUE)
 	{
 		printk("tdmb_fc8050_power_on state close-->stop\n");
+
 		retval = tunerbb_drv_fc8050_stop();
-	}
 	
-	if(retval == TRUE)
-	{
-		res = OK;
+		if(retval == TRUE)
+		{
+			res = OK;
+		}
 	}
 
 	return res;
@@ -139,6 +146,7 @@ int broadcast_drv_if_detect_sync(int op_mode)
 	{
 		rc = OK;
 	}
+
 	return rc;
 }
 
@@ -153,6 +161,7 @@ int broadcast_drv_if_get_sig_info(struct broadcast_tdmb_sig_info *dmb_bb_info)
 	{
 		rc = OK;
 	}		
+
 	return rc;
 }
 
@@ -228,9 +237,9 @@ int broadcast_drv_if_reset_ch(void)
 	return res;
 }
 
-int broadcast_drv_if_user_stop(void)
+int broadcast_drv_if_user_stop(int mode)
 {
-	tunerbb_drv_fc8050_set_userstop( );
+	tunerbb_drv_fc8050_set_userstop(mode );
 	return OK;	
 }
 

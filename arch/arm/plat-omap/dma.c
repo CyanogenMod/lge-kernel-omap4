@@ -735,11 +735,14 @@ int omap_request_dma(int dev_id, const char *dev_name,
 	}
 
 	if (cpu_class_is_omap2()) {
-		omap2_enable_irq_lch(free_ch);
-		omap_enable_channel_irq(free_ch);
+// wilson.choi@ti.com  Correct the channel interrupts enable sequence. http://git.omapzoom.org/?p=kernel/omap.git;a=commitdiff;h=babe50394aa9c2e8dcc2f4bb6995d4a0a0e95910	
+//		omap2_enable_irq_lch(free_ch);  
+//		omap_enable_channel_irq(free_ch);
 		/* Clear the CSR register and IRQ status register */
 		p->dma_write(OMAP2_DMA_CSR_CLEAR_MASK, CSR, free_ch);
 		p->dma_write(1 << free_ch, IRQSTATUS_L0, 0);
+		omap2_enable_irq_lch(free_ch);
+		omap_enable_channel_irq(free_ch);
 	}
 
 	*dma_ch_out = free_ch;
@@ -914,6 +917,18 @@ void omap_start_dma(int lch)
 	if (IS_DMA_ERRATA(DMA_ERRATA_IFRAME_BUFFERING))
 			l |= OMAP_DMA_CCR_BUFFERING_DISABLE;
 	l |= OMAP_DMA_CCR_EN;
+	
+// +s LGBT_COMMON_SCENARIO_DMA hyuntae0.kim@lge.com 120627	
+// TIK 2012.06.26 YDH 
+	/*
+	 * As dma_write() uses IO accessors which are weakly ordered, there
+	 * is no guarantee that data in coherent DMA memory will be visible
+	 * to the DMA device.  Add a memory barrier here to ensure that any
+	 * such data is visible prior to enabling DMA.
+	 */
+	mb();
+//TIK End
+// +e LGBT_COMMON_SCENARIO_DMA	
 
 	p->dma_write(l, CCR, lch);
 
@@ -963,6 +978,17 @@ void omap_stop_dma(int lch)
 		l &= ~OMAP_DMA_CCR_EN;
 		p->dma_write(l, CCR, lch);
 	}
+
+// +s LGBT_COMMON_SCENARIO_DMA hyuntae0.kim@lge.com 120627
+// TIK 2012.06.26 YDH 
+	/*
+	 * Ensure that data transferred by DMA is visible to any access
+	 * after DMA has been disabled.  This is important for coherent
+	 * DMA regions.
+	 */
+	mb();
+//TIK End
+// +e LGBT_COMMON_SCENARIO_DMA
 
 	if (!omap_dma_in_1510_mode() && dma_chan[lch].next_lch != -1) {
 		int next_lch, cur_lch = lch;
@@ -1076,8 +1102,16 @@ dma_addr_t omap_get_dma_dst_pos(int lch)
 	 * omap 3.2/3.3 erratum: sometimes 0 is returned if CSAC/CDAC is
 	 * read before the DMA controller finished disabling the channel.
 	 */
-	if (!cpu_is_omap15xx() && offset == 0)
+	if (!cpu_is_omap15xx() && offset == 0) {
 		offset = p->dma_read(CDAC, lch);
+		/*
+		 * CDAC == 0 indicates that the DMA transfer on the channel has
+		 * not been started (no data has been transferred so far).
+		 * Return the programmed destination start address in this case.
+		 */
+		if (unlikely(!offset))
+			offset = p->dma_read(CDSA, lch);
+	}
 
 	if (cpu_class_is_omap1())
 		offset |= (p->dma_read(CDSA, lch) & 0xFFFF0000);
@@ -1951,6 +1985,24 @@ static struct irqaction omap24xx_dma_irq;
 
 /*----------------------------------------------------------------------------*/
 
+//Change DMA IDLE Mode
+void omap_dma_set_midle(unsigned int midlemode)
+{
+	uint sys_config;
+
+	sys_config = p->dma_read(OCP_SYSCONFIG, 0);
+
+	/* Clear midle mode bits */
+	sys_config &= ~(DMA_SYSCONFIG_MIDLEMODE_MASK);
+
+	/* Set the new midle mode value */
+	sys_config |= (midlemode << 12);
+
+	p->dma_write(sys_config, OCP_SYSCONFIG, 0);
+}
+EXPORT_SYMBOL(omap_dma_set_midle);
+
+
 void omap_dma_global_context_save(void)
 {
 	omap_dma_global_context.dma_irqenable_l0 =
@@ -1958,6 +2010,9 @@ void omap_dma_global_context_save(void)
 	omap_dma_global_context.dma_ocp_sysconfig =
 		p->dma_read(OCP_SYSCONFIG, 0);
 	omap_dma_global_context.dma_gcr = p->dma_read(GCR, 0);
+
+	//to SMART IDLE
+	omap_dma_set_midle(DMA_IDLEMODE_SMARTIDLE);
 }
 
 void omap_dma_global_context_restore(void)
@@ -1976,6 +2031,9 @@ void omap_dma_global_context_restore(void)
 	for (ch = 0; ch < dma_chan_count; ch++)
 		if (dma_chan[ch].dev_id != -1)
 			omap_clear_dma(ch);
+
+	//to NO IDLE 
+	omap_dma_set_midle(DMA_IDLEMODE_NO_IDLE);		
 }
 
 static int __devinit omap_system_dma_probe(struct platform_device *pdev)
@@ -2052,7 +2110,8 @@ static int __devinit omap_system_dma_probe(struct platform_device *pdev)
 
 	if (cpu_is_omap2430() || cpu_is_omap34xx() || cpu_is_omap44xx())
 		omap_dma_set_global_params(DMA_DEFAULT_ARB_RATE,
-				DMA_DEFAULT_FIFO_DEPTH, 0);
+				DMA_DEFAULT_FIFO_DEPTH,// 0);
+				1);	//one thread is reserved for high priority
 
 	if (cpu_class_is_omap2()) {
 		strcpy(irq_name, "0");
@@ -2078,6 +2137,9 @@ static int __devinit omap_system_dma_probe(struct platform_device *pdev)
 		dma_chan[1].dev_id = 1;
 	}
 	p->show_dma_caps();
+	/* Set NO STANDBY for master */
+	omap_dma_set_midle(DMA_IDLEMODE_NO_IDLE);
+	
 	return 0;
 
 exit_dma_irq_fail:

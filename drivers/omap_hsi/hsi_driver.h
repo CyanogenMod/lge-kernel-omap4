@@ -62,6 +62,12 @@
 
 #define LOG_NAME		"OMAP HSI: "
 
+//mo2haewoon.you => [START]
+#ifdef CONFIG_MACH_LGE_COSMO
+#define HSI_SEND_ATCOMMAND_TO_CAWAKE
+#endif
+//mo2haewoon.you <= [START]
+
 /* SW strategies for HSI FIFO mapping */
 enum {
 	HSI_FIFO_MAPPING_UNDEF = 0,
@@ -216,6 +222,13 @@ struct hsi_dev { /* HSI_TODO:  should be later renamed into hsi_controller*/
 	struct dentry *dir;
 #endif
 	struct device *dev;
+
+//mo2haewoon.you => [START]
+#if defined (HSI_SEND_ATCOMMAND_TO_CAWAKE)
+        struct work_struct      ifx_work;
+        struct workqueue_struct *ifx_wq;
+#endif
+//mo2haewoon.you <= [END]
 };
 
 /**

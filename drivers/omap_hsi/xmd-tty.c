@@ -114,6 +114,29 @@ static void xmd_ch_tty_send_to_user(int chno)
 	buf = (unsigned char *)xmd_ch_read(chno, &len);
 
 // LGE_UPDATE_START 20120605 seunghwan.jin@lge.com
+#ifdef CONFIG_MACH_LGE_COSMO
+{
+    if (simple_hsi_log_debug_enable == '1')
+	{
+		char *str = (char *) kzalloc(len + 1, GFP_ATOMIC);
+		memcpy(str, buf, len);
+		printk("xmdtty: Sending data of size %d to ch %d, buf = %s\n", len,chno, str);
+		kfree(str);
+	}
+}
+#if defined (XMD_TTY_ENABLE_DEBUG_MSG)
+{
+    if(simple_hsi_log_debug_enable != '1')
+    {
+		char *str = (char *) kzalloc(len + 1, GFP_ATOMIC);
+		memcpy(str, buf, len);
+		printk("\nxmdtty: Sending data of size %d to ch %d, buf = %s\n",
+					len,chno, str);
+		kfree(str);
+	}
+}
+#endif
+#else
 // start ipc temp
 
     char *begin;
@@ -121,7 +144,7 @@ static void xmd_ch_tty_send_to_user(int chno)
     char *str = (char *) kzalloc(len + 1, GFP_ATOMIC);
 #if defined(HSI_PRIVATE_INFO_PROTECTION)
     if(len>PRIVATE_INFO_LENGTH+2)
-    {
+     {
         memcpy(str, buf, PRIVATE_INFO_LENGTH);
         str[PRIVATE_INFO_LENGTH] ='\n';
         str[PRIVATE_INFO_LENGTH+1] ='\0';
@@ -130,7 +153,7 @@ static void xmd_ch_tty_send_to_user(int chno)
         memcpy(str, buf, len);
 #else
     memcpy(str, buf, len);
-#endif
+ #endif
     if(simple_hsi_log_debug_enable == '1')
         printk("xmdtty: Sending data of size %d to ch %d, buf = %s\n", len,chno, str);
     else
@@ -152,6 +175,8 @@ static void xmd_ch_tty_send_to_user(int chno)
     }
     kfree(str);
 // end ipc temp
+#endif
+
 // Original code is blocked. Maintain and unblock original code, when you remove updated area.
 /*
 #if defined (XMD_TTY_ENABLE_DEBUG_MSG)
@@ -200,13 +225,14 @@ static int xmd_ch_tty_open(struct tty_struct *tty, struct file *f)
 	char init_flag = 0;
 
 	int n = tty->index;
+#ifndef CONFIG_MACH_LGE_COSMO
 	int gpio_value = gpio_get_value(122);
 
 	printk("xmdtty: gpio 122 value is %d ##########\n", gpio_value);
 
 	if (gpio_value)
 		return -EAGAIN;
-
+#endif
 	if (n >= tty_channels_len) {
 #if defined (XMD_TTY_ENABLE_DEBUG_MSG)
 		printk("\nxmdtty: Error opening channel %d\n",n);
@@ -336,9 +362,35 @@ static int xmd_ch_tty_write(
 	/* AT command */
 	else 
 		written_len = min(len, XMD_TTY_AT_MAX_WRITE_SIZE);
+#ifdef CONFIG_MACH_LGE_COSMO
 // LGE_UPDATE_START 20120605 seunghwan.jin@lge.com
-// start ipc temp
 {
+    if(simple_hsi_log_debug_enable == '1')
+	{
+		int max_len = 0;
+		char *str = (char *) kzalloc(written_len + 1, GFP_ATOMIC);
+
+		if(tty_ch->chno == XMD_TTY_VT_DATA_CHANNEL) /* VT data */
+			max_len = XMD_TTY_VT_MAX_WRITE_SIZE;
+#if defined (TARGET_CARRIER_ATT)
+		else if(tty_ch->chno == XMD_TTY_CIQ_CHANNEL) /* CIQ data */
+			max_len = XMD_TTY_CIQ_MAX_WRITE_SIZE;
+#endif
+		else /* AT command */
+			max_len = XMD_TTY_AT_MAX_WRITE_SIZE;
+
+		if(len > max_len)
+			printk("xmdtty: xmd_ch_tty_write len(%d) is bigger than max write size for ch %d\n", len,tty_ch->chno);
+
+		memcpy(str, buf, written_len);
+		printk("xmdtty: writing data of size %d to ch %d, data: %s\n", written_len,tty_ch->chno,str);
+		kfree(str);
+	}
+}
+#if defined (XMD_TTY_ENABLE_DEBUG_MSG)
+{
+    if(simple_hsi_log_debug_enable != '1')
+	{
 		int max_len = 0;
 		char *str = (char *) kzalloc(written_len + 1, GFP_ATOMIC);
 
@@ -354,26 +406,52 @@ static int xmd_ch_tty_write(
 		if(len > max_len)
 			printk("\nxmdtty: xmd_ch_tty_write len(%d) is bigger than max write size for ch %d\n",
 					len,tty_ch->chno);
-#if defined(HSI_PRIVATE_INFO_PROTECTION)
-        if(len>PRIVATE_INFO_LENGTH+2)
-        {
-            memcpy(str, buf, PRIVATE_INFO_LENGTH);
-            str[PRIVATE_INFO_LENGTH] ='\n';
-            str[PRIVATE_INFO_LENGTH+1] ='\0';
-        }
-        else
-            memcpy(str, buf, written_len);
-#else
-        memcpy(str, buf, written_len);
-#endif
-        if(simple_hsi_log_debug_enable == '1')
-            printk("xmdtty: writing data of size %d to ch %d, data: %s\n", written_len,tty_ch->chno,str);
-        else if(tty_ch->chno < 11)
-	        printk("xmdtty: CP received data size : %d to ch[%d] %s", written_len,tty_ch->chno,str);
 
-        kfree(str);
+		memcpy(str, buf, written_len);
+		printk("\nxmdtty: writing data of size %d to ch %d, data: %s\n",
+					written_len,tty_ch->chno,str);
+		kfree(str);
+	}
+}
+#endif
+#else
+// start ipc temp
+{
+	int max_len = 0;
+	char *str = (char *) kzalloc(written_len + 1, GFP_ATOMIC);
+
+	if(tty_ch->chno == XMD_TTY_VT_DATA_CHANNEL) /* VT data */
+		max_len = XMD_TTY_VT_MAX_WRITE_SIZE;
+#if defined (TARGET_CARRIER_ATT)
+	else if(tty_ch->chno == XMD_TTY_CIQ_CHANNEL) /* CIQ data */
+		max_len = XMD_TTY_CIQ_MAX_WRITE_SIZE;
+#endif
+	else /* AT command */
+		max_len = XMD_TTY_AT_MAX_WRITE_SIZE;
+
+	if(len > max_len)
+		printk("xmdtty: xmd_ch_tty_write len(%d) is bigger than max write size for ch %d\n", len,tty_ch->chno);
+#if defined(HSI_PRIVATE_INFO_PROTECTION)
+	if(len>PRIVATE_INFO_LENGTH+2)
+	{
+		memcpy(str, buf, PRIVATE_INFO_LENGTH);
+		str[PRIVATE_INFO_LENGTH] ='\n';
+		str[PRIVATE_INFO_LENGTH+1] ='\0';
+	}
+	else
+		memcpy(str, buf, written_len);
+#else
+	memcpy(str, buf, written_len);
+#endif
+	if(simple_hsi_log_debug_enable == '1')
+		printk("xmdtty: writing data of size %d to ch %d, data: %s\n", written_len,tty_ch->chno,str);
+	else if(tty_ch->chno < 11)
+		printk("xmdtty: CP received data size : %d to ch[%d] %s", written_len,tty_ch->chno,str);
+
+	kfree(str);
 }
 // end ipc temp
+#endif
 
 // Original code is blocked. Maintain and unblock original code when you remove updated area.
 //#if defined (XMD_TTY_ENABLE_DEBUG_MSG)
@@ -427,21 +505,46 @@ static int xmd_ch_tty_write(
 {
 	struct xmd_ch_info *tty_ch = tty->driver_data;
 // LGE_UPDATE_START 20120605 seunghwan.jin@lge.com
+#ifdef CONFIG_MACH_LGE_COSMO
+{
+    if(simple_hsi_log_debug_enable == '1')
+    {
+		char *str = (char *) kzalloc(len + 1, GFP_ATOMIC);
+		memcpy(str, buf, len);
+		printk("xmdtty: writing data of size %d to ch %d, data: %s\n", len,tty_ch->chno,str);
+		kfree(str);
+    }
+}
+#if defined (XMD_TTY_ENABLE_DEBUG_MSG)
+{
+    if(simple_hsi_log_debug_enable != '1')
+    {
+         char *str = (char *) kzalloc(len + 1, GFP_ATOMIC);
+         memcpy(str, buf, len);
+         printk("\nxmdtty: writing data of size %d to ch %d, data: %s\n",
+                    len,tty_ch->chno,str);
+         kfree(str);
+    }
+}
+#endif
+#else
+        struct xmd_ch_info *tty_ch = tty->driver_data;
+ // LGE_UPDATE_START 20120605 seunghwan.jin@lge.com
 // start ipc temp
 
     char *str = (char *) kzalloc(len + 1, GFP_ATOMIC);
 #if defined(HSI_PRIVATE_INFO_PROTECTION)
     if(len>PRIVATE_INFO_LENGTH+2)
-    {
+     {
         memcpy(str, buf, PRIVATE_INFO_LENGTH);
         str[PRIVATE_INFO_LENGTH] ='\n';
         str[PRIVATE_INFO_LENGTH+1] ='\0';
-    }
+     }
     else
         memcpy(str, buf, len);
 #else
     memcpy(str, buf, len);
-#endif
+ #endif
     if(simple_hsi_log_debug_enable == '1')
         printk("xmdtty: writing data of size %d to ch %d, data: %s\n", len,tty_ch->chno,str);
     else if(tty_ch->chno < 11)
@@ -450,6 +553,7 @@ static int xmd_ch_tty_write(
 
 
 // end ipc temp
+#endif
 // Original code is blocked. Maintain and unblock original code when you remove updated area.
 /*
 #if defined (XMD_TTY_ENABLE_DEBUG_MSG)

@@ -365,8 +365,8 @@ extern "C" {
 #define CH0_BUF_END 				(CH0_BUF_START + CH0_BUF_LENGTH -1)
 
 // Modified by suyong.han 20110921
-//#define CH0_BUF_THR 				(CH0_BUF_LENGTH/2-1)
-#define CH0_BUF_THR 				(CH0_BUF_LENGTH/4-1)
+#define CH0_BUF_THR 				(CH0_BUF_LENGTH/2-1) /* 188x32 2 buffers */
+//#define CH0_BUF_THR 				(CH0_BUF_LENGTH/4-1) /* 188x16 4 buffers */
 
 #define CH1_BUF_START				(CH0_BUF_START + CH0_BUF_LENGTH)
 #define CH1_BUF_LENGTH				(0)

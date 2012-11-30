@@ -2388,7 +2388,7 @@ static void dsi_cio_timings(struct platform_device *dsidev)
 	tclk_prepare = ns2ddr(dsidev, 65);
 
 	/* min tclk-prepare + tclk-zero = 300ns */
-	tclk_zero = ns2ddr(dsidev, 260);
+	tclk_zero = ns2ddr(dsidev, 265 /* diff gb 265 <- 260 */); //for DSI_DSIPHY_CFG0
 
 	DSSDBG("ths_prepare %u (%uns), ths_prepare_ths_zero %u (%uns)\n",
 		ths_prepare, ddr2ns(dsidev, ths_prepare),

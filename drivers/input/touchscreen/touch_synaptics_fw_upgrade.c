@@ -300,20 +300,11 @@ static int RMI4WaitATTN(int errorCount,
 	int uErrorCount = 0;
 
 	/* To work around the physical address error from Control Bridge */
-#ifdef CONFIG_MACH_LGE_U2
-	/* seungbum.park@lge.com - 2012/06/19 - 2sec timeout for waitATTN */
-        ret = SynaWaitForATTN(2000, fw, ts);
-        if (ret < 0) {
-                TOUCH_ERR_MSG("SynaWaitForATTN 2000ms timeout error\n");
-                return ret;
-        }
-#else
 	ret = SynaWaitForATTN(1000, fw, ts);
 	if (ret < 0) {
 		TOUCH_ERR_MSG("SynaWaitForATTN 1000ms timeout error\n");
 		return ret;
 	}
-#endif
 
 	do {
 		ret = SynaReadRegister(ts->client, fw->m_uF34Reflash_FlashControl, &fw->m_uPageData[0], 1);
@@ -996,8 +987,8 @@ static int RMI4ReadFirmwareHeader(struct synaptics_fw_data *fw, struct synaptics
 #ifndef CONFIG_TOUCHSCREEN_COMMON_SYNAPTICS_S3200       /* seungbum.park@lge.com - 2012/06/13 - not used for S3200 series */
 #if !defined(TEST_WRONG_CHIPSET_FW_FORCE_UPGRADE)
 	/* Check prpoer FW */
-	if (strncmp(ts->fw_info.product_id , &fw->image_bin[16], 10)) {
-		printk(KERN_INFO "[Touch E] IC = %s, Firmware Target = %s\n ", ts->fw_info.product_id, &fw->image_bin[16]);
+	if (strncmp(ts->fw_info->product_id , &fw->image_bin[16], 10)) {
+		printk(KERN_INFO "[Touch E] IC = %s, Firmware Target = %s\n ", ts->fw_info->product_id, &fw->image_bin[16]);
 		printk(KERN_INFO "[Touch E] WARNING - Firmware is mismatched with Touch IC\n");
 		printk(KERN_INFO "[Touch E] Firmware upgrade stop\n");
 		return -ENODEV;
@@ -1139,8 +1130,8 @@ int FirmwareUpgrade(struct synaptics_ts_data *ts, const char* fw_path)
 
 		TOUCH_INFO_MSG("Touch FW image read %ld bytes from %s\n", read_bytes, fw_path);
 	}else {
-		fw->image_size = ts->fw_info.fw_size-1;
-		fw->image_bin = (unsigned char *)(&ts->fw_info.fw_start[0]);
+		fw->image_size = ts->fw_info->fw_size-1;
+		fw->image_bin = (unsigned char *)(&ts->fw_info->fw_start[0]);
 	}
 
 #ifdef LGE_TOUCH_TIME_DEBUG

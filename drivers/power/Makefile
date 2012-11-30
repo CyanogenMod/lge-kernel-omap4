@@ -39,19 +39,22 @@ obj-$(CONFIG_CHARGER_TWL4030)	+= twl4030_charger.o
 obj-$(CONFIG_CHARGER_GPIO)	+= gpio-charger.o
 obj-$(CONFIG_CHARGER_BQ2415x)	+= bq2415x_charger.o
 #obj-$(CONFIG_CHARGER_RT9524)	+= rt9524_charger.o
-
-ifeq ($(CONFIG_MAX8971_CHARGER),y)
-obj-$(CONFIG_MAX8971_CHARGER) += max8971_charger.o
-endif
-
 ifdef CONFIG_LG_FW_MAX17043_FUEL_GAUGE_I2C
 ## LGE_SJIT 2011-10-26 [choongryeol.lee@lge.com]
 obj-$(CONFIG_TWL6030_BCI_BATTERY)	+= twl6030_bci_battery_ap_fuel.o
 else ifdef CONFIG_LG_FW_MAX17048_FUEL_GAUGE_I2C
 obj-$(CONFIG_TWL6030_BCI_BATTERY)   += twl6030_bci_battery_u2.o
 else
+ifdef CONFIG_LG_FW_MAX17043_FUEL_GAUGE_GPIO
+obj-$(CONFIG_TWL6030_BCI_BATTERY)	+= twl6030_bci_battery_ap_fuel.o
+else
 obj-$(CONFIG_TWL6030_BCI_BATTERY)	+= twl6030_bci_battery.o
+endif
 endif
 ifeq ($(CONFIG_CHARGER_RT9524),y)
 obj-$(CONFIG_CHARGER_RT9524) += rt9524_charger.o 
+endif
+
+ifeq ($(CONFIG_MAX8971_CHARGER),y)
+obj-$(CONFIG_MAX8971_CHARGER) += max8971_charger.o
 endif

@@ -125,6 +125,21 @@ struct dsscomp_videomode {
 	__u32 flag;
 };
 
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY) //##hwcho_20120522
+/* This has to match the defintions of corresponding layers too. */
+enum s3d_layout_type {
+	NO_S3D				= 0x0,
+	S3D_SIDE_BY_SIDE	= 0x1,
+	S3D_TOP_BOTTOM		= 0x2,
+	S3D_ROW_INTERLEAVED	= 0x3,
+	S3D_COL_INTERLEAVED	= 0x4,
+};
+
+enum s3d_layout_order {
+	LEFT_VIEW_FIRST	= 0x0,
+	RIGHT_VIEW_FIRST = 0x1,
+};
+#else
 /*
  * Stereoscopic Panel types
  * row, column, overunder, sidebyside options
@@ -182,6 +197,7 @@ struct s3d_disp_info {
 	 */
 	unsigned int gap;
 };
+#endif //##
 
 enum omap_dss_ilace_mode {
 	OMAP_DSS_ILACE		= (1 << 0),	/* interlaced vs. progressive */
@@ -339,6 +355,12 @@ struct dss2_ovl_cfg {
 	__u8 enabled;	/* bool */
 	__u8 zonly;	/* only set zorder and enabled bit */
 	__u8 mgr_ix;	/* mgr index */
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY)  //##hwcho_20120522
+	__u8 s3d_content;
+	enum s3d_layout_type s3d_input_layout_type;
+	enum s3d_layout_order s3d_input_layout_order;
+	__u8 s3d_rotation;	//rotation status of s3d content
+#endif //##
 } __attribute__ ((aligned(4)));
 
 enum omapdss_buffer_type {
@@ -427,6 +449,9 @@ struct dss2_mgr_info {
 	__u8 alpha_blending;	/* bool - overrides trans_enabled */
 	__u8 cpr_enabled;	/* bool */
 	__u8 swap_rb;		/* bool - swap red and blue */
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY) //##hwcho_20120522
+	struct s3d_disp_info s3d_disp_info;	/*Display info should be set in HWC */
+#endif //##
 } __attribute__ ((aligned(4)));
 
 /*
@@ -524,6 +549,18 @@ struct dsscomp_check_ovl_data {
 	struct dss2_ovl_info ovl;
 };
 
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY) //##hwcho_20120522
+//Is this a normal composition or writeback? If writeback, is it a capture mode
+//or a mem2mem mode. In mem2mem mode, do we skip rows or columns?
+enum dsscomp_composition_mode {
+	DSSCOMP_BLANKING_COMPOSITION = 0,
+	DSSCOMP_NORMAL_COMPOSITION  = 100,
+	DSSCOMP_WB_M2M_ROW_INTERLEAVED = 101,
+	DSSCOMP_WB_M2M_COL_INTERLEAVED = 102,
+	DSSCOMP_WB_CAPTURE_MODE     = 103,
+};
+#endif //##
+
 /*
  * This structure is used to set up the entire DISPC (all managers),
  * and is analogous to dsscomp_setup_mgr_data.
@@ -548,6 +585,9 @@ struct dsscomp_setup_dispc_data {
 
 	struct dss2_mgr_info mgrs[3];
 	struct dss2_ovl_info ovls[5]; /* up to 5 overlays to set up */
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY) //##hwcho_20120522
+	enum dsscomp_composition_mode composition_mode;
+#endif //##
 };
 
 /*

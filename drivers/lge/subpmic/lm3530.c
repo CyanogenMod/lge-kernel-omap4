@@ -12,7 +12,7 @@ int lm3530_get_lcd_on_off()
 #endif
 
 
-int	lm3530_read_byte(struct lm3530_private_data* pdata, int reg)
+static int	lm3530_read_byte(struct lm3530_private_data* pdata, int reg)
 {
 	int		ret;
 
@@ -23,7 +23,7 @@ int	lm3530_read_byte(struct lm3530_private_data* pdata, int reg)
 	return	ret;
 }
 
-int	lm3530_write_byte(struct lm3530_private_data* pdata, int reg, int value)
+static int	lm3530_write_byte(struct lm3530_private_data* pdata, int reg, int value)
 {
 	int		ret;
 
@@ -92,18 +92,8 @@ extern enum power_supply_type get_charging_ic_status(void);
 
 int	lm3530_set_brightness_control(struct lm3530_private_data* pdata, int val)
 {
-	if ((val < 0) || (val > UI_MAX))
+	if ((val < 0) || (val > 255))
 		return	-EINVAL;
-
-	if(val >= UI_MIN && val <= UI_DEFAULT)
-	{
-		val = (val - UI_MIN) * (LM3530_DEFAULT_BRT - LM3530_MIN_BRT) / (UI_DEFAULT - UI_MIN) + LM3530_MIN_BRT;
-	}
-	else if(val >UI_DEFAULT)
-	{
-		val = (val - UI_DEFAULT) * (LM3530_MAX_BRT - LM3530_DEFAULT_BRT) / (UI_MAX - UI_DEFAULT) + LM3530_DEFAULT_BRT;
-	}
-	printk("[dyotest]%s val=0x%x\n",__func__,val);
 
 	/* LGE_CHANGE [wonhui.lee@lge.com] 2011-11-23, To prevent Backlight control in Factory*/
 #if defined(CONFIG_LG_FW_MAX17043_FUEL_GAUGE_I2C) || defined(CONFIG_LG_FW_MAX17048_FUEL_GAUGE_I2C)
@@ -142,8 +132,6 @@ EXPORT_SYMBOL(lm3530_set_hwen);
 EXPORT_SYMBOL(lm3530_get_hwen);
 EXPORT_SYMBOL(lm3530_set_brightness_control);
 EXPORT_SYMBOL(lm3530_get_brightness_control);
-EXPORT_SYMBOL(lm3530_read_byte);
-EXPORT_SYMBOL(lm3530_write_byte);
 
 MODULE_AUTHOR("LG Electronics (dongjin73.kim@lge.com)");
 MODULE_DESCRIPTION("Multi Display LED driver");

@@ -202,7 +202,9 @@ int status;
 	printk("%s: MODEM_GPIO_PWRON_SW high+ [CP POWER]: pin %d\n", __func__, status);
 
 	usif_switch_ctrl(0);
-	usif_switch_none(0); //USIF can't switch
+/* for compile error : Not defined TARGET_CARRIER_LGU 
+    usif_switch_none(0); //USIF can't switch
+*/
 	printk("%s: CP Reset OUT\n", __func__);
 #endif
 }

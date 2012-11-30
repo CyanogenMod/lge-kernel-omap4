@@ -454,10 +454,6 @@ typedef struct _tagST_BBPINFO
 	INC_UINT8		ucStop;
 	ST_TRANSMISSION	ucTransMode;
 
-//	INC_UINT8		ucTmid; blocked by LGE
-	INC_UINT8		ucAfcOK;
-	INC_UINT8		ucChannelChange;
-	INC_UINT8		ucSyncLock;
 	INC_UINT8		ucAntLevel;
 	INC_UINT8		ucSnr;
 	INC_UINT8		ucVber;
@@ -471,12 +467,9 @@ typedef struct _tagST_BBPINFO
 	INC_UINT32		ulReConfigTime;
 
 	INC_UINT16		uiInCAntTick;
-	INC_UINT16		uiInCVberTick;
 	INC_UINT16		uiInCERAvg;
-	INC_UINT16		uiInCVberAvg;
 	INC_UINT16		uiIncPostBER;
 	INC_UINT16		auiANTBuff[BER_BUFFER_MAX];
-	INC_UINT16		auiVberBuff[BER_BUFFER_MAX];
 
 	INC_UINT8		ucProtectionLevel;
 	INC_UINT16		uiInCBERTick;
@@ -1220,10 +1213,6 @@ void		INC_UPDATE_LIST(INC_CHANNEL_INFO* pUpDateCh, ST_FICDB_SERVICE_COMPONENT* p
 INC_UINT8	INC_FIC_UPDATE(INC_UINT8 ucI2CID, ST_SUBCH_INFO* pChInfo, ST_SIMPLE_FIC bSimpleFIC);
 void INC_RESET_MPI(INC_UINT8 ucI2CID);  /* LGE ADD */
 INC_UINT8 INC_RE_SYNCDETECTOR(INC_UINT8 ucI2CID, ST_SUBCH_INFO* pChInfo);  /* LGE ADD for test*/
-
-void INC_ANT_TEMP_CLEAR(INC_UINT8 ucI2CID);
-INC_UINT8 INC_GET_SYNC_LOCK_STATE( INC_UINT8 ucI2CID);
-INC_UINT8 INC_GET_AFC_STATUS(INC_UINT8 ucI2CID);
 
 
 /////////////////////////////////////////////////////////////////////////////////////////

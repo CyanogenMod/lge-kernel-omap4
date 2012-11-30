@@ -33,6 +33,16 @@
 
 #define TILER_ENABLE_NON_PAGE_ALIGNED_ALLOCATIONS  1
 
+#if defined(CONFIG_MACH_LGE_COSMO)
+#define DYNAMIC_PAGE_ALLOC
+#ifdef DYNAMIC_PAGE_ALLOC
+#define FLUSH_PAGE
+#ifdef FLUSH_PAGE
+#include <asm/cacheflush.h>
+#endif
+#endif
+#endif
+
 static int omap_tiler_heap_allocate(struct ion_heap *heap,
 				    struct ion_buffer *buffer,
 				    unsigned long size, unsigned long align,
@@ -74,6 +84,9 @@ int omap_tiler_alloc(struct ion_heap *heap,
 	tiler_blk_handle tiler_handle;
 	ion_phys_addr_t addr = 0;
 	int i = 0, ret;
+#ifdef DYNAMIC_PAGE_ALLOC
+	struct page *pg;
+#endif
 
 	if (data->fmt == TILER_PIXEL_FMT_PAGE && data->h != 1) {
 		pr_err("%s: Page mode (1D) allocations must have a height "
@@ -135,6 +148,25 @@ int omap_tiler_alloc(struct ion_heap *heap,
 	info->tiler_addrs = info->phys_addrs + n_phys_pages;
 	info->fmt = data->fmt;
 
+#ifdef DYNAMIC_PAGE_ALLOC
+	for (i = 0; i < n_phys_pages; i++) {
+		pg = alloc_page(GFP_KERNEL | GFP_DMA);
+		if (!pg) {
+
+			ret = -ENOMEM;
+			printk(KERN_ERR "%s: alloc_page failed\n", __func__);
+			goto err_alloc;
+		}
+		info->phys_addrs[i] = page_to_phys(pg);;
+
+#ifdef FLUSH_PAGE
+		dmac_flush_range((void *)page_address(pg),
+				(void *)page_address(pg) + PAGE_SIZE);
+		outer_flush_range(info->phys_addrs[i],
+				info->phys_addrs[i] + PAGE_SIZE);
+#endif
+	}
+#else
 	addr = ion_carveout_allocate(heap, n_phys_pages*PAGE_SIZE, 0);
 	if (addr == ION_CARVEOUT_ALLOCATE_FAIL) {
 		for (i = 0; i < n_phys_pages; i++) {
@@ -153,6 +185,7 @@ int omap_tiler_alloc(struct ion_heap *heap,
 		for (i = 0; i < n_phys_pages; i++)
 			info->phys_addrs[i] = addr + i*PAGE_SIZE;
 	}
+#endif
 
 	ret = tiler_pin_block(info->tiler_handle, info->phys_addrs,
 			      info->n_phys_pages);
@@ -189,14 +222,25 @@ int omap_tiler_alloc(struct ion_heap *heap,
 err:
 	tiler_unpin_block(info->tiler_handle);
 err_alloc:
-	tiler_free_block_area(info->tiler_handle);
-	if(info)
+	//tiler_free_block_area(info->tiler_handle);
+	if(info)//mo2seongjae.jang 20120702 WBT issue modification
 	{
+	 tiler_free_block_area(info->tiler_handle);//mo2seongjae.jang 20120807 WBT issue modification
+#ifdef DYNAMIC_PAGE_ALLOC
+	for (i -= 1; i >= 0; i--) {
+		pg = phys_to_page(info->phys_addrs[i]);
+		__free_page(pg);
+	}
+#else
+	//if(info)
+	//{
 		if (info->lump)
 			ion_carveout_free(heap, addr, n_phys_pages * PAGE_SIZE);
 		else
 			for (i -= 1; i >= 0; i--)
 				ion_carveout_free(heap, info->phys_addrs[i], PAGE_SIZE);
+	//}
+#endif
 	}
 err_nomem:
 	kfree(info);
@@ -205,11 +249,23 @@ err_nomem:
 
 void omap_tiler_heap_free(struct ion_buffer *buffer)
 {
+// 1G Dynamic alloc - 18827
+#ifdef DYNAMIC_PAGE_ALLOC
+	int i;
+	struct page *pg;
+#endif
+// 1G Dynamic alloc - 18827
 	struct omap_tiler_info *info = buffer->priv_virt;
 
 	tiler_unpin_block(info->tiler_handle);
 	tiler_free_block_area(info->tiler_handle);
 
+#ifdef DYNAMIC_PAGE_ALLOC
+	for (i = 0; i < info->n_phys_pages; i++) {
+		pg = phys_to_page(info->phys_addrs[i]);
+		__free_page(pg);
+	}
+#else
 	if (info->lump) {
 		ion_carveout_free(buffer->heap, info->phys_addrs[0],
 				  info->n_phys_pages*PAGE_SIZE);
@@ -219,6 +275,7 @@ void omap_tiler_heap_free(struct ion_buffer *buffer)
 			ion_carveout_free(buffer->heap,
 					  info->phys_addrs[i], PAGE_SIZE);
 	}
+#endif
 
 	kfree(info);
 }

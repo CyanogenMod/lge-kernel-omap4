@@ -28,6 +28,7 @@
 #include <mach/omap-wakeupgen.h>
 
 #include <plat/gpio.h>
+#include <plat/dma.h>
 
 #include "clockdomain.h"
 #include "pm.h"
@@ -48,32 +49,6 @@
 
 #define OMAP4_MAX_STATES	4
 
-/* LGE_CHANGE_S [kyungyoon.kim@lge.com] 2012-08-29, CPU idle Lockup Problem */
-#if 1 
-unsigned int print_counter=0;
-unsigned int print_counter1=0;
-#define MODULE_NAME 	"Cpuidle44xx"
-#define DBG(fmt, args...) 				\
-({									\
-	if(print_counter ==5000){		\
-		printk(KERN_DEBUG "[%s] Line :(%d): " 		\
-			fmt, MODULE_NAME, __LINE__, ## args); \
-		print_counter =0;			\
-		} ;				\
-		print_counter++;	\
-})
-
-#define DBG1(fmt, args...) 				\
-({									\
-	if(print_counter1 ==1000){		\
-		printk(KERN_DEBUG "[%s] Line :(%d): " 		\
-			fmt, MODULE_NAME, __LINE__, ## args); \
-		print_counter1 =0;			\
-		} ;				\
-		print_counter1++;	\
-})
-#endif
-/* LGE_CHANGE_E [kyungyoon.kim@lge.com] 2012-08-29, CPU idle Lockup Problem */
 static bool disallow_smp_idle;
 module_param(disallow_smp_idle, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(disallow_smp_idle,
@@ -323,7 +298,7 @@ static void omap4_enter_idle_primary(struct omap4_processor_cx *cx)
 {
 	int cpu = 0;
 	int ret;
-	unsigned int count = 0xFFFFFFFF;
+	int count = 1000000;
 
 	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu);
 
@@ -352,16 +327,24 @@ static void omap4_enter_idle_primary(struct omap4_processor_cx *cx)
 		pwrdm_set_logic_retst(core_pd, cx->core_logic_state);
 		omap_set_pwrdm_state(core_pd, cx->core_state);
 	}
+	//to SMART IDLE when sleep
+	if (cx->type >= OMAP4_STATE_C2)
+		omap_dma_set_midle(DMA_IDLEMODE_SMARTIDLE);
+	
 
-	DBG("%s: cpu0 down\n", __func__);
+	pr_debug("%s: cpu0 down\n", __func__);
 
 	omap4_enter_sleep(0, PWRDM_POWER_OFF, false);
 
-	DBG("%s: cpu0 up\n", __func__);
+	pr_debug("%s: cpu0 up\n", __func__);
 
 	/* restore the MPU and CORE states to ON */
 	omap_set_pwrdm_state(mpu_pd, PWRDM_POWER_ON);
 	omap_set_pwrdm_state(core_pd, PWRDM_POWER_ON);
+
+	//to NO IDLE when wake up
+	if (cx->type >= OMAP4_STATE_C2)
+	      omap_dma_set_midle(DMA_IDLEMODE_NO_IDLE);
 
 wake_cpu1:
 	if (!cpu_is_offline(1)) {
@@ -406,7 +389,7 @@ static void omap4_enter_idle_secondary(int cpu)
 
 	cpu_pm_enter();
 
-	DBG("%s: cpu1 down\n", __func__);
+	pr_debug("%s: cpu1 down\n", __func__);
 	flush_cache_all();
 	dsb();
 
@@ -420,7 +403,7 @@ static void omap4_enter_idle_secondary(int cpu)
 	omap_wakeupgen_irqmask_all(cpu, 0);
 	gic_cpu_enable();
 
-	DBG("%s: cpu1 up\n", __func__);
+	pr_debug("%s: cpu1 up\n", __func__);
 
 	cpu_pm_exit();
 
@@ -536,7 +519,7 @@ static int omap4_enter_idle(struct cpuidle_device *dev,
 
 		if (omap4_idle_ready_count != num_online_cpus() ||
 		    !omap4_all_cpus_idle()) {
-			DBG1("%s: cpu1 aborted: %d %p\n", __func__,
+			pr_debug("%s: cpu1 aborted: %d %p\n", __func__,
 				omap4_idle_ready_count,
 				omap4_idle_requested_cx[1]);
 			omap4_idle_ready_count = 0;
@@ -565,7 +548,7 @@ static int omap4_enter_idle(struct cpuidle_device *dev,
 		}
 
 		if (!omap4_all_cpus_idle()) {
-			DBG1("%s: cpu0 aborted: %d %p\n", __func__,
+			pr_debug("%s: cpu0 aborted: %d %p\n", __func__,
 				omap4_idle_ready_count,
 				omap4_idle_requested_cx[0]);
 			omap4_cpu_update_state(cpu, NULL);
@@ -573,7 +556,7 @@ static int omap4_enter_idle(struct cpuidle_device *dev,
 			goto out;
 		}
 
-		DBG("%s: cpu1 acks\n", __func__);
+		pr_debug("%s: cpu1 acks\n", __func__);
 		/* ack shared-OFF */
 		if (omap4_idle_ready_count > 0)
 			omap4_idle_ready_count++;
@@ -587,7 +570,7 @@ static int omap4_enter_idle(struct cpuidle_device *dev,
 		}
 
 		if (omap4_idle_ready_count == 0) {
-			DBG1("%s: cpu0 aborted: %d %p\n", __func__,
+			pr_debug("%s: cpu0 aborted: %d %p\n", __func__,
 				omap4_idle_ready_count,
 				omap4_idle_requested_cx[0]);
 			omap4_cpu_update_state(cpu, NULL);

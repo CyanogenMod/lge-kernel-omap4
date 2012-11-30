@@ -41,29 +41,11 @@ INC_UINT8 INC_CMD_READ_BURST(INC_UINT8 ucI2CID, INC_UINT16 uiAddr, INC_UINT8* pD
 	return INC_I2C_READ_BURST(ucI2CID, uiAddr, pData, nSize);
 }
 
-void INC_ANT_TEMP_CLEAR(INC_UINT8 ucI2CID)
-{
-	ST_BBPINFO* pInfo;
-	pInfo = INC_GET_STRINFO(ucI2CID);
-
-	pInfo->uiInCAntTick = 0;
-	pInfo->uiInCVberTick  = 0;
-
-	pInfo->ucAntLevel = 0;
-	pInfo->auiANTBuff[0] = 0;
-	pInfo->auiANTBuff[1] = 0;
-	pInfo->auiANTBuff[2] = 0;
-
-	pInfo->auiVberBuff[0] = 0;
-	pInfo->auiVberBuff[1] = 0;
-	pInfo->auiVberBuff[2] = 0;
-
-	pInfo->ucChannelChange = 1;
-}
-
 void INC_RESET_MPI(INC_UINT8 ucI2CID)
 {
 	INC_UINT16 uStatus;
+	ST_BBPINFO* pInfo;
+	ST_TRANSMISSION ucTransMode;
 
 	uStatus = INC_CMD_READ(ucI2CID, APB_MPI_BASE+0);
 	INC_CMD_WRITE(ucI2CID, APB_MPI_BASE+0, 0x8000|uStatus);
@@ -72,9 +54,12 @@ void INC_RESET_MPI(INC_UINT8 ucI2CID)
 	uStatus = INC_CMD_READ(ucI2CID, APB_PHY_BASE+ 0x10) & 0x7000;
 	INC_CMD_WRITE(ucI2CID, APB_PHY_BASE	+ 0x3B, 0x4000);
 
-	/* 2012.04.18 T3900 needs 25msec delay for Same Ensemble */
-	INC_DELAY(ucI2CID,25);
-	INC_ANT_TEMP_CLEAR(ucI2CID);
+	pInfo = INC_GET_STRINFO(ucI2CID);
+	ucTransMode = pInfo->ucTransMode;
+	memset(pInfo, 0, sizeof(ST_BBPINFO));
+	pInfo->ucTransMode = ucTransMode;
+	
+//INC_DELAY(ucI2CID,25);  /* 2011.10.25 delete recommended by INC */
 }
 
 
@@ -373,7 +358,7 @@ INC_UINT8 INC_INIT(INC_UINT8 ucI2CID)
 	INC_CMD_WRITE(ucI2CID, APB_VTB_BASE+ 0x00, 0x8000);
 	INC_CMD_WRITE(ucI2CID, APB_VTB_BASE+ 0x01, 0x01C1);
 	INC_CMD_WRITE(ucI2CID, APB_VTB_BASE+ 0x05, 0x0008);
-	INC_CMD_WRITE(ucI2CID, APB_RS_BASE + 0x01, TS_ERR_THRESHOLD);
+	INC_CMD_WRITE(ucI2CID, APB_RS_BASE + 0x01, TS_ERR_THRESHOLD/2);    //asj 20111109
 	INC_CMD_WRITE(ucI2CID, APB_RS_BASE + 0x09, 0x000C);
 
 	INC_CMD_WRITE(ucI2CID, APB_PHY_BASE+ 0x00, 0xF0FF);
@@ -653,9 +638,6 @@ INC_UINT8 INC_START(INC_UINT8 ucI2CID, ST_SUBCH_INFO* pChInfo, INC_UINT16 IsEnse
 	pInfo = INC_GET_STRINFO(ucI2CID);
 	INC_BUBBLE_SORT(pChInfo, INC_START_ADDRESS);
 
-// Delete reason : In ChannelStart fail, ucTmid value may be invalid
-//	pInfo->ucTmid = pChInfo->astSubChInfo[0].uiTmID;
-
 //asj 20110630 add start
 	INC_CMD_WRITE(ucI2CID, APB_DEINT_BASE+ 0x01, 0x0000);
 	wData = INC_CMD_READ(ucI2CID, APB_MPI_BASE+0);
@@ -730,16 +712,11 @@ INC_UINT8 INC_STOP(INC_UINT8 ucI2CID)
 	INC_UINT16 uStatus;
 	ST_TRANSMISSION ucTransMode;
 	ST_BBPINFO* pInfo;
-	INC_UINT8  chFlag;
 
 	pInfo = INC_GET_STRINFO(ucI2CID);
 	ucTransMode = pInfo->ucTransMode;
-	chFlag = pInfo->ucChannelChange;
-
 	memset(pInfo, 0, sizeof(ST_BBPINFO));
 	pInfo->ucTransMode = ucTransMode;
-	pInfo->ucChannelChange = chFlag;
-
 	INC_CMD_WRITE(ucI2CID, APB_RS_BASE + 0x00, 0x0000);
 
 	uStatus = INC_CMD_READ(ucI2CID, APB_PHY_BASE+ 0x10) & 0x7000;
@@ -990,15 +967,13 @@ INC_UINT8 INC_STATUS_CHECK(INC_UINT8 ucI2CID)
 	// INC_GET_PREBER(ucI2CID);
 	INC_GET_POSTBER(ucI2CID);
 	// INC_GET_RSSI(ucI2CID);
-	// INC_GET_ANT_LEVEL(ucI2CID);
-	INC_GET_SYNC_LOCK_STATE(ucI2CID);
-	//	INC_GET_AFC_STATUS(ucI2CID);
+	INC_GET_ANT_LEVEL(ucI2CID);  /* LGE use this value */
 
 	pInfo = INC_GET_STRINFO(ucI2CID);
 
 //	INC_MSG_PRINTF(0, "CER:%d,  PostBER:%d, PreCER:%d BAR:%d \r\n",
 //		pInfo->uiCER, pInfo->uiPostBER, pInfo->uipreCER,pInfo->ucAntLevel);
-/*
+
 	if(pInfo->uiCER >= 1200) pInfo->ucCERCnt++;
 	else pInfo->ucCERCnt = 0;
 
@@ -1007,13 +982,13 @@ INC_UINT8 INC_STATUS_CHECK(INC_UINT8 ucI2CID)
         pInfo->ucCERCnt = 0;
 		return INC_ERROR;
 	}
-*/
-	return pInfo->ucSyncLock;
+
+	return INC_SUCCESS;
 }
 
 INC_UINT16 INC_GET_CER(INC_UINT8 ucI2CID)
 {
-	INC_UINT16 	uiVtbErr, nLoop;
+	INC_UINT16 	uiVtbErr;
 	INC_UINT16	uiVtbData;
 	ST_BBPINFO* pInfo;
 	//INC_INT16 	nLoop;
@@ -1032,126 +1007,44 @@ INC_UINT16 INC_GET_CER(INC_UINT8 ucI2CID)
 	}else{
 	}
 
-	pInfo->auiANTBuff[pInfo->uiInCAntTick++ % BER_BUFFER_MAX] = pInfo->uiCER;
-	for(nLoop = 0 , pInfo->uiInCERAvg = 0; nLoop < BER_BUFFER_MAX; nLoop++)
-		pInfo->uiInCERAvg += pInfo->auiANTBuff[nLoop];
-
-	if(pInfo->uiInCAntTick < BER_BUFFER_MAX)
-		pInfo->uiInCERAvg /= pInfo->uiInCAntTick;
-	else
-		pInfo->uiInCERAvg /= BER_BUFFER_MAX;
-
-	pInfo->uiCER = pInfo->uiInCERAvg ;
 	return pInfo->uiCER;
 }
 
 INC_UINT8 INC_GET_ANT_LEVEL(INC_UINT8 ucI2CID)
 {
 	ST_BBPINFO* pInfo;
-	INC_UINT16	wOperState;
-	INC_UINT16 unCER, unLoop, unRefAntLevel = 0;
-	INC_UINT16 aunAntTable[5][2] = {
-		{4,    550},
-		{3,    700},
-		{2,    950},
-		{1,    1150},   //910, 960
-		{0,    10000},
-
-	};
 	pInfo = INC_GET_STRINFO(ucI2CID);
 	INC_GET_CER(ucI2CID);
-	unCER = pInfo->uiCER;
 
-	//Delete reason : In ChannStart fail, ucTmid value may be invalid LGE
-	//if(pInfo->ucTmid == TMID_0)    //if DAB
-	//unCER = pInfo->uiCER + ((pInfo->uiCER / 10.0) * 2.5);
-
-	for(unLoop = 0; unLoop < 4; unLoop++)
-	{
-		if(unCER <= aunAntTable[unLoop][1]) {
-			unRefAntLevel = aunAntTable[unLoop][0]; 
-			break ;
+	/*I&C 자체 소스에서 Data를 받다가 TS Error가 발생하면 Error bit 값에 따라 %값으로 계산함. */
+	/*이 값이 50미만이 되면 (50%이상 손상된 경우) 화면이 일단 멈추게 되는 범위로 정의하고 이 때 BER을 12500으로 올려
+	 Antenna Bar가 그려지지 않게 함. 	*/
+	if(pInfo->ucVber < 50) pInfo->uipreCER = 1250;
+	else if(pInfo->uipreCER == 0 && pInfo->uiCER < 600) pInfo->uipreCER = 750;
+	else if(pInfo->uipreCER > (pInfo->uiCER + 200)) {
+		if(pInfo->uipreCER > 150) pInfo->uipreCER -= 100;
+	}
+	else if((pInfo->uipreCER + 200) < pInfo->uiCER) {
+		if(pInfo->ucVber == 100) {
+			if(pInfo->uipreCER < 400) pInfo->uipreCER += 50;
 		}
+		else if(pInfo->ucVber > 80) pInfo->uipreCER += 50;
+		else if(pInfo->ucVber > 60) pInfo->uipreCER += 100;
 	}
+	else if(pInfo->uipreCER > pInfo->uiCER && pInfo->uipreCER > 50) pInfo->uipreCER -= 10;
+	else if(pInfo->uipreCER < pInfo->uiCER) pInfo->uipreCER += 10;
 
-/* first test 	
-	if((unRefAntLevel == 0) && (pInfo->ucVber >= 50))
-	  unRefAntLevel+=1;
-*/
-	printk("\n ucVber = %d, uiCER = %d ucAntLevel = %d, unRefAntLevel = %d\n", pInfo->ucVber, pInfo->uiCER, pInfo->ucAntLevel, unRefAntLevel);
+#if 0 /* ant-level calculation is done at tdmb_tunerbb_drv_t3900.c */
+	if(pInfo->uipreCER >= 1250)									pInfo->ucAntLevel = 0;
+	else if(pInfo->uipreCER > 900 && pInfo->uipreCER < 1250)	pInfo->ucAntLevel = 1;
+	else if (pInfo->uipreCER > 800 && pInfo->uipreCER <= 900) 	pInfo->ucAntLevel = 2;
+	else if (pInfo->uipreCER > 600 && pInfo->uipreCER <= 800) 	pInfo->ucAntLevel = 3;
+	else if (pInfo->uipreCER >= 0 && pInfo->uipreCER <= 600) 	pInfo->ucAntLevel = 4;
 
-	/* Srart : Correct AntLevel DMB */
-	/* ucTmid block LGE */
-	if(/*(pInfo->ucTmid == TMID_1) &&*/(unRefAntLevel == 0) && (pInfo->uiCER < 1300) && (pInfo->ucVber >= 50))
-	 unRefAntLevel+=1;
-
-	if(/*(pInfo->ucTmid == TMID_1) &&*/(unRefAntLevel == 1) && (pInfo->ucVber < 50))
-		unRefAntLevel-=1;
-
-	if(/*(pInfo->ucTmid == TMID_1) &&*/(unRefAntLevel == 2) && (pInfo->ucVber <= 50))
-	  unRefAntLevel -=1;
-	/* End */
-
-	if((pInfo->ucAntLevel == unRefAntLevel) || (pInfo->ucChannelChange == 1))
-	{
-		pInfo->ucAntLevel = unRefAntLevel;
-		pInfo->ucChannelChange = 0;
-	}
-	else if(pInfo->ucAntLevel >= unRefAntLevel)
-	{
-		if((pInfo->ucAntLevel - unRefAntLevel) >= 2) pInfo->ucAntLevel -= 1;
-		else pInfo->ucAntLevel--;
-	}
-	else {
-		if((unRefAntLevel - pInfo->ucAntLevel) >= 2) pInfo->ucAntLevel += 1;
-		else pInfo->ucAntLevel++;
-	}
-
-	/* Get Synclock status */
-	wOperState = INC_CMD_READ(ucI2CID, APB_PHY_BASE+ 0x10);
-	wOperState = ((wOperState & 0x7000) >> 12);
-	if(wOperState < 5)
-	{
-		INC_MSG_PRINTF(0,"Software Resync Operating********\r\n");
-		pInfo->ucSyncLock = 0;
-		pInfo->ucAntLevel = 0;
-	}
-	else
-	{
-		pInfo->ucSyncLock = 1;
-	}
 	return pInfo->ucAntLevel;
+#endif	
+	return INC_SUCCESS;	
 }
-
-INC_UINT8 INC_GET_SYNC_LOCK_STATE(INC_UINT8 ucI2CID)
-{
-	ST_BBPINFO* pInfo;
-	INC_UINT16	wOperState;
-
-	pInfo = INC_GET_STRINFO(ucI2CID);
-
-	wOperState = INC_CMD_READ(ucI2CID, APB_PHY_BASE+ 0x10);
-	wOperState = ((wOperState & 0x7000) >> 12);
-	if(wOperState < 5) 	pInfo->ucSyncLock = 0;
-	else pInfo->ucSyncLock = 1;
-
-	return pInfo->ucSyncLock;
-}
-
-INC_UINT8 INC_GET_AFC_STATUS(INC_UINT8 ucI2CID)
-{
-	INC_UINT16 uiafcstatus;
-	ST_BBPINFO* pInfo;
-	pInfo = INC_GET_STRINFO(ucI2CID);
-
-	uiafcstatus	= INC_CMD_READ(ucI2CID, APB_PHY_BASE+ 0x28);
-
-	if(uiafcstatus & 0x100) pInfo->ucAfcOK = 1;
-	else		pInfo->ucAfcOK = 0;
-
-	return pInfo->ucAfcOK;
-}
-
 
 INC_UINT32 INC_GET_PREBER(INC_UINT8 ucI2CID)
 {
@@ -1169,9 +1062,12 @@ INC_UINT32 INC_GET_PREBER(INC_UINT8 ucI2CID)
 
 INC_UINT32 INC_GET_POSTBER(INC_UINT8 ucI2CID)
 {
-	INC_UINT16	uiRSErrBit, nLoop;
+	INC_UINT16	uiRSErrBit;
 	INC_UINT16	uiRSErrTS;
-	INC_UINT16	uiError, uiRef; /*,wOperState;*/
+	INC_UINT16	uiError, uiRef;
+	// 20120215, antenna level changing
+	INC_UINT16	wOperState;
+	//[End]
 	ST_BBPINFO* pInfo;
 	pInfo = INC_GET_STRINFO(ucI2CID);
 
@@ -1211,25 +1107,13 @@ INC_UINT32 INC_GET_POSTBER(INC_UINT8 ucI2CID)
 	}
 
 	pInfo->ucVber = 100 - (uiError + uiRef);
-	pInfo->uiPostBER = (INC_UINT32)(uiRSErrTS * 10000) / TS_ERR_THRESHOLD;
-
-#if 0
+	pInfo->uiPostBER = (INC_UINT32)uiRSErrTS / TS_ERR_THRESHOLD;
+// 20120215, antenna level changing
 	/*내부적으로 resync를 하면서 sync가 안잡히면 pInfo->ucVber값이 valuable한 값이 아니라 판단하여 값을 0으로 set하는 부분을 추가. */
 	wOperState = INC_CMD_READ(ucI2CID, APB_PHY_BASE+ 0x10);
 	wOperState = ((wOperState & 0x7000) >> 12);
 	if(wOperState < 5) pInfo->ucVber = 0;
-#endif
-
-	pInfo->auiVberBuff[pInfo->uiInCVberTick++ % BER_BUFFER_MAX] = pInfo->ucVber;
-	for(nLoop = 0 , pInfo->uiInCVberAvg = 0; nLoop < BER_BUFFER_MAX; nLoop++)
-		pInfo->uiInCVberAvg += pInfo->auiVberBuff[nLoop];
-
-	if(pInfo->uiInCVberTick < BER_BUFFER_MAX)
-		pInfo->uiInCVberAvg /= pInfo->uiInCVberTick ;
-	else
-		pInfo->uiInCVberAvg /= BER_BUFFER_MAX;
-
-	pInfo->ucVber = pInfo->uiInCVberAvg ;
+	//[End]
 
 	return pInfo->uiPostBER;
 }

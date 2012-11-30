@@ -42,8 +42,11 @@
 #endif
 
 /* LGE_E jongho3.lee@lge.com add additional debug info */
+#ifdef DEBUG 
+extern unsigned int dss_debug;
+#endif
 
-#ifdef DEBUG
+#if 0// def DEBUG nodebug for ART test
 extern unsigned int dss_debug;
 #ifdef DSS_SUBSYS_NAME
 #define DSSDBG(format, ...) \
@@ -72,17 +75,19 @@ extern unsigned int dss_debug;
 				## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #endif
 
-#if 0
-	#define HDMIDBG(format, args...) \
-		printk(KERN_DEBUG "[LG_HDMI] func:%s, line:%d :: " format, __func__, __LINE__, ##args )
-#else
-	#define HDMIDBG(format, ...)
-#endif
+
 
 
 #else /* DEBUG */
 #define DSSDBG(format, ...)
 #define DSSDBGF(format, ...)
+#endif
+
+#if 0
+	#define HDMIDBG(format, args...) \
+		printk(KERN_DEBUG "[LG_HDMI] func:%s, line:%d :: " format, __func__, __LINE__, ##args )
+#else
+	#define HDMIDBG(format, ...)
 #endif
 
 
