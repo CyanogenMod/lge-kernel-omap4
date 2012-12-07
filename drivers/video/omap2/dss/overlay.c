@@ -203,6 +203,26 @@ static ssize_t overlay_output_size_store(struct omap_overlay *ovl,
 	return size;
 }
 
+#ifdef CONFIG_HRZ_II
+int hrz_res_conv_mode = 0;
+//LGE_CHANGE_S [taekeun1.kim] P720 : resolution converter
+static ssize_t res_conv_show(struct omap_overlay *ovl, char *buf)
+{
+	return 0;
+	
+}
+
+static ssize_t res_conv_store(struct omap_overlay *ovl,
+	const char *buf, size_t size)
+{
+	int mode = simple_strtoul(buf, NULL, 10);
+	
+	hrz_res_conv_mode = mode;
+	
+	return size;
+}
+#endif
+
 static ssize_t overlay_enabled_show(struct omap_overlay *ovl, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n", ovl->info.enabled);
@@ -452,6 +472,11 @@ static OVERLAY_ATTR(position, S_IRUGO|S_IWUSR,
 		overlay_position_show, overlay_position_store);
 static OVERLAY_ATTR(output_size, S_IRUGO|S_IWUSR,
 		overlay_output_size_show, overlay_output_size_store);
+#ifdef CONFIG_HRZ_II
+//LGE_CHANGE_S [taekeun1.kim@lge.com] 2012-02-27, P720 : resolution converting
+static OVERLAY_ATTR(res_convert,  S_IRUGO|S_IWUSR, res_conv_show, res_conv_store);
+//LGE_CHANGE_E [taekeun1.kim@lge.com] 2012-02-27
+#endif
 static OVERLAY_ATTR(enabled, S_IRUGO|S_IWUSR,
 		overlay_enabled_show, overlay_enabled_store);
 static OVERLAY_ATTR(global_alpha, S_IRUGO|S_IWUSR,
@@ -473,6 +498,11 @@ static struct attribute *overlay_sysfs_attrs[] = {
 	&overlay_attr_screen_width.attr,
 	&overlay_attr_position.attr,
 	&overlay_attr_output_size.attr,
+#ifdef CONFIG_HRZ_II
+//LGE_CHANGE_S [taekeun1.kim@lge.com] 2012-2-27, P720 : resolution converting.
+	&overlay_attr_res_convert.attr,
+//LGE_CHANGE_E [taekeun1.kim@lge.com]
+	#endif
 	&overlay_attr_enabled.attr,
 	&overlay_attr_global_alpha.attr,
 	&overlay_attr_pre_mult_alpha.attr,

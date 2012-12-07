@@ -356,7 +356,7 @@ struct i2c_algorithm {
  */
 struct i2c_adapter {
 	struct module *owner;
-#ifdef CONFIG_MACH_LGE_COSMO //nthyunjin.yang
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2) //nthyunjin.yang
 	unsigned int id;//nthyunjin.yang 120412 add for CX2
 #endif
 	unsigned int class;		  /* classes to allow probing for */

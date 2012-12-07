@@ -12,7 +12,7 @@ endif
 
 choice
         prompt "Choose LPDDR2 Size"
-        depends on MACH_LGE_IFF || MACH_LGE_P2 || MACH_LGE_U2
+        depends on MACH_LGE_IFF || MACH_LGE_P2 || MACH_LGE_U2 || MACH_LGE_CX2
         default MACH_LGE_LPDDR2_1GB
 
 config MACH_LGE_LPDDR2_1GB

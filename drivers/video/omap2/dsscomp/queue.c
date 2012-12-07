@@ -640,7 +640,7 @@ skip_ovl_set:
 				dev_err(DEV(cdev),
 					"omap_dss_wb_apply failed %d", r);
 		}
-#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY) //##hwcho_20120522
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY) || defined(CONFIG_MACH_LGE_CX2_3D_DISPLAY) //##hwcho_20120522
 		//s3d display handling
 		if ( comp->frm.mgr.s3d_disp_info.type!=S3D_DISP_NONE )
 		{

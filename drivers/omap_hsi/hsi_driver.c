@@ -52,7 +52,7 @@
 					  /* cycle */
 
 // LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [START]
-#if defined(CONFIG_MACH_LGE_COSMO_REV_D) || defined(CONFIG_MACH_LGE_COSMO_DOMASTIC)
+#if defined(CONFIG_MACH_LGE_COSMO)
 /* Notify active/sleep status of AP to CP*/
 #define MODEM_SEND 		121 /* MODEM_SEND gpio_121 */
 #endif
@@ -839,7 +839,7 @@ static void hsi_controller_exit(struct hsi_dev *hsi_ctrl)
 
 // LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [START]
 /* Notify active/sleep status of AP to CP*/
-#if defined(CONFIG_MACH_LGE_COSMO_REV_D) || defined(CONFIG_MACH_LGE_COSMO_DOMASTIC)
+#if defined(CONFIG_MACH_LGE_COSMO)
 static void ifx_init_modem_send(void)
 {
 	int ret = 0;			
@@ -1015,7 +1015,7 @@ static int __init hsi_platform_device_probe(struct platform_device *pd)
 	IFX_CP_CRASH_DUMP_INIT();
 #endif
 
-#if defined(CONFIG_MACH_LGE_COSMO_REV_D) || defined(CONFIG_MACH_LGE_COSMO_DOMASTIC)
+#if defined(CONFIG_MACH_LGE_COSMO)
 	/* Notify active/sleep status of AP to CP*/
 	ifx_init_modem_send();
 #endif
@@ -1094,7 +1094,7 @@ static int hsi_pm_suspend(struct device *dev)
 
 // LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [START]
 /* Notify active/sleep status of AP to CP */
-#if defined(CONFIG_MACH_LGE_COSMO_REV_D) || defined(CONFIG_MACH_LGE_COSMO_DOMASTIC)
+#if defined(CONFIG_MACH_LGE_COSMO)
 	/* set sleep status of AP */
 	dev_info(dev, "%s\n", __func__);
 	gpio_set_value(MODEM_SEND, 0);
@@ -1156,7 +1156,7 @@ static int hsi_pm_resume(struct device *dev)
 
 // LGE_CHANGE [MIPI-HSI] jaesung.woo@lge.com [START]
 /* Notify active/sleep status of AP to CP*/
-#if defined(CONFIG_MACH_LGE_COSMO_REV_D) || defined(CONFIG_MACH_LGE_COSMO_DOMASTIC)
+#if defined(CONFIG_MACH_LGE_COSMO)
 	/* set sleep status of AP */
 	dev_info(dev, "%s\n", __func__);
 	gpio_set_value(MODEM_SEND, 1);

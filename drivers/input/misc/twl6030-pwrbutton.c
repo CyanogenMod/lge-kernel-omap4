@@ -45,7 +45,7 @@ struct twl6030_pwr_button {
 };
 
 //mo2haewoon.you@lge.com => [START]  keylock command
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 extern int atcmd_keylock;
 #endif
 //mo2haewoon.you@lge.com <= [END]
@@ -91,7 +91,7 @@ static irqreturn_t powerbutton_irq(int irq, void *_pwr)
 	pwr_val = !(hw_state & PWR_PWRON_IRQ);
     printk("%s: power button status %d\n", __func__, pwr_val);
 //mo2haewoon.you@lge.com => [START]  keylock command
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 	if ((prev_hw_state != pwr_val) && (prev_hw_state != 0xFFFF) && (!atcmd_keylock)) {
 #else
 	if ((prev_hw_state != pwr_val) && (prev_hw_state != 0xFFFF)) {
@@ -101,7 +101,7 @@ static irqreturn_t powerbutton_irq(int irq, void *_pwr)
 		input_report_key(pwr->input_dev, pwr->report_key, pwr_val);
 		input_sync(pwr->input_dev);
 //mo2haewoon.you@lge.com => [START]  keylock command
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 	} else if ((!push_release_flag) && (!atcmd_keylock)) {
 #else
 	} else if (!push_release_flag) {

@@ -186,14 +186,31 @@ int8 tunerbb_drv_t3900_stop(void)
 
 int8 tunerbb_drv_t3900_get_ber(struct broadcast_tdmb_sig_info *dmb_bb_info)
 {
-	INC_UINT8 nRet;
-	INC_UINT32 uipreBER;
-
 	ST_BBPINFO* pInfo;
+	int32 svc_type = 0;  /* DAB 1, DMB,Visual  2 */
+
+	uint16 unCER, unLoop, unRefAntLevel = 0;
+	uint16 aunAntTable[5][2] = {
+		{4,    550},
+		{3,    700},
+		{2,    950},
+		{1,    1150},   //910, 960
+		{0,    10000},
+	};
 	
-	nRet = INTERFACE_STATUS_CHECK(TDMB_RFBB_DEV_ADDR);
+	INTERFACE_STATUS_CHECK(TDMB_RFBB_DEV_ADDR);
+	pInfo = INC_GET_STRINFO(TDMB_RFBB_DEV_ADDR);
 	
-	if(nRet == INC_SUCCESS)
+	if(T3900_DAB == serviceType)
+	{
+		svc_type = 1;
+	}
+	else if((T3900_DMB == serviceType) || (T3900_VISUAL == serviceType))
+	{
+		svc_type = 2;
+	}
+	
+	if(pInfo->ucSyncLock == 1)
 	{
 		dmb_bb_info->sync_lock	= 1;
 		dmb_bb_info->cir		= 1;
@@ -205,47 +222,81 @@ int8 tunerbb_drv_t3900_get_ber(struct broadcast_tdmb_sig_info *dmb_bb_info)
 		dmb_bb_info->sync_lock	= 0;
 		dmb_bb_info->dab_ok 	= 0;
 		dmb_bb_info->sch_ber	= 0;
+		if(pInfo->ucSyncLock != 0)
+		{
+			printk("[INC]pInfo->ucSyncLock is not zero need to be initialized?, %d\n", pInfo->ucSyncLock);
+		}
 	}
-	
 	dmb_bb_info->afc_ok 	= 1;	
 	
-
-	pInfo = INC_GET_STRINFO(TDMB_RFBB_DEV_ADDR);
-
-
-	// msc_ber : BER viterbi Befor(VB BER) 10-5
-	//dmb_bb_info->msc_ber	= (uint32)INTERFACE_GET_CER(TDMB_RFBB_DEV_ADDR) * 10;
-	// 20120215, antenna level changing
-	// printk("[INC_PROCESS] uipreCER = (%d), uiCER = %d, ucVber = %d\n", pInfo->uipreCER, pInfo->uiCER, pInfo->ucVber);
-	//dmb_bb_info->msc_ber	= (uint32)(pInfo->uipreCER * 10);
-	dmb_bb_info->msc_ber	= (uint32)(pInfo->uiCER* 10);
-	uipreBER	= (uint32)(pInfo->uipreCER * 10);
-
-	/* Determine Ant. Level using msc_ber */
-	if(uipreBER >= 12500)                          dmb_bb_info->antenna_level = 0;
-	else if(uipreBER > 9000 && uipreBER < 12500)   dmb_bb_info->antenna_level = 1;
-	else if (uipreBER > 8000 && uipreBER <= 9000)  dmb_bb_info->antenna_level = 2;
-	else if (uipreBER > 6000 && uipreBER <= 8000)  dmb_bb_info->antenna_level = 3;
-	else if (uipreBER >= 0 && uipreBER <= 6000)    dmb_bb_info->antenna_level = 4;
-
-	//antenna level이 0이면 약전계이므로 5분종료를 위해 dab_ok를 0으로 만듬.
-	if(dmb_bb_info->antenna_level == 0)
+	/* va_ber , tp_lock and tp_err_cnt are valied in DMB stream not DAB stream */
+	if(svc_type == 2)
 	{
-		dmb_bb_info->dab_ok = 0;
+		dmb_bb_info->va_ber = (uint32)(pInfo->uiPostBER);
+		dmb_bb_info->tp_lock = pInfo->ucSyncLock;
+		dmb_bb_info->tp_err_cnt = (uint32)INTERFACE_GET_TPERRCNT(TDMB_RFBB_DEV_ADDR);
 	}
-	//[End]
-
-	if(( T3900_DMB == serviceType) || (T3900_VISUAL == serviceType))
+	else  /* DAB Service */
 	{
-		// va_ber : BER viterbi after (VA BER) 10-5
-		//dmb_bb_info->va_ber = (uint32)INTERFACE_GET_PREBER(TDMB_RFBB_DEV_ADDR);
-		dmb_bb_info->va_ber = (uint32)(pInfo->uiPreBER);
-
-		dmb_bb_info->tp_lock = (nRet==INC_SUCCESS)?TRUE:FALSE;
+		dmb_bb_info->va_ber = 0;
+		dmb_bb_info->tp_lock = 0;
+		dmb_bb_info->tp_err_cnt = 0;
 	}
 
-	//dmb_bb_info->tp_err_cnt = INTERFACE_GET_POSTBER(TDMB_RFBB_DEV_ADDR); /* GET_POSTERBER is tp error rate : LG2102 */
-	dmb_bb_info->tp_err_cnt = (uint32)INTERFACE_GET_TPERRCNT(TDMB_RFBB_DEV_ADDR);
+	/* msc_ber : BER viterbi Befor(VB BER) 10-5 */
+	dmb_bb_info->msc_ber	= (uint32)(pInfo->uiCER* 10);  /* MSC BER */
+
+	/* Calculation Ant. Level INC Tech. Refer to INC_GET_ANT_LEVEL( ) function in INC_PROCESS.c*/
+	/* START Calculation */
+	unCER = pInfo->uiCER;
+
+	if(svc_type == 1) /* DAB */
+	{
+		unCER = pInfo->uiCER + ((pInfo->uiCER/4));
+	}
+
+	for(unLoop = 0; unLoop < 4; unLoop++)
+	{
+		if(unCER <= aunAntTable[unLoop][1]) {
+			unRefAntLevel = aunAntTable[unLoop][0];
+			break ;
+	}
+	}
+
+	/* These bleow routines are for DMB case not DAB */
+	if((svc_type == 2) && (unRefAntLevel == 0) && (pInfo->uiCER < 1300) && (pInfo->ucVber >= 50))
+	 unRefAntLevel+=1;
+
+	if((svc_type == 2) && (unRefAntLevel == 1) && (pInfo->ucVber < 50))
+		unRefAntLevel-=1;
+
+	if((svc_type == 2) &&(unRefAntLevel == 2) && (pInfo->ucVber <= 50))
+	  unRefAntLevel -=1;
+
+
+	if((pInfo->ucAntLevel == unRefAntLevel) || (pInfo->ucChannelChange == 1))
+	{
+		pInfo->ucAntLevel = unRefAntLevel;
+		pInfo->ucChannelChange = 0;
+	}
+	else if(pInfo->ucAntLevel >= unRefAntLevel)
+	{
+		if((pInfo->ucAntLevel - unRefAntLevel) >= 2) pInfo->ucAntLevel -= 1;
+		else pInfo->ucAntLevel--;
+	}
+	else {
+		if((unRefAntLevel - pInfo->ucAntLevel) >= 2) pInfo->ucAntLevel += 1;
+		else pInfo->ucAntLevel++;
+	}
+
+	/* sync unlock status Ant Level is 0 */
+	if(dmb_bb_info->sync_lock == 0)
+	{
+		pInfo->ucAntLevel = 0;
+	}
+
+	dmb_bb_info->antenna_level = pInfo->ucAntLevel;
+	/* End Calculation */
 
 	return INC_SUCCESS;
 }
@@ -526,7 +577,7 @@ int8 tunerbb_drv_t3900_multi_set_channel(int32 freq_num, uint8 subch_cnt, uint8 
 			}
 			ErrorInfo = INTERFACE_ERROR_STATUS(TDMB_RFBB_DEV_ADDR);
 			printk("[INC]^__^ INTERFACE_STATUS = (0x%04x)\n", ErrorInfo);
-			if(ErrorInfo == ERROR_SYNC_NULL || ErrorInfo == ERROR_FICDECODER || 
+			if(ErrorInfo == ERROR_SYNC_NO_SIGNAL || ErrorInfo == ERROR_FICDECODER ||
 				ErrorInfo == ERROR_SYNC_TIMEOUT) return INC_ERROR;  
 			else
 			{

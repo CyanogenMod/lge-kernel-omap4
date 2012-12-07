@@ -46,7 +46,11 @@
 struct spi_device *fc8050_spi = NULL;
 
 static fci_u8 tx_data[10];
-static fci_u8 tdata_buf[40] = {0};
+
+// Modified by suyong.han 20110922 for FCI V1.3 driver
+//static fci_u8 *data_buf;
+
+static fci_u8 tdata_buf[8196] = {0};
 static fci_u8 rdata_buf[8196] = {0};
 static DEFINE_MUTEX(lock);
 
@@ -73,27 +77,6 @@ int fc8050_spi_write_then_read(struct spi_device *spi, fci_u8 *txbuf, fci_u16 tx
 	res = spi_sync(spi, &message);
 
 	memcpy(rxbuf, x.rx_buf + tx_length, rx_length);
-
-	return res;
-}
-
-int fc8050_spi_write_then_read_burst(struct spi_device *spi, fci_u8 *txbuf, fci_u16 tx_length, fci_u8 *rxbuf, fci_u16 rx_length)
-{
-	fci_s32 res;
-	
-	struct spi_message	message;
-	struct spi_transfer	x;
-
-	spi_message_init(&message);
-	memset(&x, 0, sizeof x);
-	
-	spi_message_add_tail(&x, &message);
-	
-	x.tx_buf=txbuf;
-	x.rx_buf=rxbuf;
-	x.len = tx_length + rx_length;
-	
-	res = spi_sync(spi, &message);
 
 	return res;
 }
@@ -147,9 +130,6 @@ static int spi_dataread(HANDLE hDevice, fci_u8 addr, fci_u8* data, fci_u16 lengt
 	tx_data[0] = SPI_CMD_BURST_READ;
 	tx_data[1] = addr;
 
-	if(length>384)
-		ret = fc8050_spi_write_then_read_burst(fc8050_spi, &tx_data[0], 2, &data[0], length);
-	else
 		ret = fc8050_spi_write_then_read(fc8050_spi, &tx_data[0], 2, &data[0], length);
 	//printk("spi_dataread  (0x%x,0x%x,0x%x,0x%x)\n", data[0], data[1], data[2], data[3]);
 	if(!ret)
@@ -222,6 +202,16 @@ int fc8050_spi_init(HANDLE hDevice, fci_u16 param1, fci_u16 param2)
 		return BBM_NOK;
 	}
 
+	// Modified by suyong.han 20110922 for FCI V1.3 driver
+	/*
+	data_buf = kmalloc(8192, GFP_DMA|GFP_KERNEL);
+	if (!data_buf)
+	{
+		printk("spi data_buf kmalloc fail \n");
+		return BBM_NOK;
+	}
+	*/
+	
 	return BBM_OK;
 }
 
@@ -380,6 +370,15 @@ int fc8050_spi_deinit(HANDLE hDevice)
 #if 0
 	spi_unregister_driver(&fc8050_spi_driver);
 #endif
+
+	// Modified by suyong.han 20110922 for FCI V1.3 driver
+	/*
+	if(data_buf!=NULL)
+	{
+		kfree(data_buf);
+		data_buf = NULL;
+	}
+	*/
 
 	return BBM_OK;
 }

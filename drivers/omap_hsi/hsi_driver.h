@@ -63,7 +63,7 @@
 #define LOG_NAME		"OMAP HSI: "
 
 //mo2haewoon.you => [START]
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO_SU760) || defined(CONFIG_MACH_LGE_CX2_SU870)
 #define HSI_SEND_ATCOMMAND_TO_CAWAKE
 #endif
 //mo2haewoon.you <= [START]

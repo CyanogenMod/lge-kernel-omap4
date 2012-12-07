@@ -1,0 +1,14 @@
+#
+# TELECHIPS TCC3170 DEVICE subsystem configuration
+#
+
+#menu "TCC3170 support"
+
+config TCC3170_TDMB
+	default n
+	---help---
+	  This driver implements the front-end of the Xen virtual
+	  keyboard and mouse device driver.  It communicates with a back-end
+	  in another domain.
+  
+#endmenu

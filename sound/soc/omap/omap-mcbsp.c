@@ -247,7 +247,7 @@ static int omap_mcbsp_dai_hw_params(struct snd_pcm_substream *substream,
 	port = omap_mcbsp_dma_reg_params(bus_id, substream->stream);
 
 	switch (params_format(params)) {
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 	case SNDRV_PCM_FORMAT_S16_LE:
 		dma_data->data_type = OMAP_DMA_DATA_TYPE_S16;
 		wlen = 16;
@@ -342,7 +342,7 @@ static int omap_mcbsp_dai_hw_params(struct snd_pcm_substream *substream,
 	regs->xcr1	|= XFRLEN1(wpf - 1);
 
 	switch (params_format(params)) {
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 	case SNDRV_PCM_FORMAT_S16_LE:
 		/* Set word lengths */
 		regs->rcr2	|= RWDLEN2(OMAP_MCBSP_WORD_16);

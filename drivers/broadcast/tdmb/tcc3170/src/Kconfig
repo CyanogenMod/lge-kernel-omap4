@@ -1,0 +1,14 @@
+#
+# TCC3170 DEVICE subsystem configuration
+#
+
+#menu "TCC3170 support"
+
+config TCC3170_TDMB
+	default n
+	---help---
+	  This driver implements the front-end of the Telechips virtual
+	  DMB Tuner and BB device driver.  It communicates with a back-end
+	  in another domain.
+  
+#endmenu

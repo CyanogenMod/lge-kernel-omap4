@@ -129,21 +129,31 @@ int status;
    fota_ebl_download();
 */
 	pr_info("%s: FOTA_proc_excute in  \n", __func__);
-	
+
+#ifndef CONFIG_MACH_LGE_CX2	
    	if( gpio_request( GPIO_MDM_PWR_ON, "mdm_pwr_on" ) != 0 )
 		pr_info("TS0710: %s : Warning : GPIO_MDM_PWR_ON may EBUSY\n", __func__);
 	if( gpio_request( GPIO_MDM_RESET, "reset_mdm" ) != 0 )
 		pr_info("TS0710: %s : Warning : GPIO_MDM_RESET may EBUSY\n", __func__);
+#endif
 		
 	gpio_direction_output( GPIO_MDM_PWR_ON, GPIO_LOW );
 	gpio_direction_output( GPIO_MDM_RESET,	GPIO_LOW );
 	pr_info("###** MODEM_RESET: Current Reset, %d\n", gpio_get_value(GPIO_MDM_RESET));
 	pr_info("###** MODEM_RESET: Current Power, %d\n", gpio_get_value(GPIO_MDM_PWR_ON));	
+#ifndef CONFIG_MACH_LGE_CX2	
 	msleep(200);
+#else
+	msleep(500);
+#endif
 
 	gpio_set_value( GPIO_MDM_PWR_ON, GPIO_HIGH );
 	pr_info("###** MODEM_RESET: After Set High of Power, %d\n", gpio_get_value(GPIO_MDM_PWR_ON));
+#ifndef CONFIG_MACH_LGE_CX2	
 	msleep(400);
+#else
+	msleep(500);
+#endif
 
 	gpio_set_value( GPIO_MDM_RESET, GPIO_HIGH );
 	pr_info("###** MODEM_RESET: After Set High of Reset, %d\n", gpio_get_value(GPIO_MDM_RESET));

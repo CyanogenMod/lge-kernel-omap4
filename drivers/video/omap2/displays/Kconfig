@@ -80,6 +80,12 @@ config PANEL_LH430WV2_SD01
     help
         This is the B2 Rev.A panel(LH430WV2-SD01) LG4573 driver IC
 
+config PANEL_LH430WV5_SD01
+    tristate "B2 Rev.A panel(LH430WV5-SD01) LG4574 driver IC"
+    default n
+    help
+        This is the B2 Rev.A panel(LH430WV5-SD01) LG4574 driver IC
+
 config PANEL_TX11D101VM_0EAA
     tristate "B2 Korea and Docomo panel(TX11D101VM_0EAA) LG4574 driver IC"
     default n

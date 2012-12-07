@@ -954,7 +954,7 @@ static int omap_abe_dai_hw_params(struct snd_pcm_substream *substream,
 
 	switch (params_channels(params)) {
 	case 1:
-#ifndef CONFIG_MACH_LGE_COSMO
+#ifdef CONFIG_MACH_LGE_U2
 		//LGE_BSP_S  seungdae.goh@lge.com 2012-05-30  Ti Modem I/F [START_LGE]
 		if( (dai->id) == ABE_FRONTEND_DAI_MODEM ) {
 			format.samp_format = MONO_MSB;

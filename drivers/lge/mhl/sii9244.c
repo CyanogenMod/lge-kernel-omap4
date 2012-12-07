@@ -613,12 +613,14 @@ static void sii9244_power(struct sii9244_data *sii9244, bool  on)
 	if (on)
 	{
 		gpio_set_value(sii9244->pdata->enable_gpio, 1);
+#if !defined(CONFIG_MACH_LGE_CX2) //nthyunjin.yang 120526 MHL_1V8 is different with CX2.
 		ret = regulator_enable(sii9244->mhl_reg);
 		if (ret)
 		{
 			dev_err(&sii9244->pdata->mhl_tx_client->dev,
 				"failed to enable mhl regulator\n");
 		}
+#endif
 		msleep(5);
 		gpio_set_value(sii9244->pdata->reset_gpio, 1);
 		msleep(10);
@@ -631,6 +633,7 @@ static void sii9244_power(struct sii9244_data *sii9244, bool  on)
 	else
 	{
 		sii9244->pdata->hpd_mux_pull_up(0);
+#if !defined(CONFIG_MACH_LGE_CX2)
 		if(regulator_is_enabled(sii9244->mhl_reg) > 0)
 		{
 			ret = regulator_disable(sii9244->mhl_reg);
@@ -640,6 +643,7 @@ static void sii9244_power(struct sii9244_data *sii9244, bool  on)
 					"failed to diable mhl regulator\n");
 			}
 		}
+#endif
 		gpio_set_value(sii9244->pdata->enable_gpio, 0);
 		gpio_set_value(sii9244->pdata->reset_gpio, 0);
 	}
@@ -1398,6 +1402,7 @@ static int __devinit sii9244_mhl_tx_i2c_probe(struct i2c_client *client,
 	init_waitqueue_head(&sii9244->wq);
 	mutex_init(&sii9244->lock);
 
+#if !defined(CONFIG_MACH_LGE_CX2) //nthyunjin.yang 120526 MHL_1V8 is different with CX2.
 	if (sii9244->mhl_reg == NULL) {
 		struct regulator *mhl_reg;
 		
@@ -1408,6 +1413,7 @@ static int __devinit sii9244_mhl_tx_i2c_probe(struct i2c_client *client,
 		}
 		sii9244->mhl_reg = mhl_reg;
 	}
+#endif
 	
 	ret = request_threaded_irq(client->irq, NULL, sii9244_irq_thread,
 				   IRQF_TRIGGER_HIGH | IRQF_ONESHOT,

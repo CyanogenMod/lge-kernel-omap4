@@ -13,160 +13,11 @@
  #define DEBUG_MSG(args...)
  #endif
 
- //ANDY_PORTING OSP [woongchang.kim@lge.com 110331]
-int g_osp_lcd_level = 0;
-//ANDY_END
 
-struct lm3528_platform_data*	 plm3528data = NULL;
 static int	old_brightness	=	-1;
-extern int lm3528_brightness_3D_Enable;
+
 /* SYSFS for brightness control
  */
-
-int lm3528_getBrightness(void)
-{
-	struct lm3528_platform_data*	pdata	=	plm3528data;
-	int val = 0;
-
-	if(pdata == NULL) return 0;
-
-	val = lm3528_get_bmain(&pdata->private);
-
-	return val;
-}
-
-void lm3528_PanelUsed_Brightness( int brightness, int is3DEnable )
-{
-	struct lm3528_platform_data*	pdata	=	plm3528data;
-
-	if( pdata == NULL )
-	{
-	    return;
-	}
-
-	if( is3DEnable == 0 )
-	{
-		lm3528_set_bmain(&pdata->private, old_brightness);
-	}
-	else
-	{
-		lm3528_set_bmain(&pdata->private, brightness);
-	}
-}
-
-ssize_t lm3528_setBrightness(int		brightness, size_t count)
-{
-	struct lm3528_platform_data*	pdata	=	plm3528data;
-
-	DEBUG_MSG("brightness_store = [%d][%d] \n",brightness, lm3528_brightness_3D_Enable);
-
-	if(pdata == NULL) return 0;
-
-	if((brightness > 127) && (brightness <= 255))
-		brightness = 127;
-
-	if (brightness > 0 && brightness < 30)	// MIN brightness to be off
-		brightness	=	30;
-
-	if ((brightness < 0) || (brightness > 127)) // Invalid brightness
-		goto	exit;
-
-	if(brightness != 0 && lm3528_brightness_3D_Enable == 1)
-	{
-		brightness = 127;	
-		lm3528_set_bmain(&pdata->private, brightness);
-		return 0;
-/*	
-		if(brightness >= 105)
-		{
-			brightness = 127;
-		}
-		else
-		{
-			int i;
-
-			int m2DLevels[] =	{40, 42, 44, 47, 52, 57, 62, 64, 67, 71, 74,  86, 102, 104, 105};
-			int m3DLevels[] =	{63, 65, 67, 70, 75, 80, 84, 86, 88, 92, 94, 109, 125, 126, 127, 127}; 
-			// int m3DLevels[] =	{72, 73, 74, 76, 80, 84, 88, 92, 98, 109, 125, 126, 127, 127};   //1A¢®E¡ËcA
-
-			int mLength = sizeof(m2DLevels)/sizeof(int);
-
-			for (i = 0; i < mLength; i++) 
-			{
-				if (brightness <= m2DLevels[i]) 
-				{
-					break;
-				}
-			}
-
-			if(i == 0 || i == mLength || brightness == m2DLevels[i])
-			{
-				brightness = m3DLevels[i];
-			}
-			else
-			{
-				int temp2DLevels;
-				int temp2DGAP = m2DLevels[i] - m2DLevels[i-1];
-				int temp3DGAP = m3DLevels[i] - m3DLevels[i-1];
-				int divideLCDBacklight = temp3DGAP/temp2DGAP;
-
-				if(divideLCDBacklight > 0)
-				{
-					temp2DLevels = divideLCDBacklight*(m2DLevels[i] - brightness);
-					brightness = m3DLevels[i] - temp2DLevels;
-				}
-				else
-				{
-					brightness = m3DLevels[i];
-				}
-			}
-		}
-*/
-		DEBUG_MSG("brightness_store = 3D [%d] \n",brightness);
-	}
-
-	if (old_brightness == brightness && brightness != 0) // No need to change the brightness
-		goto	exit;
-	
-
-	//ANDY_PORTING OSP [woongchang.kim@lge.com 110331]
-	g_osp_lcd_level = brightness; 
-	//ANDY_END
-
-	if (brightness == 0) {	// Zero-Brightness, Turn off LM3528
-		lm3528_set_hwen(&pdata->private, pdata->gpio_hwen, 0);
-//		old_brightness	=	brightness;
-		goto	exit;
-	}
-
-//	printk("#####nthyunjin.yang lm3528_bl.c brightness_store = [%d], old_brightness = [%d] \n", brightness, old_brightness);
-
-	//if (old_brightness < brightness) 
-	{	// Dimming up
-		if (old_brightness == 0)
-		{		
-			 //pdata->private.reg_gp = pdata->private.reg_gp & 0xE7;
-			 pdata->private.reg_gp = 0x85;
-			lm3528_set_hwen(&pdata->private, pdata->gpio_hwen, 1);	
-		}
-		else if((pdata->private.reg_gp & 0x18) == 0)
-		{
-			 //pdata->private.reg_gp = pdata->private.reg_gp | 0x18;
-			pdata->private.reg_gp = 0x85 | 0x18;
-			lm3528_set_hwen(&pdata->private, pdata->gpio_hwen, 1);				
-		}
-	}
-
-	lm3528_set_bmain(&pdata->private, brightness);
-
-//	old_brightness	=	brightness;
-	
-	exit:
-		return	count;
-
-}
-
-
 static ssize_t	brightness_show(struct device* dev,
 								struct device_attribute* attr, char* buf)
 {
@@ -186,9 +37,43 @@ static ssize_t brightness_store(struct device* dev,
 	struct lm3528_platform_data*	pdata	=	dev->platform_data;
 	int		brightness	=	simple_strtol(buf, NULL, 10);
 
-	ssize_t ret =  lm3528_setBrightness(brightness, count);
-	old_brightness    =    brightness;	
-	return ret;
+	DEBUG_MSG("brightness_store = [%d] \n",brightness);
+
+	if (brightness > 0 && brightness < 30)	// MIN brightness to be off
+		brightness	=	30;
+
+	if ((brightness < 0) || (brightness > 127)) // Invalid brightness
+		goto	exit;
+
+	if (old_brightness == brightness) // No need to change the brightness
+		goto	exit;
+	
+	if (brightness == 0) {	// Zero-Brightness, Turn off LM3528
+		lm3528_set_hwen(&pdata->private, pdata->gpio_hwen, 0);
+		old_brightness	=	brightness;
+		goto	exit;
+	}
+
+	//if (old_brightness < brightness) 
+	{	// Dimming up
+		if (old_brightness == 0)
+		{		
+			 pdata->private.reg_gp = pdata->private.reg_gp & 0xE7;
+			lm3528_set_hwen(&pdata->private, pdata->gpio_hwen, 1);	
+		}
+		else if((pdata->private.reg_gp & 0x18) == 0)
+		{
+			 pdata->private.reg_gp = pdata->private.reg_gp | 0x18;
+			lm3528_set_hwen(&pdata->private, pdata->gpio_hwen, 1);				
+		}
+	}
+
+	lm3528_set_bmain(&pdata->private, brightness);
+
+	old_brightness	=	brightness;
+	
+exit:
+		return	count;
 }
 
 static DEVICE_ATTR(brightness, 0664, brightness_show, brightness_store);
@@ -221,14 +106,13 @@ static DEVICE_ATTR(enable, 0664, enable_show, enable_store);
 
 /* Driver
  */
-static int __init lm3528bl_probe(struct i2c_client* client,
+static int __devinit lm3528bl_probe(struct i2c_client* client,
 							const struct i2c_device_id* id)
 {
 	struct lm3528_platform_data*	pdata;
 	int		ret = 0;
 
 	pdata	=	client->dev.platform_data;
-	plm3528data = pdata;
 	gpio_request(pdata->gpio_hwen, "backlight_enable");
 	gpio_direction_output(pdata->gpio_hwen, 1);	// OUTPUT
 
@@ -242,7 +126,7 @@ static int __init lm3528bl_probe(struct i2c_client* client,
 	return	ret;
 }
 
-static int	lm3528bl_remove(struct i2c_client* client)
+static int __devexit lm3528bl_remove(struct i2c_client* client)
 {
 	device_remove_file(&client->dev, &dev_attr_brightness);
 	device_remove_file(&client->dev, &dev_attr_enable);	
@@ -256,7 +140,7 @@ static const struct i2c_device_id lm3528bl_ids[] = {
 
 static struct i2c_driver lm3528bl_driver = {
 	.probe		=	lm3528bl_probe,
-	.remove		=	lm3528bl_remove,
+	.remove		= __devexit_p(lm3528bl_remove),
 	.id_table	=	lm3528bl_ids,
 	.driver = {
 		.name	=	LM3528_I2C_NAME,

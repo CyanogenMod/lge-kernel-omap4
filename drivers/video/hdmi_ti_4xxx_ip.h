@@ -37,6 +37,7 @@ struct hdmi_reg { u16 idx; };
 #define HDMI_WP_IRQSTATUS_RAW			HDMI_WP_REG(0x24)
 #define HDMI_WP_IRQSTATUS			HDMI_WP_REG(0x28)
 #define HDMI_WP_PWR_CTRL			HDMI_WP_REG(0x40)
+#define HDMI_WP_DEBOUNCE                    HDMI_WP_REG(0x44)
 #define HDMI_WP_IRQENABLE_SET			HDMI_WP_REG(0x2C)
 #define HDMI_WP_VIDEO_CFG			HDMI_WP_REG(0x50)
 #define HDMI_WP_VIDEO_SIZE			HDMI_WP_REG(0x60)

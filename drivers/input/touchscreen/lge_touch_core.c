@@ -96,7 +96,7 @@ struct timeval t_debug[TIME_PROFILE_MAX];
 #define MAX_GHOST_CHECK_COUNT	3
 
 //mo2haewoon.you@lge.com => [START]
-#ifdef COSMO_TOUCHKEY_RANGE_TRIM
+#if defined(COSMO_TOUCHKEY_RANGE_TRIM) || defined(CX2_TOUCHKEY_RANGE_TRIM)
 #define BTN_EDGE_WIDTH	373
 #define BTN_TRIM_WIDTH	60
 #endif
@@ -110,7 +110,7 @@ static void touch_late_resume(struct early_suspend *h);
 /* Auto Test interface for some model */
 static struct lge_touch_data *touch_test_dev = NULL;
 
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 //mo2haewoon.you@lge.com => [START]  keylock command
 extern int atcmd_keylock;
 //mo2haewoon.you@lge.com <= [END]
@@ -927,7 +927,7 @@ static void touch_work_func_a(struct work_struct *work)
 
 	/* Finger handle */
 //mo2haewoon.you@lge.com => [START]  keylock command
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 	if ((ts->ts_data.state != TOUCH_ABS_LOCK) && (!atcmd_keylock)) {
 #else
 	if (ts->ts_data.state != TOUCH_ABS_LOCK) {
@@ -1020,7 +1020,7 @@ static void touch_work_func_a(struct work_struct *work)
 
 	/* Button handle */
 //mo2haewoon.you@lge.com => [START]  keylock command
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 	if ((ts->ts_data.state != TOUCH_BUTTON_LOCK) && (!atcmd_keylock)) {
 #else
 	if (ts->ts_data.state != TOUCH_BUTTON_LOCK) {
@@ -1146,7 +1146,7 @@ static u16 find_button(const struct t_data data, const struct section_info sc)
 {
 	int i;
 //mo2haewoon.you@lge.com => [START]
-#ifdef COSMO_TOUCHKEY_RANGE_TRIM
+#if defined(COSMO_TOUCHKEY_RANGE_TRIM) || defined(CX2_TOUCHKEY_RANGE_TRIM)
 	int trim = data.x_position % BTN_EDGE_WIDTH;
 	int btn_range = data.x_position / BTN_EDGE_WIDTH;
 #endif
@@ -1161,7 +1161,7 @@ static u16 find_button(const struct t_data data, const struct section_info sc)
 	}
 
 //mo2haewoon.you@lge.com => [START]
-#ifdef COSMO_TOUCHKEY_RANGE_TRIM
+#if defined(COSMO_TOUCHKEY_RANGE_TRIM) || defined(CX2_TOUCHKEY_RANGE_TRIM)
 	if((trim < BTN_TRIM_WIDTH && btn_range == 0) || (trim >( BTN_EDGE_WIDTH - BTN_TRIM_WIDTH) && (btn_range == (sc.b_num - 1))))
 	return KEY_BOUNDARY;
 	else
@@ -1177,7 +1177,7 @@ static bool check_cancel(u16 button, u16 x, u16 y, const struct section_info sc)
 {
 	int i;
 	//mo2haewoon.you@lge.com => [START]
-#ifdef COSMO_TOUCHKEY_RANGE_TRIM
+#if defined(COSMO_TOUCHKEY_RANGE_TRIM) || defined(CX2_TOUCHKEY_RANGE_TRIM)
 	int trim = x % BTN_EDGE_WIDTH;
 	int btn_range = x / BTN_EDGE_WIDTH;
 #endif
@@ -1195,7 +1195,7 @@ static bool check_cancel(u16 button, u16 x, u16 y, const struct section_info sc)
 	}
 
 	//mo2haewoon.you@lge.com => [START]
-#ifdef COSMO_TOUCHKEY_RANGE_TRIM
+#if defined(COSMO_TOUCHKEY_RANGE_TRIM) || defined(CX2_TOUCHKEY_RANGE_TRIM)
 	if (!is_in_section(sc.panel, x, y)){
 		if((trim < BTN_TRIM_WIDTH && btn_range == 0) || (trim >( BTN_EDGE_WIDTH - BTN_TRIM_WIDTH) && (btn_range == (sc.b_num - 1))))
 			return true;
@@ -1347,7 +1347,7 @@ static void touch_work_func_b(struct work_struct *work)
 		TOUCH_INFO_MSG("op_mode[%d] state[%d]\n", op_mode, ts->ts_data.state);
 
 //mo2haewoon.you@lge.com => [START]  keylock command
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 	if(atcmd_keylock == 1)
 		ts->ts_data.state = DO_NOT_ANYTHING;
 #endif
@@ -2636,7 +2636,11 @@ static int touch_probe(struct i2c_client *client, const struct i2c_device_id *id
 	/* accuracy solution */
 	if (ts->pdata->role->accuracy_filter_enable){
 		ts->accuracy_filter.ignore_pressure_gap = 5;
+#if defined(CONFIG_MACH_LGE_CX2)
 		ts->accuracy_filter.delta_max = 30;
+#else
+		ts->accuracy_filter.delta_max = 100;
+#endif
 		ts->accuracy_filter.max_pressure = 255;
 		ts->accuracy_filter.time_to_max_pressure = one_sec / 20;
 		ts->accuracy_filter.direction_count = one_sec / 6;
@@ -2786,13 +2790,22 @@ static void touch_late_resume(struct early_suspend *h)
 #endif
 
 #if defined(CONFIG_PM)
+#ifdef CONFIG_MACH_LGE_CX2
+extern int is_suspend;
+#endif
 static int touch_suspend(struct device *device)
 {
+#ifdef CONFIG_MACH_LGE_CX2
+	is_suspend=1;
+#endif
 	return 0;
 }
 
 static int touch_resume(struct device *device)
 {
+#ifdef CONFIG_MACH_LGE_CX2
+	is_suspend=0;
+#endif
 	return 0;
 }
 #endif

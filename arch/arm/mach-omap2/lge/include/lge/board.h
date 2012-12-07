@@ -32,4 +32,8 @@
 #include <lge/board/cosmo.h>
 #endif
 
+#if defined(CONFIG_MACH_LGE_CX2)
+#include <lge/board/cx2.h>
+#endif
+
 #endif /* __LGE_PLAT_BOARD_H */

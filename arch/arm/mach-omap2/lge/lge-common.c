@@ -238,15 +238,19 @@ static void omap_4460hsi_pad_conf(void)
 					  OMAP_PIN_INPUT_PULLDOWN | \
 					  OMAP_PIN_OFF_NONE | \
 					  OMAP_PIN_OFF_WAKEUPENABLE);
-//mo2hawewoon.you@lge.com <= [END]
 
 //mo2haewoon.you@lge.com [START]
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO_SU760) || defined(CONFIG_MACH_LGE_CX2_SU870)
 	/* hsi1_omap_send */
 	omap_mux_init_signal("abe_dmic_din3.gpio_122", \
 		OMAP_PIN_INPUT_PULLDOWN | \
 		OMAP_PIN_OFF_NONE | \
 		OMAP_PIN_OFF_WAKEUPENABLE);
+#elif defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
+		omap_mux_init_signal("abe_dmic_din2.gpio_121", \
+					  OMAP_PIN_INPUT_PULLDOWN | \
+					  OMAP_PIN_OFF_NONE | \
+					  OMAP_PIN_OFF_WAKEUPENABLE);
 #endif
 //mo2haewoon.you@lge.com [END]
 }

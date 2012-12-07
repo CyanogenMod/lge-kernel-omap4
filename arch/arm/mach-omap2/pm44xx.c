@@ -193,7 +193,7 @@ u16 pm44xx_errata;
 
 #define MAX_IOPAD_LATCH_TIME 1000
 
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 	#include <linux/i2c/twl.h>
 	int last_turn_off_reason_count = 0;
 #endif
@@ -838,7 +838,7 @@ static int omap4_restore_pwdms_after_suspend(void)
 	int cstate, pstate, ret = 0;
 
 //nthyunjin.yang 120607 power debuging [start]
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 	int state = 0;
 	/* Print the previous power domain states */
 	printk("[POWER] ### Read Powerdomain states as ...\n");
@@ -1012,7 +1012,7 @@ static void omap4_pm_end(void)
 
 static int omap4_pm_prepare(void)
 {
-#ifdef CONFIG_MACH_LGE_COSMO //LAST POWER OFF REASON
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 	int ret=0;
 	u8 rd_reg=0;//mo2seongjae.jang 20120702 WBT issue modification
 
@@ -1044,7 +1044,7 @@ static int omap4_pm_prepare(void)
 	twl_i2c_write_u8(0x0E, 0x00, 0x2E);
         //TOGGLE1
 	twl_i2c_write_u8(0x0E, 0x51, 0x90);
-#ifdef CONFIG_MACH_LGE_COSMO //nthyunjin.yang 120724 for power off issue in entering sleep by CX2 GB MR 6th version.
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 	//VUSB
 	twl_i2c_write_u8(0x0D, 0x01, 0xA0);
 	twl_i2c_write_u8(0x0D, 0x01, 0xA1);
@@ -1055,7 +1055,7 @@ static int omap4_pm_prepare(void)
 
 //LGE_CHANGE_S 20110725 taehwan.kim@lge.com When go into sleep off mode,
 //disable regulator. 
-#if defined(CONFIG_MACH_LGE_P2_SU540) || defined(CONFIG_MACH_LGE_P2_KU5400) || defined(CONFIG_MACH_LGE_P2_LU5400)
+#if defined(CONFIG_MACH_LGE_P2_SU540) || defined(CONFIG_MACH_LGE_P2_KU5400) || defined(CONFIG_MACH_LGE_P2_LU5400) || defined(CONFIG_MACH_LGE_CX2)
 
     // REGEN2
 	twl_i2c_write_u8(0x0D, 0x01, 0xB0);

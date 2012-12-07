@@ -46,7 +46,11 @@ else ifdef CONFIG_LG_FW_MAX17048_FUEL_GAUGE_I2C
 obj-$(CONFIG_TWL6030_BCI_BATTERY)   += twl6030_bci_battery_u2.o
 else
 ifdef CONFIG_LG_FW_MAX17043_FUEL_GAUGE_GPIO
+ifeq ($(CONFIG_MACH_LGE_CX2),y)
+obj-$(CONFIG_TWL6030_BCI_BATTERY)	+= twl6030_bci_battery_ap_fuel_cx2.o
+else
 obj-$(CONFIG_TWL6030_BCI_BATTERY)	+= twl6030_bci_battery_ap_fuel.o
+endif
 else
 obj-$(CONFIG_TWL6030_BCI_BATTERY)	+= twl6030_bci_battery.o
 endif

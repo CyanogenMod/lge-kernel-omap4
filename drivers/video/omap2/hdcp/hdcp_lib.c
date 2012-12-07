@@ -196,7 +196,7 @@ static int hdcp_lib_initiate_step1(void)
 	 *   6) DDC: Writes An, Aksv
 	 *   7) DDC: Write Bksv
 	 */
-	uint8_t an_ksv_data[8];
+	uint8_t an_ksv_data[8], an_bksv_data[8];
 	uint8_t rx_type;
 
 	DBG("hdcp_lib_initiate_step1()\n");
@@ -263,8 +263,14 @@ static int hdcp_lib_initiate_step1(void)
 			 "*************************\n");
 #endif
 	/* DDC: Read BKSV from RX */
-//	if (hdcp_ddc_read(DDC_BKSV_LEN, DDC_BKSV_ADDR , an_bksv_data))
-//		return -HDCP_DDC_ERROR;
+	/* DDC: Read BKSV from RX */
+	if (hdcp_ddc_read(DDC_BKSV_LEN, DDC_BKSV_ADDR , an_bksv_data))
+	{
+	    printk(KERN_ERR "HDCP : HDCP_DDC_ERROR\n");
+	    HDCP_DBG_E();
+		return -HDCP_DDC_ERROR;
+    }
+
 
 	/* Generate An */
 	hdcp_lib_generate_an(an_ksv_data);
@@ -308,15 +314,8 @@ static int hdcp_lib_initiate_step1(void)
 		return -HDCP_CANCELLED_AUTH;
     }
 
-	/* DDC: Read BKSV from RX */
-	if (hdcp_ddc_read(DDC_BKSV_LEN, DDC_BKSV_ADDR , an_ksv_data))
-	{
-	    printk(KERN_ERR "HDCP_DDC_ERROR\n");
-		return -HDCP_DDC_ERROR;
-    }
-
 	/* Write Bksv to IP */
-	hdcp_lib_write_bksv(an_ksv_data);
+	hdcp_lib_write_bksv(an_bksv_data);
 
 	/* Check IP BKSV error */
 	if (RD_FIELD_32(hdcp.hdmi_wp_base_addr + HDMI_IP_CORE_SYSTEM,
@@ -382,12 +381,12 @@ int hdcp_3des_load_key(uint32_t *deshdcp_encrypted_key)
 			  deshdcp_encrypted_key[counter + 1]);
 
 		/* Wait for output bit at '1' */
-		while(
-			RD_FIELD_32(hdcp.deshdcp_base_addr,
+		while (RD_FIELD_32(hdcp.deshdcp_base_addr,
 				    DESHDCP__DHDCP_CTRL,
 				    DESHDCP__DHDCP_CTRL__OUTPUT_READY_POS_F,
 				    DESHDCP__DHDCP_CTRL__OUTPUT_READY_POS_L
-			) != 0x1) {};
+			) != 0x1)
+			;
 
 		/* Dummy read (indeed data are transfered directly into
 		 * key memory)
@@ -452,12 +451,12 @@ void hdcp_3des_encrypt_key(struct hdcp_encrypt_control *enc_ctrl,
 			  enc_ctrl->in_key[counter + 1]);
 
 		/* Wait for output bit at '1' */
-		while(
-			RD_FIELD_32(hdcp.deshdcp_base_addr,
+		while (RD_FIELD_32(hdcp.deshdcp_base_addr,
 				    DESHDCP__DHDCP_CTRL,
 				    DESHDCP__DHDCP_CTRL__OUTPUT_READY_POS_F,
 				    DESHDCP__DHDCP_CTRL__OUTPUT_READY_POS_L
-			) != 0x1) {};
+			) != 0x1)
+			;
 
 		/* Read enrypted data */
 		out_key[counter]     = RD_REG_32(hdcp.deshdcp_base_addr,

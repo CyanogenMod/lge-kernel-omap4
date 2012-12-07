@@ -20,7 +20,11 @@
 
 //#define LGE_TOUCH_TIME_DEBUG
 //mo2haewoon.you@lge.com => [START] 
+#ifdef CONFIG_MACH_LGE_COSMO
 #define COSMO_TOUCHKEY_RANGE_TRIM
+#elif defined(CONFIG_MACH_LGE_CX2)
+#define CX2_TOUCHKEY_RANGE_TRIM^M
+#endif
 //mo2haewoon.you@lge.com <= [END]
 
 #define MAX_FINGER	10

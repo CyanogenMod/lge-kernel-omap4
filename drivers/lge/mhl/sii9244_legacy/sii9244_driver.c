@@ -612,7 +612,7 @@ void ReadModifyWriteCBUS(u8 Offset, u8 Mask, u8 Value)
   WriteByteCBUS(Offset, Temp);
 }
 
-
+#if 0
 static void simg_chip_rst(void)
 {
   //skip power on in this test code
@@ -635,32 +635,8 @@ static void simg_chip_rst(void)
 #endif
   
 }
-
-#if 0
-static void simg_interrupt_cb(struct work_struct *simg_work)
-{
-    static int function_start = 1;   //for test....		// for MHL CTS
-    SII_LOG_FUNCTION_NAME_ENTRY;
-    if(function_start == 0)
-    {
-        function_start = 1;
-        simg_interrupt_enable(FALSE);
-        simg_msleep(1000);
-        SII_DEV_DBG("SiI9244 function start ## **\n");
-        simg_msleep(1000);      
-        simg_chip_rst();
-        sii9244_mhl_tx_int();    
-        simg_interrupt_enable(TRUE);
-    }
-    else
-    {
-        SII_DEV_DBG(" ##### (Line:%d) simg_mhl_tx_handler START #####\n", (int)__LINE__ );
-        simg_mhl_tx_handler();
-        SII_DEV_DBG(" ##### (Line:%d) simg_mhl_tx_handler Final END ##### \n", (int)__LINE__ );
-    }
-    SII_LOG_FUNCTION_NAME_EXIT;
-}
 #endif
+//--------------------------------------------------------------------
 
 static void mhl_tx_init(void)
 {
@@ -1890,10 +1866,7 @@ void cbus_cmd_put_workqueue(cbus_cmd_node* node_p)
         return ;
     }
     
-    // wooho47.jung@lge.com 2011.11.11
-    // MOD : lockup issue
-    //dev = (cbus_send_cmd_type*)kmalloc(sizeof(cbus_send_cmd_type), GFP_KERNEL);
-    dev = (cbus_send_cmd_type*)kmalloc(sizeof(cbus_send_cmd_type), GFP_ATOMIC);
+    dev = (cbus_send_cmd_type*)kzalloc(sizeof(cbus_send_cmd_type), GFP_ATOMIC);
 
     if (dev == NULL) 
     {
@@ -1903,8 +1876,6 @@ void cbus_cmd_put_workqueue(cbus_cmd_node* node_p)
 
     SII_DEV_DBG("*** send:%x, cmd:%x, offset:%x data[0]:%x data[1]:%x \n", 
         node_p->cmd_send, node_p->command, node_p->offset, node_p->payload.data[0],node_p->payload.data[1]); 
-  
-    memset(dev, 0x00, sizeof(cbus_send_cmd_type));
   
     node_p->cmd_send = TRUE;
     dev->command = node_p->command;
@@ -1960,20 +1931,15 @@ void cbus_cmd_bind(u8 command, u8 offset, u8* data, u16 data_lenth, bool priorit
     cbus_cmd_node *s;
     SII_LOG_FUNCTION_NAME_ENTRY;
 
-    new_node = (cbus_cmd_node*)kmalloc(sizeof(cbus_cmd_node), GFP_KERNEL);
+    new_node = (cbus_cmd_node*)kzalloc(sizeof(cbus_cmd_node), GFP_KERNEL);
 
     if (new_node == NULL) 
     {
         SII_DEV_DBG_ERROR("new_node == NULL)\n"); 
         return;
     }
-
     mutex_lock(&cbus_cmd_bind_mutex);
 	
-    // wooho47.jung@lge.com 2011.11.11
-    // ADD : init data    
-    memset(new_node, 0x00, sizeof(cbus_cmd_node));
-
     if(priority)
     {
         SII_DEV_DBG("CBUS command urgent priority \n");

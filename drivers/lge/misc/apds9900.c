@@ -37,6 +37,16 @@
 #define APDS9900_DRV_NAME	"apds9900"
 #define DRIVER_VERSION		"1.0.0"
 
+#ifdef CONFIG_MACH_LGE_CX2
+#define APDS9900_PROXIMITY_CAL
+#if defined(APDS9900_PROXIMITY_CAL) //hongkeon.kim 2012-0430
+#include <linux/syscalls.h>
+#include <linux/fs.h>
+#include <linux/uaccess.h>
+
+#define PS_DEFAULT_CROSS_TALK 750
+#endif
+#endif
 /*
  * Defines
  */
@@ -98,6 +108,11 @@
 
 #define APDS_WATCHDOG_DEBUG 0
 
+#define PDRIVE 	 	0x40 		//100mA of LED Power
+#define PDIODE 	 	0x20 	// IR Diode
+#define PGAIN 	 	0x00 	//1x Prox gain
+#define AGAIN 		0x00 	//1x ALS gain
+
 /*
  * Structs
  */
@@ -143,7 +158,12 @@ struct apds9900_data {
 	/* control flag from HAL */
 	unsigned int enable_ps_sensor;
 	unsigned int enable_als_sensor;
-
+#if defined(APDS9900_PROXIMITY_CAL) //hongkeon.kim 2012-0430
+	int cross_talk;
+	bool read_ps_cal_data;
+	bool ps_cal_result;
+	bool ps_default_result;
+#endif	
 	//struct input_dev *input_dev;
 	struct input_dev *input_dev_prox;
 	struct input_dev *input_dev_als;
@@ -156,6 +176,10 @@ struct apds9900_data {
  */
 static int apds_9900_initialized = 0;
 
+#if defined(APDS9900_PROXIMITY_CAL) //hongkeon.kim 2012-0430
+static unsigned int max_cross_talk = 770;
+static unsigned int default_cross_talk = 250;
+#endif
 /*
  * Management functions
  */
@@ -192,6 +216,164 @@ static int apds9900_set_enable(struct i2c_client *client, int enable)
 
 	return ret;
 }
+
+#if defined(APDS9900_PROXIMITY_CAL) //hongkeon.kim 2012-0430
+static int apds9900_read_crosstalk_data_fs(void);
+static void apds9900_Set_PS_Threshold_Adding_Cross_talk(struct i2c_client *client, int cal_data);
+static int apds_9900_init(struct i2c_client *client);
+
+void apds9900_swap(int *x, int *y)
+{
+     int temp = *x;
+     *x = *y;
+     *y = temp;
+}
+
+ static int apds9900_backup_crosstalk_data_fs(struct i2c_client *client, unsigned int val)
+{
+	int fd;
+	int ret = 0;
+	char buf[50];
+
+	mm_segment_t old_fs = get_fs();
+
+	memset(buf, 0, sizeof(buf));
+	sprintf(buf, "%d", val);
+
+	DEBUG_MSG("%s Enter\n", __FUNCTION__ );
+	DEBUG_MSG("%s\n", buf);
+
+	set_fs(KERNEL_DS);
+	fd = sys_open("/log/misc/prox_calibration.dat",O_WRONLY|O_CREAT, 0664);
+
+	if(fd >=0)
+	{
+		sys_write(fd, buf, sizeof(buf));
+		sys_close(fd);
+		set_fs(old_fs);
+	}
+	else
+	{
+		ret++;
+		sys_close(fd);
+		set_fs(old_fs);
+		return ret	;
+	}
+
+	apds_9900_init(client);
+
+	return ret;
+}
+static int apds9900_read_crosstalk_data_fs(void)
+{
+	int fd;
+	int ret = 0;
+	char read_buf[50];
+	mm_segment_t old_fs = get_fs();
+	  
+	DEBUG_MSG("%s Enter\n", __FUNCTION__);
+	memset(read_buf, 0, sizeof(read_buf));
+	set_fs(KERNEL_DS);
+
+	fd = sys_open("/log/misc/prox_calibration.dat",O_RDONLY, 0);
+	if(fd >=0)
+	{
+		DEBUG_MSG("%s Success read Prox Cross-talk from FS\n", __FUNCTION__);
+		sys_read(fd, read_buf, sizeof(read_buf));
+		sys_close(fd);
+		set_fs(old_fs);
+	}
+	else
+	{
+		DEBUG_MSG("%s Fail read Prox Cross-talk FS\n", __FUNCTION__);
+		DEBUG_MSG("%s Return error code : %d\n", __FUNCTION__, fd);
+		ret = -1;
+		sys_close(fd);
+		set_fs(old_fs);
+		return ret;	  
+	} 	  
+
+	return (simple_strtol(read_buf, NULL, 10));
+
+}
+
+/* Cross-talk Calibration  cross-talk threshold .*/
+static void apds9900_Set_PS_Threshold_Adding_Cross_talk(struct i2c_client *client, int cal_data)
+{
+	struct apds9900_data *data = i2c_get_clientdata(client);
+
+	if (cal_data>max_cross_talk)
+		cal_data = max_cross_talk;
+	if (cal_data<0)
+		cal_data = 0;
+	
+	data->cross_talk = cal_data;
+	data->prox_hth = default_cross_talk + cal_data;
+	data->prox_lth= data->prox_hth- 100;
+
+}
+
+/* Production All Auto Test cross talk  . Cross talk  phone  .. */
+static int apds9900_Run_Cross_talk_Calibration(struct i2c_client *client)
+{
+	struct apds9900_data *data = i2c_get_clientdata(client);
+	unsigned int sum_of_pdata = 0,temp_pdata[20];
+	unsigned int ret=0,i=0,j=0,ArySize = 20,cal_check_flag = 0;
+	unsigned int old_enable = 0;
+
+	DEBUG_MSG("%s Enter \n", __FUNCTION__);
+RE_CALIBRATION:
+
+	old_enable = data->enable; /*Back-up status*/
+	apds9900_set_enable(client, (data->enable|0x0D));/* Enable PS and Wait */
+	
+	msleep(50);
+
+	for(i =0;i<20;i++)	{
+		temp_pdata[i] = i2c_smbus_read_word_data(client, CMD_WORD|APDS9900_PDATAL_REG);
+		mdelay(6);
+	}
+
+	// pdata sorting
+	for(i=0; i<ArySize-1; i++)
+		for(j=i+1; j<ArySize; j++)
+			if(temp_pdata[i] > temp_pdata[j])
+				apds9900_swap(temp_pdata+i, temp_pdata+j);
+
+	for (i = 5;i<15;i++)
+		sum_of_pdata = sum_of_pdata + temp_pdata[i];
+	
+	data->cross_talk = sum_of_pdata/10;
+	if (data->cross_talk>max_cross_talk)
+	{
+		if (cal_check_flag == 0)
+		{
+			cal_check_flag = 1;
+			goto RE_CALIBRATION;
+		}
+		else
+		{
+			apds9900_set_enable(client,old_enable); /* restore status */
+			return -1;
+		}
+	}
+
+	data->prox_hth= default_cross_talk+ data->cross_talk;
+	data->prox_lth= data->prox_hth- 100;
+
+	ret = apds9900_backup_crosstalk_data_fs(client, data->cross_talk);
+
+	DEBUG_MSG("%s threshold : %d\n", __FUNCTION__, data->prox_hth);
+	DEBUG_MSG("%s Hysteresis_threshold : %d\n",__FUNCTION__, data->prox_lth);
+
+	apds9900_set_enable(client,old_enable); /* restore status */
+
+	DEBUG_MSG("%s Leave\n", __FUNCTION__);
+	return data->cross_talk; //Save the cross-talk to the non-volitile memory in the phone.  
+}
+#endif //APDS9900_PROXIMITY_CAL
+
+
 
 static int apds9900_set_atime(struct i2c_client *client, int atime)
 {
@@ -428,7 +610,7 @@ static int apds_9900_init(struct i2c_client *client)
 	// Pulse count for proximity
 	ret |= apds9900_set_ppcount(client, data->ppcount);
 	
-	ret |= apds9900_set_control(client, 0x20 /*PDRIVE | PDIODE | PGAIN | AGAIN*/);
+	ret |= apds9900_set_control(client, /*0x20*/ PDRIVE | PDIODE | PGAIN | AGAIN);
 
 	// init threshold for proximity
 	ret |= apds9900_set_pilt(client, 1023);
@@ -438,12 +620,131 @@ static int apds_9900_init(struct i2c_client *client)
 	ret |= apds9900_set_ailt(client, 0xFFFF);
 	ret |= apds9900_set_aiht(client, 0);
 
+#if defined(APDS9900_PROXIMITY_CAL) //hongkeon.kim 2012-0430
+        apds9900_Set_PS_Threshold_Adding_Cross_talk(client, data->cross_talk);				
+#endif
+
+
 	data->prox_stat = 1; /* FAR */
 
 	data->LPC = apds9900_get_LPC(client);
 
 	return ret;
 }
+
+#if defined(APDS9900_PROXIMITY_CAL) //hongkeon.kim 2012-0430
+ static ssize_t apds9900_show_run_calibration(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds9900_data *data = i2c_get_clientdata(client);
+
+	return sprintf(buf, "%x\n", data->ps_cal_result);
+}
+
+static ssize_t apds9900_store_run_calibration(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds9900_data *data = i2c_get_clientdata(client);
+
+	int ret;
+
+	ret = apds9900_Run_Cross_talk_Calibration(client);
+	if(ret < 0)
+	{
+		DEBUG_MSG("%s Fail error :  %d\n", __FUNCTION__, ret);
+		data->ps_cal_result = 0;
+	}
+	else
+	{
+		DEBUG_MSG("%s Succes cross-talk :  %d\n", __FUNCTION__, ret);
+		data->ps_cal_result = 1;
+	}
+
+	return count;
+}
+static DEVICE_ATTR(run_calibration,  S_IWUSR | S_IRUGO|S_IWGRP |S_IRGRP |S_IROTH/*|S_IWOTH*/,
+		   apds9900_show_run_calibration, apds9900_store_run_calibration);
+
+ static ssize_t apds9900_show_default_calibration(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds9900_data *data = i2c_get_clientdata(client);
+
+	return sprintf(buf, "%x\n", data->ps_default_result);
+}
+
+static ssize_t apds9900_store_default_calibration(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds9900_data *data = i2c_get_clientdata(client);
+
+	int ret;
+
+	ret = apds9900_backup_crosstalk_data_fs(client, PS_DEFAULT_CROSS_TALK);
+	if(ret < 0)
+	{
+		DEBUG_MSG("%s Fail error :  %d\n", __FUNCTION__, ret);
+		data->ps_default_result = 0;
+	}
+	else
+	{
+		DEBUG_MSG("%s Succes cross-talk :  %d\n", __FUNCTION__, ret);
+		data->ps_default_result = 1;
+		data->cross_talk = PS_DEFAULT_CROSS_TALK;
+		data->prox_hth= default_cross_talk + data->cross_talk;
+		data->prox_lth= data->prox_hth- 100;
+	}
+
+	return count;
+}
+static DEVICE_ATTR(default_calibration,  S_IWUSR | S_IRUGO|S_IWGRP |S_IRGRP |S_IROTH/*|S_IWOTH*/,
+		   apds9900_show_default_calibration, apds9900_store_default_calibration);
+
+ static ssize_t apds9900_show_crosstalk_data(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int ret = 0;
+	
+	ret = apds9900_read_crosstalk_data_fs();
+	if(ret<0)
+		return sprintf(buf, "Read fail\n");
+	
+	return sprintf(buf, "%d\n", ret);
+}
+
+// Back-up new cross-talk and restore cross-talk value.
+static ssize_t apds9900_store_crosstalk_data(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds9900_data *data = i2c_get_clientdata(client);
+	int ret = 0;
+	unsigned long val = simple_strtoul(buf, NULL, 10);
+
+
+	DEBUG_MSG("%s Enter\n", __FUNCTION__ );
+	//back-up
+	ret = apds9900_backup_crosstalk_data_fs(client, val);
+	if(ret != 0)
+		return DEBUG_MSG("File open fail %d\n", ret);	
+
+	//restore
+	data->cross_talk = val;
+
+	DEBUG_MSG("Saved cross_talk val : %d\n", (int)val);
+
+	
+	return count;
+}
+
+static DEVICE_ATTR(prox_cal_data,  S_IWUSR | S_IRUGO|S_IWGRP |S_IRGRP |S_IROTH/*|S_IWOTH*/,
+		   apds9900_show_crosstalk_data, apds9900_store_crosstalk_data);
+#endif//APDS9900_PROXIMITY_CAL
+
 
 /*
  * SysFS support
@@ -581,7 +882,7 @@ static ssize_t apds9900_store_pilt(struct device *dev,
 	return count;
 }
 
-static DEVICE_ATTR(pilt, 0660, apds9900_show_pilt, apds9900_store_pilt);	
+static DEVICE_ATTR(pilt, 0664, apds9900_show_pilt, apds9900_store_pilt);	
 
 
 static ssize_t apds9900_show_piht(struct device *dev,
@@ -605,7 +906,7 @@ static ssize_t apds9900_store_piht(struct device *dev,
 	return count;
 }
 
-static DEVICE_ATTR(piht, 0660, apds9900_show_piht, apds9900_store_piht);	
+static DEVICE_ATTR(piht, 0664, apds9900_show_piht, apds9900_store_piht);	
 
 static ssize_t apds9900_show_pdata(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -722,6 +1023,18 @@ static ssize_t apds9900_store_interrupt_prox(struct device *dev,
 		if(enable & 0x01) { // enable
 			data->enable_ps_sensor = 1;
 			data->enable |= (APDS9900_ENABLE_PIEN|APDS9900_ENABLE_PEN|APDS9900_ENABLE_PON);
+#if defined(APDS9900_PROXIMITY_CAL) //hongkeon.kim 2012-0430
+			if(!data->read_ps_cal_data)
+			{
+				data->cross_talk = apds9900_read_crosstalk_data_fs();
+				if(data->cross_talk <= 0 || data->cross_talk>max_cross_talk)
+					data->cross_talk = PS_DEFAULT_CROSS_TALK;
+
+				printk("%s Cross_talk : %d\n", __FUNCTION__, data->cross_talk);
+				apds9900_Set_PS_Threshold_Adding_Cross_talk(client, data->cross_talk); 	 
+				data->read_ps_cal_data++;
+			}
+#endif
 		}
 		else {	//disable
 			data->enable_ps_sensor = 0;
@@ -801,9 +1114,9 @@ static ssize_t apds9900_store_interrupt_als(struct device *dev,
 	return count;
 }
 
-static DEVICE_ATTR(interrupt_prox, 0660,
+static DEVICE_ATTR(interrupt_prox, 0664,
 		   apds9900_show_interrupt_prox, apds9900_store_interrupt_prox);		   
-static DEVICE_ATTR(interrupt_als, 0660,
+static DEVICE_ATTR(interrupt_als, 0664,
 		   apds9900_show_interrupt_als, apds9900_store_interrupt_als);		   
 static ssize_t apds9900_show_proxidata(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -814,7 +1127,7 @@ static ssize_t apds9900_show_proxidata(struct device *dev,
 	return sprintf(buf, "%d\n", data->prox_raw);
 }
 
-static DEVICE_ATTR(proxidata, 0660 , apds9900_show_proxidata, NULL);
+static DEVICE_ATTR(proxidata, 0664 , apds9900_show_proxidata, NULL);
 
 static ssize_t apds9900_show_luxdata(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -825,7 +1138,89 @@ static ssize_t apds9900_show_luxdata(struct device *dev,
 	return sprintf(buf, "%d\n", data->lux);
 }
 
-static DEVICE_ATTR(luxdata, 0660 , apds9900_show_luxdata, NULL);
+static DEVICE_ATTR(luxdata, 0664 , apds9900_show_luxdata, NULL);
+
+#if defined(APDS9900_PROXIMITY_CAL)//hongkeon.kim 2012-0430
+static ssize_t apds9900_show_proxthreshold_value(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    struct i2c_client *client = to_i2c_client(dev);
+    struct apds9900_data *data = i2c_get_clientdata(client);
+	
+
+    int val = (int) data->prox_hth;
+    return sprintf(buf, "%d\n", val );
+}
+
+static ssize_t apds9900_store_proxthreshold_value(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct apds9900_data *data = dev_get_drvdata(dev);
+	struct i2c_client *client = data->client;
+
+ 
+    int ret = 0;
+    
+    unsigned long value = simple_strtoul(buf, NULL, 10);
+
+//    apds9900_ps_detection_threshold  = value;
+    data->prox_hth = value;
+
+    ret = apds9900_set_enable(client, 0); 
+    
+    msleep(50);
+    
+    ret = apds9900_set_enable(client, 0x2F); 
+   
+
+    if (ret < 0)
+        return ret;
+
+    return count;
+}
+
+
+
+
+static ssize_t apds9900_show_proxhysteresis_value(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    struct i2c_client *client = to_i2c_client(dev);
+    struct apds9900_data *data = i2c_get_clientdata(client);
+
+    int val = (int) data->prox_lth;
+    return sprintf(buf, "%d\n", val );
+}
+
+static ssize_t apds9900_store_proxhysteresis_value(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct apds9900_data *data = dev_get_drvdata(dev);
+	struct i2c_client *client = data->client;
+
+ 
+    int ret = 0;
+    
+    unsigned long value = simple_strtoul(buf, NULL, 10);
+
+//    apds9900_ps_hsyteresis_threshold   = value;
+    data->prox_lth = value;
+
+    ret = apds9900_set_enable(client, 0); 
+    
+    msleep(50);
+    
+    ret = apds9900_set_enable(client, 0x2F); 
+   
+
+    if (ret < 0)
+        return ret;
+
+    return count;
+}
+
+
+static DEVICE_ATTR(prox_threshold, S_IWUSR | S_IRUGO | S_IRGRP | S_IROTH , apds9900_show_proxthreshold_value, apds9900_store_proxthreshold_value);
+
+static DEVICE_ATTR(prox_hysteresis, S_IWUSR | S_IRUGO | S_IRGRP | S_IROTH , apds9900_show_proxhysteresis_value, apds9900_store_proxhysteresis_value);
+
+#endif//APDS9900_PROXIMITY_CAL
 
 static ssize_t apds9900_show_irdata(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -864,6 +1259,14 @@ static struct attribute *apds9900_attributes[] = {
 	&dev_attr_interrupt_als.attr,
 	&dev_attr_proxidata.attr,
 	&dev_attr_luxdata.attr,
+
+#if defined(APDS9900_PROXIMITY_CAL)//hongkeon.kim 2012-0430
+	&dev_attr_prox_threshold.attr,
+	&dev_attr_prox_hysteresis.attr,
+	&dev_attr_run_calibration.attr,
+	&dev_attr_default_calibration.attr,
+	&dev_attr_prox_cal_data.attr,
+#endif
 	&dev_attr_irdata.attr,
 	&dev_attr_cdata.attr,
 	NULL
@@ -1229,7 +1632,7 @@ static void apds_9900_irq_work_func(struct work_struct *work)
 		apds9900_set_command(client,1);
 	}
 	
-	apds9900_set_control(client, 0x20/*PDRIVE | PDIODE | PGAIN | AGAIN*/);
+	apds9900_set_control(client, /*0x20*/ PDRIVE | PDIODE | PGAIN | AGAIN);
 	apds9900_set_enable(client, data->enable);
 
 	if(data->enable_ps_sensor==0 && data->enable_als_sensor==0)

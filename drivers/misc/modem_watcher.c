@@ -47,7 +47,7 @@ struct mdm_watcher_drv_event {
 	unsigned int irq_mrdy;//hak.lee@lge.com
 	unsigned int code_srdy;
 	unsigned int code_mrdy;
-#ifndef CONFIG_MACH_LGE_COSMO
+#ifdef CONFIG_MACH_LGE_U2
 	// RIP-41061 : handling interrupt for at-channel ready : byeonggeun.kim@lge.com [START]
 	unsigned int irq_modem_send;
 	unsigned int code_modem_send;
@@ -103,7 +103,7 @@ static irqreturn_t mdm_watcher_interrupt(int irq, void *dev_id)
 			handler->event_type = MDM_AUTO_SHUTDOWN_MRDY;
 			delay = handler->auto_shutdown.delay;
 		}
-#ifndef CONFIG_MACH_LGE_COSMO
+#ifdef CONFIG_MACH_LGE_U2
 		// RIP-41061 : handling interrupt for at-channel ready : byeonggeun.kim@lge.com [START]
 		else if(irq == handler->halt.irq_modem_send){
 			handler->event_type = MDM_HALT_MODEM_SEND;
@@ -187,7 +187,7 @@ static void mdm_watcher_work_func(struct work_struct *work)
 			case MDM_AUTO_SHUTDOWN_MRDY:
 				code = handler->auto_shutdown.code_mrdy; 
 				break;
-#ifndef CONFIG_MACH_LGE_COSMO
+#ifdef CONFIG_MACH_LGE_U2
 
 			// RIP-41061 : handling interrupt for at-channel ready : byeonggeun.kim@lge.com [START]	
 			case MDM_HALT_MODEM_SEND:
@@ -428,7 +428,7 @@ static int mdm_watcher_probe(struct platform_device *pdev)
 					drv_event->irq_mrdy);
 			free_irq(drv_event->irq_mrdy, NULL);
 		}
-#ifndef CONFIG_MACH_LGE_COSMO
+#ifdef CONFIG_MACH_LGE_U2
 		// RIP-41061 : handling interrupt for at-channel ready : byeonggeun.kim@lge.com [START]
 		//------------- modem send 
 		gpio_request(pdev_event->gpio_irq_modem_send, event_name);
@@ -514,7 +514,7 @@ static int mdm_watcher_remove(struct platform_device *pdev)
 		free_irq(handler->halt.irq_mrdy, NULL);
 	if (!handler->auto_shutdown.irq_mrdy)
 		free_irq(handler->auto_shutdown.irq_mrdy, NULL);
-#ifndef CONFIG_MACH_LGE_COSMO
+#ifdef CONFIG_MACH_LGE_U2
 	// RIP-41061 : handling interrupt for at-channel ready : byeonggeun.kim@lge.com [START]
 	if (!handler->halt.irq_modem_send)
 		free_irq(handler->halt.irq_modem_send, NULL);
@@ -543,7 +543,7 @@ static int mdm_watcher_remove(struct platform_device *pdev)
 		gpio_free(irq_to_gpio(handler->halt.irq_mrdy));
 	if (!handler->auto_shutdown.irq_mrdy)
 		gpio_free(irq_to_gpio(handler->auto_shutdown.irq_mrdy));
-#ifndef CONFIG_MACH_LGE_COSMO
+#ifdef CONFIG_MACH_LGE_U2
 	// RIP-41061 : handling interrupt for at-channel ready : byeonggeun.kim@lge.com [START]
 	if (!handler->halt.irq_modem_send)
 		gpio_free(irq_to_gpio(handler->halt.irq_modem_send));

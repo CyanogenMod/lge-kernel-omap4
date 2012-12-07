@@ -175,6 +175,10 @@ int crop_to_rect(union rect *crop, union rect *win, union rect *vis,
 	return 0;
 }
 
+#ifdef CONFIG_HRZ_II
+extern int hrz_res_conv_mode;
+#endif
+
 int set_dss_ovl_info(struct dss2_ovl_info *oi)
 {
 	struct omap_overlay_info info;
@@ -211,9 +215,20 @@ int set_dss_ovl_info(struct dss2_ovl_info *oi)
 	/* crop to screen */
 	crop.r = cfg->crop;
 	win.r = cfg->win;
+
 	vis.x = vis.y = 0;
+#ifdef CONFIG_HRZ_II
+	if((oi->cfg.mgr_ix==0) && (oi->cfg.ix==1)) { 
+		vis.w = ovl->manager->device->panel.timings.x_res/2;
+		vis.h = ovl->manager->device->panel.timings.y_res/2;
+	} else {
+		vis.w = ovl->manager->device->panel.timings.x_res;
+		vis.h = ovl->manager->device->panel.timings.y_res;
+	}
+#else
 	vis.w = ovl->manager->device->panel.timings.x_res;
 	vis.h = ovl->manager->device->panel.timings.y_res;
+#endif
 
 	if (crop_to_rect(&crop, &win, &vis, cfg->rotation, cfg->mirror) ||
 								vis.w < 2) {
@@ -236,6 +251,55 @@ int set_dss_ovl_info(struct dss2_ovl_info *oi)
 		 */
 	}
 
+#ifdef CONFIG_HRZ_II
+	if(hrz_res_conv_mode) {
+		if((oi->cfg.mgr_ix==1) && (oi->cfg.ix==3)) {
+			info.width  = 960;
+			info.height = 1600;
+		} else if((oi->cfg.mgr_ix==0) && (oi->cfg.ix==0)) {
+			info.width  = 960;
+			info.height = 1600;
+		} else {
+			info.width  = crop.w;
+			info.height = crop.h;
+		}
+
+		if (cfg->rotation & 1)
+			/* DISPC uses swapped height/width for 90/270 degrees */
+			swap(info.width, info.height);
+		info.pos_x = win.x;
+		info.pos_y = win.y;
+		info.out_width = win.w;
+		info.out_height = win.h;
+	} else {
+		if((oi->cfg.mgr_ix==1) && (oi->cfg.ix==3) 
+			&& (!(cfg->rotation & 1))) {
+			if(!(cfg->rotation & 1)) {
+				info.width  = crop.w/2;
+				info.height = crop.h;
+				info.pos_x = win.x + 216;
+				info.pos_y = win.y;
+				info.out_width = win.w/2;
+				info.out_height = win.h;
+			}
+		} else {
+			info.width  = crop.w;
+			info.height = crop.h;
+			if (cfg->rotation & 1)
+				/* DISPC uses swapped height/width for 90/270 degrees */
+				swap(info.width, info.height);
+			info.pos_x = win.x;
+			info.pos_y = win.y;
+			info.out_width = win.w;
+			info.out_height = win.h;
+/*
+	if (cfg->rotation &1)
+		printk("DOLCOM : %d %d %d %d %d %d\n",
+		crop.w, crop.h, win.x, win.y, win.w, win.h);
+*/
+		}
+	}
+#else
 	info.width  = crop.w;
 	info.height = crop.h;
 	if (cfg->rotation & 1)
@@ -245,6 +309,7 @@ int set_dss_ovl_info(struct dss2_ovl_info *oi)
 	info.pos_y = win.y;
 	info.out_width = win.w;
 	info.out_height = win.h;
+#endif
 
 	/* calculate addresses and cropping */
 	info.paddr = oi->ba;

@@ -90,6 +90,15 @@ int atcmd_keylock=0;
 //mo2haewoon.you@lge.com => [END]
 #endif
 
+#ifdef CONFIG_MACH_LGE_CX2
+#define OMAP4_KBD_SYSCONFIG_SOFTRST    (1 << 1)
+#define OMAP4_KBD_SYSCONFIG_ENAWKUP    (1 << 2)
+#define OMAP4_KBD_SYSCONFIG_IDLEMODE (1 << 4)
+#define OMAP4_KBD_SYSCONFIG_CLOCKACTIVITY (1 << 8) | (1 << 9)
+int atcmd_keylock=0;//hongkeon.kim 2012-0625 keylock command
+#endif
+
+
 struct omap4_keypad {
 	struct input_dev *input;
 
@@ -141,7 +150,7 @@ static DEVICE_ATTR(keypad_debug, S_IWUSR | S_IRUGO | S_IRGRP | S_IROTH,
 // LGE_CHANGE_E [younglae.kim@lge.com] 2012-06-06
 
 //mo2haewoon.you@lge.com => [START] keylock command
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 //LGE_S 11.12.13 <ntdeaewan.choi@lge.com> AT%KEYLOCK touch,keytouch,key disable
 static ssize_t keypad_keylock_show(struct device *dev,  struct device_attribute *attr,  char *buf)
 {
@@ -219,7 +228,7 @@ static irqreturn_t omap4_keypad_interrupt(int irq, void *dev_id)
 				// LGE_CHANGE_E [younglae.kim@lge.com] 2012-06-06
 
                                 //mo2haewoon.you@lge.com => [START]  keylock command
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 				if( keypad_data->keymap[code] && !atcmd_keylock) {
 #else
 				if( keypad_data->keymap[code] ) {
@@ -287,10 +296,15 @@ static int omap4_keypad_open(struct input_dev *input)
 
 	disable_irq(keypad_data->irq);
 
+#ifdef CONFIG_MACH_LGE_CX2
+	__raw_writel(OMAP4_KBD_SYSCONFIG_SOFTRST | OMAP4_KBD_SYSCONFIG_ENAWKUP | 
+				OMAP4_KBD_SYSCONFIG_IDLEMODE | OMAP4_KBD_SYSCONFIG_CLOCKACTIVITY, keypad_data->base + OMAP4_KBD_SYSCONFIG);
+	__raw_writel(0x1E, keypad_data->base + OMAP4_KBD_CTRL);
+#else
 	__raw_writel(OMAP4_DEF_CTRL_NOSOFTMODE |
 			(OMAP4_VAL_PVT << OMAP4_DEF_CTRL_PTV),
 			keypad_data->base + OMAP4_KBD_CTRL);
-
+#endif
 	__raw_writel(OMAP4_VAL_DEBOUNCINGTIME,
 			keypad_data->base + OMAP4_KBD_DEBOUNCINGTIME);
 
@@ -488,7 +502,7 @@ static int __devinit omap4_keypad_probe(struct platform_device *pdev)
 // LGE_CHANGE_E [younglae.kim@lge.com] 2012-06-06
 
 //mo2haewoon.you@lge.com => [START]  keylock command
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 	error = device_create_file(&pdev->dev, &dev_attr_keylock);
 	if (error) {
 		printk( "keypad: keylock create file: Fail\n");
@@ -530,7 +544,7 @@ static int __devexit omap4_keypad_remove(struct platform_device *pdev)
 // LGE_CHANGE_E [younglae.kim@lge.com] 2012-06-06
 
 //mo2haewoon.you@lge.com => [START]  keylock command
-#ifdef CONFIG_MACH_LGE_COSMO
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 	device_remove_file(&pdev->dev, &dev_attr_keylock);
 #endif
 //mo2haewoon.you@lge.com <= [END]

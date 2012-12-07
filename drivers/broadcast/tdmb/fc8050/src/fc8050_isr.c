@@ -57,17 +57,17 @@ void fc8050_isr(HANDLE hDevice)
 		int  	i;
 
 		bbm_word_read(hDevice, BBM_BUF_STATUS, &mfIntStatus);
-		//bbm_word_write(hDevice, BBM_BUF_STATUS, mfIntStatus);
-		//bbm_word_write(hDevice, BBM_BUF_STATUS, 0x0000);
+		bbm_word_write(hDevice, BBM_BUF_STATUS, mfIntStatus);
+		bbm_word_write(hDevice, BBM_BUF_STATUS, 0x0000);
 	
 		if(mfIntStatus & 0x0100) {
 			bbm_word_read(hDevice, BBM_BUF_FIC_THR, &size);
 			size += 1;
 			if(size-1) {
-				bbm_data(hDevice, BBM_COM_FIC_DATA, &ficBuffer[0], size);
+				bbm_data(hDevice, BBM_COM_FIC_DATA, &ficBuffer[4], size);
 
 				if(pFicCallback) 
-					(*pFicCallback)((fci_u32) hDevice, &ficBuffer[0], size);
+					(*pFicCallback)((fci_u32)hDevice, &ficBuffer[4], size);
 				
 			} 
 		}
@@ -94,26 +94,14 @@ void fc8050_isr(HANDLE hDevice)
 							tp_total_cnt += size/188;
 					}
 
-					bbm_data(hDevice, (BBM_COM_CH0_DATA+i), &mscBuffer[0], size);
+					bbm_data(hDevice, (BBM_COM_CH0_DATA+i), &mscBuffer[4], size);
 
-					if(size>384)
-					{
 						if(pMscCallback)
-							(*pMscCallback)(gMscUserData, subChId, &mscBuffer[2], size);
+						(*pMscCallback)(gMscUserData, subChId, &mscBuffer[4], size);
 					}
-					else
-					{
-						if(pMscCallback)
-							(*pMscCallback)(gMscUserData, subChId, &mscBuffer[0], size);
 					}
-						
 				}
 			}
-		}
-
-		bbm_word_write(hDevice, BBM_BUF_STATUS, mfIntStatus);
-		bbm_word_write(hDevice, BBM_BUF_STATUS, 0x0000);
-	}
 
 	//bbm_write(hDevice, BBM_COM_INT_ENABLE, ENABLE_INT_MASK);
 }

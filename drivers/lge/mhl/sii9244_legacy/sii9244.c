@@ -26,6 +26,8 @@
 #include <linux/fcntl.h> 
 #include <asm/uaccess.h> 
 #include <linux/regulator/consumer.h>
+#include <linux/mutex.h>
+#include "sii9244_driver.h"
 /* LGE_CHANGE_S [seungho1.park@lge.com] 2011-11-21, */
 #if defined(CONFIG_MUIC)
 #include <linux/muic/muic.h>
@@ -33,24 +35,16 @@
 #endif
 /* LGE_CHANGE_E [seungho1.park@lge.com] ,  */
 
-//#include "sii9244_driver.h"
-//#include "Common_Def.h"
-
-// LGE_CHANGE_S [jh.koo, kibum.lee] 2011-08-04, for MHL interrupt sync
-#include <linux/mutex.h>
-
-#include "sii9244_driver.h"
-
 extern void hdmi_common_send_uevent(int x, int y, int action, int tvCtl_x, int tvCtl_y);
 extern void hdmi_common_send_keyevent(u8 code);
-// LGE_CHANGE_E [jh.koo, kibum.lee] 2011-08-04, for MHL interrupt sync
+extern int mhl_power_control(int on);
+extern int hpd_enable_control(int on);
+extern void sii9244_driver_init(void);
 
 // LGE_CHANGE_S [jh.koo, kibum.lee] 2011-08-20, for MHL safety
 #include <linux/wakelock.h>
 static struct wake_lock mhl_lock;
 static int mhl_connected = 0;
-extern void sii9244_driver_init(void);
-extern struct timer_list simg_timer;
 
 struct mhl_work_struct {
 	struct work_struct work;
@@ -92,21 +86,6 @@ struct i2c_client *sii9244b_i2c_client = NULL;
 struct i2c_driver sii9244c_i2c_driver;
 struct i2c_client *sii9244c_i2c_client = NULL;
 
-
-//extern bool sii9244_init(void);
-//extern void sii9244_mhl_tx_int(void);
-//extern void simg_mhl_tx_handler(void);
-extern int dss_mainclk_enable(void);
-extern void dss_mainclk_disable(void);
-
-// LGE_CHANGE_S [jh.koo@lge.com] 2011-05-27, [P940] add HDMI/MHL driver
-extern int mhl_power_control(int on);
-// LGE_CHANGE_E [jh.koo@lge.com]
-// LGE_CHANGE_S [jh.koo@lge.com] 2011-07-22, [P940] add HDMI hot plug detect enable control
-extern int hpd_enable_control(int on);
-// LGE_CHANGE_E [jh.koo@lge.com]
-
-// LGE_CHANGE [jh.koo kibum.lee] 20110806 , MHL RCP codes into media keys and transfer theses to the input manager
 struct mhl_rcp_dev{
 	char *name;
 	struct device *dev;
@@ -1163,8 +1142,9 @@ void sii9244_cfg_power(bool on)
 		gpio_direction_output(GPIO_MHL_EN, GPIO_LEVEL_LOW);
 		gpio_set_value(GPIO_MHL_EN, GPIO_LEVEL_HIGH);
 
+#ifdef CONFIG_MACH_LGE_P2  //mo2sanghyun.lee not CX2
 		mhl_power_control(1);
-
+#endif
 		mdelay(2);
 
 //		gpio_request(GPIO_MHL_RST, "MHL_RESET_N");
@@ -1179,8 +1159,9 @@ void sii9244_cfg_power(bool on)
 	}
 	else
 	{
+#ifdef CONFIG_MACH_LGE_P2	  //mo2sanghyun.lee not CX2
 		mhl_power_control(0);
-		
+#endif		
 		gpio_direction_output(GPIO_MHL_EN, GPIO_LEVEL_LOW);
 		gpio_set_value(GPIO_MHL_EN, GPIO_LEVEL_LOW);
 	}

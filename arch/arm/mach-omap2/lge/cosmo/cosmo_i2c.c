@@ -671,10 +671,12 @@ static struct i2c_board_info i2c_3_info[] __initdata = {
 		I2C_BOARD_INFO("apds9900", 0x39),
 		.platform_data = &apds9900_pdata,
 	},
+#ifdef CONFIG_SUBPMIC_LP8720
 	{
 		I2C_BOARD_INFO(LP8720_I2C_NAME, LP8720_I2C_ADDR),
 		.platform_data = &lp8720_pdata,
 	},
+#endif
 };
 
 /* i2c_4_info */

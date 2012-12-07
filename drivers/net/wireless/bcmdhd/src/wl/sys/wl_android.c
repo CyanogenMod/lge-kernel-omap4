@@ -733,7 +733,7 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 	}
 	else if (strnicmp(command, CMD_BTCOEXMODE, strlen(CMD_BTCOEXMODE)) == 0) {
 /* LGE_CHANGE_S, moon-wifi@lge.com by 2lee, 20120612, Do not set a packet filter when got a command 'BTCOEXMODE'. Once the packet filter is set, it seldom be removed. */
-#if 0
+#ifndef CONFIG_MACH_LGE_CX2
 		uint mode = *(command + strlen(CMD_BTCOEXMODE) + 1) - '0';
 
 		if (mode == 1)

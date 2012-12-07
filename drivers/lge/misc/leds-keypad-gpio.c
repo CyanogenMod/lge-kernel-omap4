@@ -98,7 +98,7 @@ static void keypad_led_store(struct led_classdev *led_cdev,
 	}
 	else		
 	{
-		if (value == 127) {
+		if (value != 0 && value < 255) {
 			printk(KERN_INFO "FRONT_LED: SYSFS_LED On!\n");
 			gpio_set_value(keypad_gpio, 1);
 

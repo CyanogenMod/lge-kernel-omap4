@@ -59,6 +59,10 @@
 /* DISPC */
 #define DISPC_SZ_REGS			SZ_4K
 
+#ifdef CONFIG_HRZ_II
+extern int hrz_res_conv_mode;
+#endif
+
 //LGE_CHANGE_S [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
 #define DISPC_REG(idx)			((const u16) {idx})//((const struct dispc_reg) { idx })
 //LGE_CHANGE_E [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
@@ -683,16 +687,25 @@ bool dispc_go_busy(enum omap_channel channel)
 extern int lh430wv2_panel_HiddenRestStatus( int CheckMode );
 //mo2haewoon.you@lge.com <= [END]
 #endif
+#if defined(CONFIG_LGE_HANDLE_PANIC) && defined(CONFIG_MACH_LGE_CX2)
+extern int lh430wv5_panel_HiddenRestStatus( int CheckMode );
+#endif
 
 void dispc_go(enum omap_channel channel)
 {
 	int bit;
 	bool enable_bit, go_bit;
 
-#if defined(CONFIG_LGE_HANDLE_PANIC) && defined(CONFIG_MACH_LGE_COSMO)
+#if defined(CONFIG_LGE_HANDLE_PANIC)
 	//mo2haewoon.you@lge.com => [START]  HIDDEN_RESET
 	// Hidden reset skip code
+#if defined(CONFIG_MACH_LGE_COSMO)
 	if( lh430wv2_panel_HiddenRestStatus(2) == 1 )
+#elif defined(CONFIG_MACH_LGE_CX2)
+	if( lh430wv5_panel_HiddenRestStatus(2) == 1 )
+#else
+	if( 1 == 2 )
+#endif
 	{
 		return;
 	}	
@@ -733,7 +746,7 @@ void dispc_go(enum omap_channel channel)
 	DSSDBG("GO %s\n", channel == OMAP_DSS_CHANNEL_LCD ? "LCD" :
 		(channel == OMAP_DSS_CHANNEL_LCD2 ? "LCD2" : "DIGIT"));
 //LGE_CHANGE_S [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
-#if defined(CONFIG_P2_GAMMA) || defined(CONFIG_U2_GAMMA) || defined(CONFIG_COSMO_GAMMA)
+#if defined(CONFIG_P2_GAMMA) || defined(CONFIG_U2_GAMMA) || defined(CONFIG_COSMO_GAMMA) || defined(CONFIG_CX2_GAMMA)
         REG_FLD_MOD(DISPC_CONFIG, 1, 3, 3);
         REG_FLD_MOD(DISPC_CONFIG, 1, 9, 9);
 #endif
@@ -1100,7 +1113,15 @@ static void _dispc_set_plane_pos(enum omap_plane plane, int x, int y)
 
 static void _dispc_set_pic_size(enum omap_plane plane, int width, int height)
 {
+#ifdef CONFIG_HRZ_II
+    u32 val;
+	if(plane == OMAP_DSS_GFX)
+		val = FLD_VAL(800 - 1, 26, 16) | FLD_VAL(480 - 1, 10, 0);
+	else
+		val = FLD_VAL(height - 1, 26, 16) | FLD_VAL(width - 1, 10, 0);
+#else
 	u32 val = FLD_VAL(height - 1, 26, 16) | FLD_VAL(width - 1, 10, 0);
+#endif
 
 	if (plane == OMAP_DSS_GFX)
 		dispc_write_reg(DISPC_OVL_SIZE(plane), val);
@@ -2527,9 +2548,26 @@ int dispc_setup_plane(enum omap_plane plane,
 		_dispc_set_plane_ba1_uv(plane, puv_addr + offset1);
 	}
 
-
+#if defined(CONFIG_HRZ_II)
+    if(!plane) {
+		if(width == 480) {
 	_dispc_set_row_inc(plane, row_inc);
 	_dispc_set_pix_inc(plane, pix_inc);
+		} else if(!hrz_res_conv_mode) {
+			_dispc_set_row_inc(plane, 1 + 960*2);
+			_dispc_set_pix_inc(plane, 1);
+		} else {
+			_dispc_set_row_inc(plane, 1 + 960*4);
+			_dispc_set_pix_inc(plane, 5);
+		}
+	} else {
+		_dispc_set_row_inc(plane, row_inc);
+		_dispc_set_pix_inc(plane, pix_inc);
+	}
+#else
+	_dispc_set_row_inc(plane, row_inc);
+	_dispc_set_pix_inc(plane, pix_inc);
+#endif
 
 	DSSDBG("%d,%d %d*%dx%d*%d -> %dx%d\n", pos_x, pos_y, width, x_decim,
 			height, y_decim, out_width, out_height);
@@ -2886,6 +2924,9 @@ static void dispc_enable_digit_out(enum omap_display_type type, bool enable)
 	/* XXX I understand from TRM that we should only wait for the
 	 * current field to complete. But it seems we have to wait
 	 * for both fields */
+#ifdef CONFIG_MACH_LGE_COSMO
+        if(!cpu_is_omap44xx()) {  //mo2sanghyun.lee 2012.06.23 
+#endif
 	if (!wait_for_completion_timeout(&frame_done_completion,
 				msecs_to_jiffies(100)))
 		DSSERR("timeout waiting for EVSYNC\n");
@@ -2896,6 +2937,9 @@ static void dispc_enable_digit_out(enum omap_display_type type, bool enable)
 					msecs_to_jiffies(100)))
 			DSSERR("timeout waiting for EVSYNC\n");
 	}
+#ifdef CONFIG_MACH_LGE_COSMO
+        }
+#endif
 
 	r = omap_dispc_unregister_isr_sync(dispc_disable_isr,
 			&frame_done_completion,
@@ -3139,7 +3183,7 @@ int dispc_enable_gamma(enum omap_channel ch, u8 gamma)
         if (gamma > NO_OF_GAMMA_TABLES)
                 return -EINVAL;
 
-#if defined(CONFIG_P2_S_CURVE) || defined(CONFIG_U2_S_CURVE) || defined(CONFIG_COSMO_S_CURVE) 
+#if defined(CONFIG_P2_S_CURVE) || defined(CONFIG_U2_S_CURVE) || defined(CONFIG_COSMO_S_CURVE) || defined(CONFIG_CX2_S_CURVE)
 	{
 		if(ch == 2)
 		{
@@ -3208,14 +3252,14 @@ int dispc_set_gamma_rgb(enum omap_channel ch, u8 gamma,int red,int green,int blu
         if (gamma > NO_OF_GAMMA_TABLES)
                 return -EINVAL;
 
-#if defined(CONFIG_P2_S_CURVE) || defined(CONFIG_U2_S_CURVE) || defined(CONFIG_COSMO_S_CURVE)
+#if defined(CONFIG_P2_S_CURVE) || defined(CONFIG_U2_S_CURVE) || defined(CONFIG_COSMO_S_CURVE)|| defined(CONFIG_CX2_S_CURVE)
 	#if defined(CONFIG_MACH_LGE_U2_P760)
 		tablePtr = GammaTable_p760;
 	#elif defined(CONFIG_MACH_LGE_U2_P769)
 		tablePtr = GammaTable_p769;
 	#elif defined(CONFIG_MACH_LGE_U2_P768)
 		tablePtr = GammaTable_p760;
-	#elif defined(CONFIG_MACH_LGE_COSMO)
+	#elif defined(CONFIG_MACH_LGE_COSMO)||defined(CONFIG_MACH_LGE_CX2)
 		tablePtr = GammaTable_LGD;	
 	#else
 		maker_id =gpio_get_value(GPIO_LCD_MAKER_ID);
@@ -3286,7 +3330,7 @@ void dispc_set_gamma_table()
 			lcd_gamma_rgb.table_type= PANEL_P760_NV;
 		else
 			lcd_gamma_rgb.table_type= PANEL_P760;
-	#elif defined(CONFIG_MACH_LGE_COSMO)
+	#elif defined(CONFIG_MACH_LGE_COSMO)||defined(CONFIG_MACH_LGE_CX2)
 		if(gamma_nv_flag == GAMMA_NV_ENABLED)
 			lcd_gamma_rgb.table_type= PANEL_LGD_NV;
 		else
@@ -3526,7 +3570,11 @@ void dispc_set_lcd_timings(enum omap_channel channel,
 			timings->hbp, timings->vsw, timings->vfp,
 			timings->vbp);
 
+#ifdef CONFIG_HRZ_II
+	dispc_set_lcd_size(channel, 480, 800);
+#else
 	dispc_set_lcd_size(channel, timings->x_res, timings->y_res);
+#endif
 
 	xtot = timings->x_res + timings->hfp + timings->hsw + timings->hbp;
 	ytot = timings->y_res + timings->vfp + timings->vsw + timings->vbp;
@@ -4746,8 +4794,8 @@ static int omap_dispchw_probe(struct platform_device *pdev)
 	_omap_dispc_initialize_irq();
 
 //LGE_CHANGE_S [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
-#if defined(CONFIG_P2_GAMMA) || defined(CONFIG_U2_GAMMA) || defined(CONFIG_COSMO_GAMMA)
-#if defined(CONFIG_P2_S_CURVE) || defined(CONFIG_U2_S_CURVE) || defined(CONFIG_COSMO_S_CURVE)
+#if defined(CONFIG_P2_GAMMA) || defined(CONFIG_U2_GAMMA) || defined(CONFIG_COSMO_GAMMA) || defined(CONFIG_CX2_GAMMA)
+#if defined(CONFIG_P2_S_CURVE) || defined(CONFIG_U2_S_CURVE) || defined(CONFIG_COSMO_S_CURVE)||defined(CONFIG_CX2_S_CURVE)
 printk("probe_CONFIG_P2_GAMMA\n");
 	dispc_set_gamma_table();
 	dispc_enable_gamma(OMAP_DSS_CHANNEL_LCD, 0);
@@ -4819,7 +4867,7 @@ __setup("RGB=", gamma_rgb_data_dispc);
 //LGE_CHANGE_E [jeonghoon.cho@lge.com] 2012-0208, P940 : Add GAMMA Function refer from P2 GB
 
 //CHANGE_S mo2mk.kim@lge.com 2012-07-26 apply kcal code for gamma
-#if defined(CONFIG_COSMO_GAMMA)
+#if defined(CONFIG_COSMO_GAMMA) || defined(CONFIG_CX2_GAMMA)
 u32 gamma_rgb_data_dispc_for_extern(char *str)
 {
 	int output[3]={0,};
@@ -4868,7 +4916,9 @@ void dispc_set_wb_channel_out(enum omap_plane plane)
 int dispc_setup_wb_with_row_inc(struct writeback_cache_data *wb, int row_inc)
 {
 	u8 rotation = wb->rotation;//, mirror = 0;
-//	unsigned long tiler_width, tiler_height;
+#ifdef CONFIG_MACH_LGE_CX2
+	unsigned long tiler_width, tiler_height;
+#endif
 	u32 paddr = wb->paddr;
 	u32 puv_addr = wb->p_uv_addr; /* relevant for NV12 format only */
 	u16 out_width = wb->out_width;
@@ -4966,8 +5016,10 @@ int dispc_setup_wb_with_row_inc(struct writeback_cache_data *wb, int row_inc)
 //	else
 //		width /= pixpg;
 
-//	tiler_width = out_width;
-//	tiler_height = out_height;
+#ifdef CONFIG_MACH_LGE_CX2
+	tiler_width = out_width;
+	tiler_height = out_height;
+#endif
 
 	/* NV12 width has to be even (height apparently does not) */
 	if (color_mode == OMAP_DSS_COLOR_NV12)

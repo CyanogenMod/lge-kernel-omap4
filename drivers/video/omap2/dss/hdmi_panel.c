@@ -209,7 +209,7 @@ static struct attribute_group hdmi_panel_attr_group = {
 	.attrs = hdmi_panel_attrs,
 };
 
-#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY)
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY) || defined(CONFIG_MACH_LGE_CX2)
 extern int hdmi_enable_s3d (struct omap_dss_device *dssdev, bool enable);
 extern int hdmi_get_s3d_enabled (struct omap_dss_device *dssdev);
 extern int hdmi_set_s3d_disp_type (struct omap_dss_device *dssdev, struct s3d_disp_info *info);
@@ -518,7 +518,7 @@ static struct omap_dss_driver hdmi_driver = {
 	.check_timings	= hdmi_check_timings,
 	.get_modedb	= hdmi_get_modedb,
 	.set_mode	= omapdss_hdmi_display_set_mode,
-#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY)	  //mo2sanghyun.lee 2012.06.12   3d setting
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY) || defined(CONFIG_MACH_LGE_CX2)
 	.enable_s3d     = hdmi_panel_enable_s3d,
 	.get_s3d_enabled    = hdmi_panel_get_s3d_enabled,
 	.set_s3d_disp_type  = hdmi_panel_set_s3d_disp_type,

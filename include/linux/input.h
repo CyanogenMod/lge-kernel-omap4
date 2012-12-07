@@ -444,7 +444,7 @@ struct input_keymap_entry {
 /* LGE_CHANGE_S [seungho1.park@lge.com]] 2011-10-15, add Key definitions */
 #if defined(CONFIG_MACH_LGE)
 // LGE_CHANGE_S [younglae.kim@lge.com] 2012-03-19, change key definitions
-#if defined(CONFIG_MACH_LGE_COSMO)
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 #define KEY_3D			249		/* 3D barrier key */
 #else
 #define KEY_CAPTURE		249

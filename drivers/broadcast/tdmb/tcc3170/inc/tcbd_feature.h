@@ -1,0 +1,99 @@
+#ifndef __TCBD_API_FEATURE_H__
+#define __TCBD_API_FEATURE_H__
+
+//#define __DEBUG_TCBD__
+#define __AGC_TABLE_IN_BOOT__
+//#define __TCBD_CLOCK_19200KHZ__
+#define __TCBD_CLOCK_38400KHZ__
+
+#define __CSPI_ONLY__
+//#define __I2C_STS__
+
+#define __STATUS_IN_INTERNAL__
+//#define __CALC_INTRRUPT_THRESHOLD__
+#define __READ_FIXED_LENGTH__
+//#define __READ_VARIABLE_LENGTH__
+#define __TEST_IRQ_REG_ONCE__
+#define __SEMAPHORE_STATIC_MEM__
+
+#if defined(__TCBD_CLOCK_19200KHZ__)
+#define TCBD_DEF_OSCCLK_RF    (19200)
+#define TCBD_DEF_PLL_VALUE    {0x60, 0x00, 0x0F, 0x03, TCBD_DEF_OSCCLK_RF}
+#elif defined(__TCBD_CLOCK_38400KHZ__)
+#define TCBD_DEF_OSCCLK_RF    (38400)
+#define TCBD_DEF_PLL_VALUE    {0x60, 0x00, 0x07, 0x03, TCBD_DEF_OSCCLK_RF}
+#endif     /* __TCBD_CLOCK_38400KHZ__ */
+
+#define TCBD_DEF_BANDWIDTH    (1500)
+#define TCBD_STATUS_SIZE      (32)
+#define TCBD_FIC_SIZE         (388)
+#define TCBD_TS_SIZE          (188)
+#define TCBD_OP_HEADER_SIZE   (4)
+#define TCBD_MAX_FIFO_SIZE    (1024*16)
+#define TCBD_CHIPID_VALUE     (0x37)
+
+#if defined(__STATUS_IN_INTERNAL__)
+#define TCBD_THRESHOLD_FIC    (TCBD_FIC_SIZE + TCBD_OP_HEADER_SIZE)
+#else    /* __STATUS_IN_INTERNAL__ */
+#define TCBD_THRESHOLD_FIC    (TCBD_FIC_SIZE+TCBD_STATUS_SIZE+TCBD_OP_HEADER_SIZE*2)
+#endif  /* !__STATUS_IN_INTERNAL__ */
+
+#if defined(__CSPI_ONLY__)
+#define TCBD_BUFFER_A_SIZE    (TCBD_THRESHOLD_FIC*5) 
+#define TCBD_BUFFER_B_SIZE    (TCBD_MAX_FIFO_SIZE - TCBD_BUFFER_A_SIZE)
+#define TCBD_BUFFER_C_SIZE    (0x0)
+#define TCBD_BUFFER_D_SIZE    (0x0)
+
+#define TCBD_MAX_THRESHOLD    (TCBD_MAX_FIFO_SIZE>>1)
+
+#elif defined(__I2C_STS__) 
+#define TCBD_BUFFER_A_SIZE    (TCBD_FIC_SIZE)
+#define TCBD_BUFFER_B_SIZE    (1024*6) 
+#define TCBD_BUFFER_C_SIZE    (0x0)
+#define TCBD_BUFFER_D_SIZE    (0x0)
+
+#define TCBD_MAX_THRESHOLD    (TCBD_BUFFER_B_SIZE>>1)
+#endif     /* __I2C_STS__ */
+
+#define PHY_BASE_ADDR           (0x80000000)
+#define PHY_MEM_FIFO_START_ADDR (0x00000000)
+#define PHY_MEM_ADDR_A_START    (PHY_BASE_ADDR + 0xa000)
+#define PHY_MEM_ADDR_A_END      (PHY_MEM_ADDR_A_START+TCBD_BUFFER_A_SIZE-1)
+#define PHY_MEM_ADDR_B_START    (PHY_MEM_ADDR_A_END+1)
+#define PHY_MEM_ADDR_B_END      (PHY_MEM_ADDR_B_START+TCBD_BUFFER_B_SIZE-1)
+#define PHY_MEM_ADDR_C_START    (PHY_MEM_ADDR_B_END+1)
+#define PHY_MEM_ADDR_C_END      (PHY_MEM_ADDR_C_START+TCBD_BUFFER_C_SIZE-1)
+#define PHY_MEM_ADDR_D_START    (PHY_MEM_ADDR_C_END+1)
+#define PHY_MEM_ADDR_D_END      (PHY_MEM_ADDR_D_START+TCBD_BUFFER_D_SIZE-1)
+
+#define DP_CFG_OPSET1  (1144)
+#define DP_CFG_OPSET2  (204)
+
+#define DP_CFG_1_DATA0 (PHY_BASE_ADDR + 0xd000)
+#define DP_CFG_2_DATA0 (DP_CFG_1_DATA0 + DP_CFG_OPSET1)
+#define DP_CFG_1_DATA1 (DP_CFG_2_DATA0 + DP_CFG_OPSET2)
+#define DP_CFG_2_DATA1 (DP_CFG_1_DATA1 + DP_CFG_OPSET1)
+#define DP_CFG_1_DATA2 (DP_CFG_2_DATA1 + DP_CFG_OPSET2)
+#define DP_CFG_2_DATA2 (DP_CFG_1_DATA2 + DP_CFG_OPSET1)
+#define DP_CFG_1_DATA3 (DP_CFG_2_DATA2 + DP_CFG_OPSET2)
+#define DP_CFG_2_DATA3 (DP_CFG_1_DATA3 + DP_CFG_OPSET1)
+
+
+// CODE Memory Setting
+#define START_PC                 (0x0000)
+#define START_PC_OFFSET          (0x8000)
+#define CODE_MEM_BASE            (PHY_BASE_ADDR+START_PC_OFFSET)
+#define CODE_TABLEBASE_RAND      (0xF0020000)
+#define CODE_TABLEBASE_DINT      (0xF0024000)
+#define CODE_TABLEBASE_DAGU      (0xF0028000)
+#define CODE_TABLEBASE_COL_ORDER (0xF002C000)
+
+/* lock check time definition */
+#define TDMB_OFDMDETECT_LOCK    (100)
+#define TDMB_OFDMDETECT_RETRY   (2)
+#define TDMB_CTO_LOCK           (100)
+#define TDMB_CTO_RETRY          (3)
+#define TDMB_CFO_LOCK           (20)
+#define TDMB_CFO_RETRY          (3)
+
+#endif //__TCBD_API_FEATURE_H__

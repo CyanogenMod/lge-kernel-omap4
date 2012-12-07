@@ -39,7 +39,7 @@ struct hdcp_sha_in sha_input;
 /* State machine / workqueue */
 static void hdcp_wq_disable(void);
 static void hdcp_wq_start_authentication(void);
-static void hdcp_wq_restart_hdmi(void);
+//static void hdcp_wq_restart_hdmi(void);
 static void hdcp_wq_check_r0(void);
 static void hdcp_wq_step2_authentication(void);
 static void hdcp_wq_authentication_failure(void);
@@ -49,7 +49,7 @@ static void hdcp_cancel_work(struct delayed_work **work);
 
 /* Callbacks */
 static void hdcp_start_frame_cb(void);
-static void hdcp_stop_frame_cb(void);
+//static void hdcp_stop_frame_cb(void);
 static void hdcp_irq_cb(int hpd_low);
 
 /* Control */
@@ -177,6 +177,7 @@ static void hdcp_wq_start_authentication(void)
 	}
 }
 
+#if 0
 /*-----------------------------------------------------------------------------
  * Function: hdcp_wq_restart_hdmi
  *-----------------------------------------------------------------------------
@@ -215,6 +216,7 @@ static void hdcp_wq_restart_hdmi(void)
 	}
 #endif
 }
+#endif
 
 /*-----------------------------------------------------------------------------
  * Function: hdcp_wq_check_r0
@@ -321,9 +323,18 @@ static void hdcp_wq_authentication_failure(void)
 
 	//hdcp_lib_disable();
 	hdcp.pending_disable = 0;
-
+#if 1
 	// 1A-04 and 1A-07a spec
-	/*
+	hdcp.hdcp_state = HDCP_AUTHENTICATION_START;
+	hdcp.auth_state = HDCP_STATE_AUTH_FAIL_RESTARTING;
+	hdcp.pending_wq_event = hdcp_submit_work(HDCP_AUTH_REATT_EVENT, HDCP_REAUTH_DELAY);
+	DBG("HDCP : [3] %s() hdmi=%d hdcp=%d auth=%d",
+		__func__,
+		hdcp.hdmi_state,
+		hdcp.hdcp_state,
+		hdcp.auth_state);
+	
+#else
 	if (hdcp.retry_cnt && (hdcp.hdmi_state != HDMI_STOPPED)) {
 		if (hdcp.retry_cnt < HDCP_INFINITE_REAUTH) {
 			hdcp.retry_cnt--;
@@ -333,24 +344,20 @@ static void hdcp_wq_authentication_failure(void)
 		} else
 			printk(KERN_INFO "HDCP: authentication failed - "
 					 "retrying\n");
-		*/
 
 		hdcp.hdcp_state = HDCP_AUTHENTICATION_START;
 		hdcp.auth_state = HDCP_STATE_AUTH_FAIL_RESTARTING;
 
 		hdcp.pending_wq_event = hdcp_submit_work(HDCP_AUTH_REATT_EVENT,
 							 HDCP_REAUTH_DELAY);
-
-		/*
 	} else {
 		printk(KERN_INFO "HDCP: authentication failed - "
 				 "HDCP disabled\n");
 		hdcp.hdcp_state = HDCP_ENABLE_PENDING;
 		hdcp.auth_state = HDCP_STATE_AUTH_FAILURE;
 	}
+#endif
 	HDCP_DBG_E();
-*/
-
 }
 
 /*-----------------------------------------------------------------------------
@@ -507,24 +514,14 @@ static void hdcp_work_queue(struct work_struct *work)
 
 	hdcp_release_dss();
 
-#if 0
-    if((event & 0xFF00) >> 8 != 2
-        && (event & 0xFF ) != 2
-        && hdcp.auth_state == HDCP_STATE_AUTH_3RD_STEP)
-	{
-        hdcp_send_uevent(1);
-    }
-    else
-    if(hdcp.auth_state == 0
-        && hdcp.hdmi_state == 1
-        && hdcp.hdcp_state == 0
-        && ((event & 0xFF00) >> 8) == 2
-        && (event & 0xFF) == 2
-        )
+// LGE_CHANGE_S [sungho.jung@lge.com] 2012-05-08, Send uevent
+//    if(event == HDCP_R0_EXP_EVENT && hdcp.auth_state == HDCP_STATE_AUTH_3RD_STEP)
+    if(event != HDCP_START_FRAME_EVENT && hdcp.auth_state == HDCP_STATE_AUTH_3RD_STEP)
     {
         hdcp_send_uevent(1);
+        printk("hdcp_send_uevent ...\n");
     }
-#endif
+// LGE_CHANGE_E [sungho.jung@lge.com] 2012-05-08,
 
 	mutex_unlock(&hdcp.lock);
 	HDCP_DBG_E();	
@@ -641,6 +638,7 @@ static void hdcp_start_frame_cb(void)
 	HDCP_DBG_E();
 }
 
+#if 0
 /*-----------------------------------------------------------------------------
  * Function: hdcp_stop_frame_cb
  *-----------------------------------------------------------------------------
@@ -699,6 +697,7 @@ static void hdcp_stop_frame_cb(void)
 	}
 #endif
 }
+#endif
 
 /*-----------------------------------------------------------------------------
  * Function: hdcp_irq_cb

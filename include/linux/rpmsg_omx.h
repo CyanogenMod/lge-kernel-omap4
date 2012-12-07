@@ -128,6 +128,9 @@ struct omx_disc_req {
 struct omx_conn_req {
 	char name[48];
 	char time_stamp[20]; // [LGE_UPDATE] [dongyu.gwak@lge.com] [2012-03-21] time stamp for debugging
+#ifdef CONFIG_MACH_LGE_U2
+	u32 hw_rev; // [LGE_UPDATE] [dongyu.gwak@lge.com] [2012-06-27] board HW revision
+#endif
 } __packed;
 
 /* the packet structure (actual message sent to omx service) */

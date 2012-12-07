@@ -29,7 +29,7 @@ typedef enum {
 struct muic_client_device;
 
 struct muic_client_ops {
-#ifdef CONFIG_MUIC_TSU5611
+#if defined(CONFIG_MUIC_TSU5611) && defined(CONFIG_MACH_LGE_U2)
 	int notifier_priority;
 #endif
 	int (*on_unknown)(struct muic_client_device *);

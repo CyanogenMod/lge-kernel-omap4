@@ -22,9 +22,16 @@ typedef u8 byte;
 #define GPIO_LEVEL_HIGH		1
 #define GPIO_MHL_INT		161
 #define GPIO_MHL_SEL		41
+#ifdef CONFIG_MACH_LGE_CX2 //nthyunjin.yang 120421
+#define GPIO_MHL_EN		102
+#define GPIO_MHL_RST		162
+#define GPIO_MHL_WAKE_UP	101
+#else
 #define GPIO_MHL_EN		157
 #define GPIO_MHL_RST		162
 #define GPIO_MHL_WAKE_UP	163
+#endif
+
 // End
 
 
@@ -44,12 +51,6 @@ typedef u8 byte;
 #define MSG_ALWAYS              0x00
 #define MSG_STAT                0x01
 #define MSG_DBG                 0x02
-
-// see include/i2c_slave_addrs.h
-
-#define SET_BITS    0xFF
-#define CLEAR_BITS  0x00
-
 
 #ifndef TRUE
 #define TRUE 1
@@ -73,7 +74,7 @@ typedef u8 byte;
 
 // Version that this chip supports
 #define	MHL_VER_MAJOR		(0x01 << 4)	// bits 4..7
-#define	MHL_VER_MINOR		0x00		// bits 0..3
+#define	MHL_VER_MINOR		0x01		// bits 0..3  //mo2sanghyun.lee@lge.com 
 #define MHL_VERSION						(MHL_VER_MAJOR | MHL_VER_MINOR)
 
 //Device Category

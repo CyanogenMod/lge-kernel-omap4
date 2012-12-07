@@ -51,6 +51,18 @@
 #define RECHARGING_BAT_VOLT_HIGH	4216
 // LGE_CHANGE_E [byoungcheol.lee@lge.com]  2011-07-07, From cosmo. cause discharging while Not complete charging process. 
 
+#ifdef CONFIG_MACH_LGE_CX2
+#define TEMP_CHANGE_CHARGING_MODE      450   //nthyunjin.yang for change the charging mode according battery temperature
+#define CAMCODING_CPU_TEMP_CHANGE_CHARGING_START       735   //555 -> 735
+#define CAMCODING_CPU_TEMP_CHANGE_CHARGING_STOP       730   //550 -> 730
+#define STREAMING_CPU_TEMP_CHANGE_CHARGING_START       775   //600 -> 775
+#define STREAMING_CPU_TEMP_CHANGE_CHARGING_STOP       770   //595 -> 770
+#define CPU_TEMP_RECHARGING_START_SOC 2
+#define CPU_TEMP_RECHARGING_STOP_SOC 3
+#define CPU_TEMP_RECHARGING_FIRST_START_SOC 10
+#define CPU_TEMP_RECHARGING_FIRST_STOP_SOC 11
+#endif
+
 #if 0
 typedef enum {
 	CHARGING_IC_DEACTIVE,    		/* 0  */
@@ -139,3 +151,7 @@ void charger_schedule_delayed_work(struct delayed_work *work, unsigned long dela
 
 /// max17043 fuel gauge..
 void set_boot_charging_mode(int charging_mode);
+
+#ifdef CONFIG_MACH_LGE_CX2 //nthyunjin.yang 12015 for cpufreq test
+extern int cpufreq_temp_ctrl_value;
+#endif

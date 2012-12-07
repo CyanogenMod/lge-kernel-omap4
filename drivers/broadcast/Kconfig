@@ -13,7 +13,7 @@ config LGE_BROADCAST_1SEG
 
 config LGE_BROADCAST_TDMB
 	bool "LGE broadcast TDMB device Driver"
-	depends on MACH_LGE_P2_SU540 || MACH_LGE_P2_KU5400 || MACH_LGE_P2_LU5400 || MACH_LGE_COSMO_SU760
+	depends on MACH_LGE_P2_SU540 || MACH_LGE_P2_KU5400 || MACH_LGE_P2_LU5400 || MACH_LGE_COSMO_SU760 || MACH_LGE_CX2_SU870
 	default y
 	help
 	  Select this if you want to use TDMB broadcast service

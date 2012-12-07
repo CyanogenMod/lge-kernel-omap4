@@ -550,8 +550,16 @@ void __init omap_vram_reserve_sdram_memblock(void)
 
 	if (!size)
 		return;
+#ifdef CONFIG_HRZ_II
+	size = 32*1024*1024;
+	paddr = 0x87000000;
+#endif
 
+#ifdef CONFIG_MACH_LGE_COSMO
 	size = ALIGN(size, SZ_1M);
+#else
+	size = ALIGN(size, SZ_2M);
+#endif
 
 	if (paddr) {
 		if (paddr & ~PAGE_MASK) {
@@ -576,7 +584,11 @@ void __init omap_vram_reserve_sdram_memblock(void)
 			return;
 		}
 	} else {
+#ifdef CONFIG_MACH_LGE_COSMO
 		paddr = memblock_alloc(size, SZ_1M);
+#else
+		paddr = memblock_alloc(size, SZ_2M);
+#endif
 	}
 
 	memblock_free(paddr, size);
@@ -584,11 +596,7 @@ void __init omap_vram_reserve_sdram_memblock(void)
 
 	omap_vram_add_region(paddr, size);
 
-#if defined(CONFIG_MACH_LGE_COSMO)
 	pr_info("Reserving %u bytes SDRAM for VRAM at address 0x%x\n", size,paddr);
-#else
-	pr_info("Reserving %u bytes SDRAM for VRAM\n", size);
-#endif
 }
 
 /*

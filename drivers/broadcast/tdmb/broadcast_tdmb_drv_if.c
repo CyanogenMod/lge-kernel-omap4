@@ -129,8 +129,11 @@ static int broadcast_tdmb_get_ch_info(void __user *arg)
 {
 	int rc = ERROR;
 	char fic_kernel_buffer[400];
+#if defined(CONFIG_LGE_BROADCAST_TDMB_TCC3170)	
+	unsigned int fic_len = 400;
+#else/*CONFIG_LGE_BROADCAST_TDMB_TCC3170*/
 	unsigned int fic_len = 0;
-
+#endif/*CONFIG_LGE_BROADCAST_TDMB_TCC3170*/
 	struct broadcast_tdmb_ch_info __user* puserdata = (struct broadcast_tdmb_ch_info __user*)arg;
 
 	if((puserdata == NULL)||( puserdata->ch_buf == NULL))

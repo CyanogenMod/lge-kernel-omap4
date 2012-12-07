@@ -49,6 +49,10 @@ extern struct ion_device *omap_ion_device;
 /* maximum OMX devices this driver can handle */
 #define MAX_OMX_DEVICES		8
 
+#ifdef CONFIG_MACH_LGE_U2
+extern unsigned int system_rev; // [LGE_UPDATE] [dongyu.gwak@lge.com] [2012-06-27] board HW revision
+#endif
+
 enum rpc_omx_map_info_type {
 	RPC_OMX_MAP_INFO_NONE          = 0,
 	RPC_OMX_MAP_INFO_ONE_BUF       = 1,
@@ -331,6 +335,9 @@ static int rpmsg_omx_connect(struct rpmsg_omx_instance *omx, struct omx_conn_req
 	payload = (struct omx_conn_req *)hdr->data;
 	strcpy(payload->name, req->name);
 	strcpy(payload->time_stamp, req->time_stamp);
+#ifdef CONFIG_MACH_LGE_U2
+	payload->hw_rev = system_rev; // [LGE_UPDATE] [dongyu.gwak@lge.com] [2012-06-27] board HW revision
+#endif
 	// [LGE_UPDATE_E] [dongyu.gwak@lge.com] [2012-03-21]
 	init_completion(&omx->reply_arrived);
 
@@ -810,7 +817,9 @@ static void rpmsg_omx_driver_cb(struct rpmsg_channel *rpdev, void *data,
 }
 
 static struct rpmsg_device_id rpmsg_omx_id_table[] = {
+#ifdef CONFIG_MACH_LGE_COSMO
 	{ .name	= "rpmsg-omx" }, /* ipu_c0 */
+#endif
 	{ .name	= "rpmsg-omx0" }, /* ipu_c0 */
 	{ .name	= "rpmsg-omx1" }, /* ipu_c1 */
 	{ .name	= "rpmsg-omx2" }, /* dsp */

@@ -59,7 +59,7 @@
 /*To enable Power management */
 #define HSI_LL_ENABLE_PM
 //mo2haewoon.you@lge.com [START]
-#if defined(CONFIG_MACH_LGE_COSMO) 
+#if defined(CONFIG_MACH_LGE_COSMO)  || defined(CONFIG_MACH_LGE_CX2)
 #define HSI_LL_WAKE_LOCK
 
 #define HSI_LL_AC_WAKE_TIMEOUT		3 * HZ

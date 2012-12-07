@@ -1676,6 +1676,11 @@ static int omapfb_allocate_all_fbs(struct omapfb2_device *fbdev)
 		memset(&vram_paddrs, 0, sizeof(vram_paddrs));
 	}
 
+#ifdef CONFIG_HRZ_II 
+    vram_sizes[0] = 12*1024*1024;
+	vram_paddrs[0] = 0x87000000;
+#endif
+
 	if (fbdev->dev->platform_data) {
 		struct omapfb_platform_data *opd;
 		opd = fbdev->dev->platform_data;

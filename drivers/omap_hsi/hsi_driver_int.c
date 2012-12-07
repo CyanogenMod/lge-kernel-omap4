@@ -20,7 +20,7 @@
 
 #include "hsi_driver.h"
 #include <linux/delay.h>
-#if defined(CONFIG_MACH_LGE_P2) || defined(CONFIG_MACH_LGE_U2) || defined(CONFIG_MACH_LGE_COSMO)
+#if defined(CONFIG_MACH_LGE_P2) || defined(CONFIG_MACH_LGE_U2) || defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 #include <linux/wakelock.h>
 
 static struct wake_lock cawake_wake_lock;
@@ -557,7 +557,7 @@ int hsi_do_cawake_process(struct hsi_port *pport)
     else
         dev_dbg(hsi_ctrl->dev, "CAWAKE rising edge detected\n");
 // LGE_UPDATE_END 20120605 seunghwan.jin@lge.com
-#if defined(CONFIG_MACH_LGE_P2) || defined(CONFIG_MACH_LGE_U2) || defined(CONFIG_MACH_LGE_COSMO)
+#if defined(CONFIG_MACH_LGE_P2) || defined(CONFIG_MACH_LGE_U2) || defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 		wake_lock(&cawake_wake_lock);
 #endif //CONFIG_MACH_LGE_P2
 
@@ -605,7 +605,7 @@ int hsi_do_cawake_process(struct hsi_port *pport)
             dev_dbg(hsi_ctrl->dev, "CAWAKE falling edge detected\n");
 // LGE_UPDATE_END 20120605 seunghwan.jin@lge.com
 
-#if defined(CONFIG_MACH_LGE_P2) || defined(CONFIG_MACH_LGE_U2) || defined(CONFIG_MACH_LGE_COSMO)
+#if defined(CONFIG_MACH_LGE_P2) || defined(CONFIG_MACH_LGE_U2) || defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 		wake_unlock(&cawake_wake_lock);
 #endif
 
@@ -860,7 +860,7 @@ int __init hsi_mpu_init(struct hsi_port *hsi_p, const char *irq_name)
 		return -EBUSY;
 	}
 
-#if defined(CONFIG_MACH_LGE_P2) || defined(CONFIG_MACH_LGE_U2) || defined(CONFIG_MACH_LGE_COSMO)
+#if defined(CONFIG_MACH_LGE_P2) || defined(CONFIG_MACH_LGE_U2) || defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2)
 	wake_lock_init(&cawake_wake_lock, WAKE_LOCK_SUSPEND, "cawake");
 #endif //CONFIG_MACH_LGE_P2
 

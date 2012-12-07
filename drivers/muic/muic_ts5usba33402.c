@@ -80,6 +80,12 @@ struct ts5usb_device {
 	struct wake_lock muic_wake_lock;
 };
 
+//mo2haewoon.you@lge.com => [START]
+#ifdef CONFIG_MACH_LGE_CX2 	
+extern int synaptics_ts_reduce_noise(u8 enable);
+#endif 					
+//mo2haewoon.you@lge.com <= [END]
+
 /* 
  * Initialize MUIC, i.e., the CONTROL_1,2 and SW_CONTROL registers.
  * 1) Prepare to sense INT_STAT and STATUS bits.
@@ -141,6 +147,8 @@ EXPORT_SYMBOL(muic_init_ts5usba33402);
 //!![S] 2011-07-04 by pilsu.kim@lge.com : 
 void muic_set_mhl_mode_detect(struct i2c_client *client)
 {
+	int ret;
+
 	dev_info(&client->dev, "muic: %s entry.\n", __func__);
 #if 0
 	/* Connect CP UART signals to AP */
@@ -161,6 +169,14 @@ void muic_set_mhl_mode_detect(struct i2c_client *client)
 #endif
 
 	muic_set_mode(MUIC_MHL);
+
+//mo2haewoon.you@lge.com => [START] SONY TV MHL - Touch noise reduce
+#ifdef CONFIG_MACH_LGE_CX2 	
+	ret=synaptics_ts_reduce_noise(1);
+	if(ret<0)
+		printk("MHL-Touch Noise Reduce mode [1] write Fail~!\n");
+#endif 						
+//mo2haewoon.you@lge.com <= [END]
 }
 //!![E] 2011-07-04 by pilsu.kim@lge.com :
 void muic_set_factory_mode_detect(struct i2c_client *client)
@@ -673,6 +689,14 @@ s32 muic_ts5usba33402_detect_accessory(struct i2c_client *client, s32 upon_irq)
 	struct ts5usb_device *dev = i2c_get_clientdata(client);
 
 	u8 int_stat_value;
+
+//mo2haewoon.you@lge.co=> [START] SONY TV MHL - Touch noise reduce
+#ifdef CONFIG_MACH_LGE_CX2 
+		ret = synaptics_ts_reduce_noise(0);
+		if(ret<0)
+			printk("MHL-Touch Noise Reduce mode [0] write Fail~!\n");
+#endif 
+//mo2haewoon.you@lge.com <= [END]
 
 	/*
 	 * Upon an MUIC IRQ (MUIC_INT_N falls),

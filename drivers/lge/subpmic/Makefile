@@ -1,5 +1,9 @@
 obj-$(CONFIG_SUBPMIC_AAT2862)	+= aat2862.o
+ifeq ($(CONFIG_MACH_LGE_COSMO),y)
+obj-$(CONFIG_SUBPMIC_LM3528)	+= lm3528_cosmo.o
+else
 obj-$(CONFIG_SUBPMIC_LM3528)	+= lm3528.o
+endif
 obj-$(CONFIG_SUBPMIC_LM3530)	+= lm3530.o
 obj-$(CONFIG_SUBPMIC_LM3533)	+= lm3533.o
 obj-$(CONFIG_SUBPMIC_RT8053)	+= rt8053.o

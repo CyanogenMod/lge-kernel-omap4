@@ -50,7 +50,9 @@ enum adapt_buf_type {
 	BEGIN_OF_TYPE = 0,
 	TILER_2D_TYPE,
 	VRAM_TYPE,
+#ifdef CONFIG_MACH_LGE_COSMO
 	TILER_1D_DYNAMIC_TYPE,
+#endif
 	END_OF_TYPE,
 };
 
@@ -80,10 +82,12 @@ struct adapt_buf_t {
 			size_t	len;
 			struct tiler_view_t view;
 		} tiler;
+#ifdef CONFIG_MACH_LGE_COSMO
 		//Dynamic tiler (alloc from non-carve-out memory)
 		struct {
 			struct tiler_block_t blk;
 		} tiler_1d_dyn;
+#endif
 	} buf;
 
 	struct timespec	last_use;
@@ -173,6 +177,9 @@ struct lambda_list_t {
 	struct adapt_lambda_opd_t *src, *dst;		//source & target operand
 	const char*	description;					//simple description to operation
 	int depth;   //##hw2002.cho@lge.com
+#ifdef CONFIG_HRZ_II
+	__u8 rotation;
+#endif
 };
 
 //DSSCOMP adaptation info
@@ -243,10 +250,15 @@ static bool dsscomp_adapt_mgr_free_buf_with_lock(struct adapt_buf_t *buf)
 			ion_free(mgr.ion, buf->buf.tiler.alloc_data.handle);
 			buf->allocated = false;
 			break;
+#ifdef CONFIG_MACH_LGE_COSMO
 		case VRAM_TYPE:
+#else
+		default:
+#endif
 			omap_vram_free(buf->buf.vram.phy_addr, buf->buf.vram.alloc_size);
 			buf->allocated = false;
 			break;
+#ifdef CONFIG_MACH_LGE_COSMO
 		case TILER_1D_DYNAMIC_TYPE:
 			tiler_free(&(buf->buf.tiler_1d_dyn.blk));
 			buf->allocated = false;
@@ -254,6 +266,7 @@ static bool dsscomp_adapt_mgr_free_buf_with_lock(struct adapt_buf_t *buf)
 		default :
 			pr_warning("Buffer(0x%x) type(0x%x) is invalid\n", buf, buf->type);
 			return false;
+#endif
 		}
 	}
 	DSSCOMP_ADAPT_ACTION("Buffer(0x%x) freed", buf);
@@ -428,6 +441,7 @@ static struct adapt_buf_t* dsscomp_adapt_mgr_get_buf(enum adapt_buf_type type, i
 					goto Skip_Alloc;
 				}
 				break;
+#ifdef CONFIG_MACH_LGE_COSMO
 			case TILER_1D_DYNAMIC_TYPE:
 				if ( ith->buf.tiler_1d_dyn.blk.width>=(w*h*bpp) )
 				{
@@ -436,6 +450,7 @@ static struct adapt_buf_t* dsscomp_adapt_mgr_get_buf(enum adapt_buf_type type, i
 					goto Skip_Alloc;
 				}
 				break;
+#endif
 			default:
 				goto Skip_Alloc;
 			}
@@ -507,6 +522,7 @@ static struct adapt_buf_t* dsscomp_adapt_mgr_get_buf(enum adapt_buf_type type, i
 			DSSCOMP_ADAPT_ACTION("Buffer %p allocated(vram, size:%d)", buf, buf->buf.vram.alloc_size);
 
 			break;
+#ifdef CONFIG_MACH_LGE_COSMO
 		case TILER_1D_DYNAMIC_TYPE:
 			buf->type = TILER_1D_DYNAMIC_TYPE;
 			DBG_PRINTK("Alloc Dynamic tiler 1D size:%d\n", w*h*bpp);
@@ -527,6 +543,7 @@ static struct adapt_buf_t* dsscomp_adapt_mgr_get_buf(enum adapt_buf_type type, i
 			DBG_PRINTK("Alloc Dynamic 1D Tiler Buffer Success\n");
 			DSSCOMP_ADAPT_ACTION("Buffer %p allocated(dynamic 1d tiler, size:%d)", buf, buf->buf.tiler_1d_dyn.blk.width);
 			break;
+#endif
 		default:
 			//never happen...
 			goto Skip_Alloc;
@@ -614,6 +631,7 @@ static struct adapt_lambda_opd_t* dsscomp_adapt_opd_from_buf(struct adapt_buf_t 
 		//not good
 		new_alloc->buffer_height = buf->buf.vram.alloc_size / new_alloc->buffer_width;
 		break;
+#ifdef CONFIG_MACH_LGE_COSMO
 	case TILER_1D_DYNAMIC_TYPE:
 		new_alloc->paddr = buf->buf.tiler_1d_dyn.blk.phys;
 		new_alloc->phy_stride = buf->bpp * buf->using_width;
@@ -622,6 +640,7 @@ static struct adapt_lambda_opd_t* dsscomp_adapt_opd_from_buf(struct adapt_buf_t 
 		//not good
 		new_alloc->buffer_height = buf->buf.tiler_1d_dyn.blk.width / new_alloc->buffer_width;
 		break;
+#endif
 	default:
 		vfree(new_alloc);
 		return NULL;
@@ -1223,6 +1242,10 @@ struct lambda_rsbs_to_il_t {
 	bool	left_first;
 };
 
+#ifdef CONFIG_HRZ_II
+extern int hrz_res_conv_mode;
+#endif
+
 /**
  * Converting rotated Side-By-Side format to InerLeave.
  */
@@ -1260,18 +1283,50 @@ static int lambda_rsbs_to_il_op(struct lambda_list_t *lambda)
 	copy_w = src->crop.w;
 	copy_h = src->crop.h / 2;
 
-		//printk("using memcpy\n");
 		if ( left_first )
 		{
 			//left -> even copy
 		src_addr = src->paddr + src->crop.x*bpp;
 		dst_addr = dst->paddr + dst->crop.x*bpp;
+#ifdef CONFIG_HRZ_II
+		if(hrz_res_conv_mode) {
+			r = dsscomp_adapt_2d_dma_copy(src_addr, src_stride*2,
+					dst_addr, dst_stride*2,
+					bpp, copy_w, copy_h/2);
+		} else {
+			r = dsscomp_adapt_2d_dma_copy(src_addr, src_stride,
+					dst_addr, dst_stride,
+					bpp, copy_w/2, copy_h/2);
+		}
+		if ( r )
+			return r;
+#else
 		r = dsscomp_adapt_2d_dma_copy(src_addr, src_stride,
 				dst_addr, dst_stride,
 				bpp, copy_w, copy_h);
 		if ( r )
 			return r;
+#endif
 
+#ifdef CONFIG_HRZ_II
+		if(hrz_res_conv_mode) {
+			//right -> odd copy
+			src_addr = src->paddr + src->phy_stride*src->crop.h/2 + src->crop.x*bpp;
+			dst_addr = dst->paddr + 2*dst->phy_stride +  dst->crop.x*bpp;
+			r = dsscomp_adapt_2d_dma_copy(src_addr, src_stride*2,
+					dst_addr, dst_stride*2,
+					bpp, copy_w, copy_h/2);
+		} else {
+			//right -> odd copy
+			src_addr = src->paddr + src->phy_stride*src->crop.h/4 + src->crop.x*bpp;
+			dst_addr = dst->paddr + dst->phy_stride + dst->crop.x*bpp;
+			r = dsscomp_adapt_2d_dma_copy(src_addr, src_stride,
+					dst_addr, dst_stride,
+					bpp, copy_w/2, copy_h/2);
+		}
+		if ( r )
+			return r;
+#else
 		//right -> odd copy
 		src_addr = src->paddr + src->phy_stride*src->crop.h/2 + src->crop.x*bpp;
 		dst_addr = dst->paddr + dst->phy_stride + dst->crop.x*bpp;
@@ -1280,9 +1335,29 @@ static int lambda_rsbs_to_il_op(struct lambda_list_t *lambda)
 				bpp, copy_w, copy_h);
 		if ( r )
 			return r;
+#endif
 	}
 	else
 	{
+#ifdef CONFIG_HRZ_II
+		if(hrz_res_conv_mode) {
+			//left -> odd copy
+			src_addr = src->paddr + src->crop.x*bpp;
+			dst_addr = dst->paddr + dst->phy_stride*2 + dst->crop.x*bpp;
+			r = dsscomp_adapt_2d_dma_copy(src_addr, src_stride*2,
+					dst_addr, dst_stride*2,
+					bpp, copy_w, copy_h/2);
+		} else {
+			//left -> odd copy
+			src_addr = src->paddr + src->crop.x*bpp;
+			dst_addr = dst->paddr + dst->phy_stride + dst->crop.x*bpp;
+			r = dsscomp_adapt_2d_dma_copy(src_addr, src_stride,
+					dst_addr, dst_stride,
+					bpp, copy_w/2, copy_h/2);
+		}
+		if ( r )
+			return r;
+#else
 		//left -> odd copy
 		src_addr = src->paddr + src->crop.x*bpp;
 		dst_addr = dst->paddr + dst->phy_stride + dst->crop.x*bpp;
@@ -1291,7 +1366,27 @@ static int lambda_rsbs_to_il_op(struct lambda_list_t *lambda)
 				bpp, copy_w, copy_h);
 		if ( r )
 			return r;
+#endif
 
+#ifdef CONFIG_HRZ_II
+		if(hrz_res_conv_mode) {
+			//right -> even copy
+			src_addr = src->paddr + src->phy_stride*src->crop.h/2 + src->crop.x*bpp;
+			dst_addr = dst->paddr + dst->crop.x*bpp ;
+			r = dsscomp_adapt_2d_dma_copy(src_addr, src_stride*2,
+					dst_addr, dst_stride*2,
+					bpp, copy_w, copy_h/2);
+		} else {
+			//right -> even copy
+			src_addr = src->paddr + src->phy_stride*src->crop.h/4 + src->crop.x*bpp;
+			dst_addr = dst->paddr + dst->crop.x*bpp;
+			r = dsscomp_adapt_2d_dma_copy(src_addr, src_stride,
+					dst_addr, dst_stride,
+					bpp, copy_w/2, copy_h/2);
+		}
+		if ( r )
+			return r;
+#else
 		//right -> even copy
 		src_addr = src->paddr + src->phy_stride*src->crop.h/2 + src->crop.x*bpp;
 		dst_addr = dst->paddr + dst->crop.x*bpp;
@@ -1300,6 +1395,7 @@ static int lambda_rsbs_to_il_op(struct lambda_list_t *lambda)
 				bpp, copy_w, copy_h);
 		if ( r )
 			return r;
+#endif
 	}
 
 	return 0;
@@ -1435,10 +1531,26 @@ static int lambda_to_tiler_op(struct lambda_list_t *lambda)
 	bpp = src->bpp;
 	w = src->crop.w;
 	h = src->crop.h;
-
+#ifdef CONFIG_HRZ_II
+	if(hrz_res_conv_mode) {
+		r = dsscomp_adapt_2d_dma_copy(src->paddr + src->crop.x*bpp, src->phy_stride,
+				dst->paddr + dst->crop.x*bpp, dst->phy_stride,
+				bpp, w, h);
+	} else {
+            if(lambda->rotation == OMAP_DSS_ROT_270)
+				r = dsscomp_adapt_2d_dma_copy(src->paddr + src->crop.x*bpp, src->phy_stride,
+					dst->paddr + dst->crop.x*bpp + 480*4, dst->phy_stride,
+					bpp, w/2, h/2);
+			else
+				r = dsscomp_adapt_2d_dma_copy(src->paddr + src->crop.x*bpp, src->phy_stride,
+					dst->paddr + dst->crop.x*bpp + 800*dst->phy_stride, dst->phy_stride,
+					bpp, w/2, h/2);
+	}
+#else
 	r = dsscomp_adapt_2d_dma_copy(src->paddr + src->crop.x*bpp, src->phy_stride,
 			dst->paddr + dst->crop.x*bpp, dst->phy_stride,
 			bpp, w, h);
+#endif
 	return r;
 }
 
@@ -1491,6 +1603,9 @@ static struct lambda_list_t* lambda_to_tiler_factory
 	lambda_tiler->opt = lambda_to_tiler_op;
 	lambda_tiler->src = src;
 	lambda_tiler->dst = dst;
+#ifdef CONFIG_HRZ_II
+    lambda_tiler->rotation = oi->cfg.rotation;
+#endif
 
 	//change oi info
 	DBG_PRINTK("oi->ba 0x%x->0x%x\n",oi->ba, dst->paddr);
@@ -1662,6 +1777,17 @@ static int lambda_s3d_to_ril_op(struct lambda_list_t *lambda)
 		return -EINVAL;
 	src = lambda->src;
 	dst = lambda->dst;
+#if 0
+	{
+		static int test_count = 0;
+		test_count++;
+		if ( (test_count%33)==0 )
+		{
+			printk("Test purpose sleep\n");
+			ssleep(10);
+		}
+	}
+#endif
 
 //	memcpy(&black_backup ,dst,sizeof(black_backup));
 
@@ -2098,19 +2224,31 @@ static int lambda_rsbs_to_rtb_op(struct lambda_list_t *lambda)
 
 	//Rotated side by side.
 	//So difference of start address of L/R is (src's h)/2 * stride
+#ifdef CONFIG_HRZ_II
+	src_addr1 = src->paddr;
+	src_addr2 = src_addr1
+			+ src->phy_stride * 400;
+#else
 	src_addr1 = src->paddr
 			+ src->phy_stride * src->crop.y
 			+ bpp * src->crop.x;
 	src_addr2 = src_addr1
 			+ src->phy_stride * h;
+#endif
 
 	//Rotated side by side.
 	//So difference of start addfress of L/R is (src's w) * bpp
+#ifdef CONFIG_HRZ_II
+	dst_addr1 = dst->paddr;
+	dst_addr2 = dst_addr1
+			+ bpp * 480;
+#else
 	dst_addr1 = dst->paddr
 			+ dst->phy_stride * dst->crop.y
 			+ bpp * dst->crop.x;
 	dst_addr2 = dst_addr1
 			+ bpp * w;
+#endif
 
 	if ( lambda_rtb->reverse)	//swap
 	{
@@ -2120,6 +2258,21 @@ static int lambda_rsbs_to_rtb_op(struct lambda_list_t *lambda)
 		src_addr2 = temp;
 	}
 
+#ifdef CONFIG_HRZ_II
+//DOLCOM tb
+	//printk("DOLCOM : rtb %x %x %x %x %x\n", 
+	//	src_addr1, src->phy_stride, dst_addr1, dst->phy_stride);
+	w = 480;
+	h = 800;
+	r = dsscomp_adapt_2d_dma_copy(src_addr1, src->phy_stride,
+			dst_addr1, dst->phy_stride,
+			bpp, w, h/2);
+	if ( r )
+		return r;
+	r = dsscomp_adapt_2d_dma_copy(src_addr2, src->phy_stride,
+			dst_addr2, dst->phy_stride,
+			bpp, w, h/2);
+#else
 	r = dsscomp_adapt_2d_dma_copy(src_addr1, src->phy_stride,
 			dst_addr1, dst->phy_stride,
 			bpp, w, h);
@@ -2128,6 +2281,7 @@ static int lambda_rsbs_to_rtb_op(struct lambda_list_t *lambda)
 	r = dsscomp_adapt_2d_dma_copy(src_addr2, src->phy_stride,
 			dst_addr2, dst->phy_stride,
 			bpp, w, h);
+#endif
 	return r;
 }
 
@@ -2149,12 +2303,22 @@ static struct lambda_list_t* lambda_rsbs_to_rtb_factory
 	if ( src==NULL )
 		goto Failed;
 
+#ifdef CONFIG_HRZ_II
+//DOLCOM tb
+	dst_buf = dsscomp_adapt_mgr_get_buf(TILER_2D_TYPE, src->bpp, 480*2, 400);
+	if ( dst_buf==NULL )
+	{
+		pr_warning("Alloc buffer for target operand failed\n");
+		goto Failed;
+	}
+#else
 	dst_buf = dsscomp_adapt_mgr_get_buf(TILER_2D_TYPE, src->bpp, src->crop.w * 2, src->crop.h /2);
 	if ( dst_buf==NULL )
 	{
 		pr_warning("Alloc buffer for target operand failed\n");
 		goto Failed;
 	}
+#endif
 	DBG_PRINTK("Getting TILER buffer success (%p)\n", dst_buf);
 	//to maintain mgr buffer, push
 	buf_list = dsscomp_adapt_push_to_buffer_list(NULL, dst_buf);
@@ -2174,6 +2338,18 @@ static struct lambda_list_t* lambda_rsbs_to_rtb_factory
 	lambda_rtb = (struct lambda_rsbs_to_rtb_t *)vmalloc(sizeof(*lambda_rtb));
 	if ( lambda_rtb==NULL )
 		goto Failed;
+
+#ifdef CONFIG_HRZ_II
+	src->crop.x = 0;
+	src->crop.y = 0;
+	src->crop.w = 480;
+	src->crop.h = 800;
+
+	dst->crop.x = 0;
+	dst->crop.y = 0;
+	dst->crop.w = 480*2;
+	dst->crop.h = 800/2;
+#endif
 	lambda_rtb->lambda.next = NULL;
 	lambda_rtb->lambda.description = "Converting rotated side-by-side to rotated top-bottom";
 	lambda_rtb->lambda.opt = lambda_rsbs_to_rtb_op;
@@ -2191,7 +2367,19 @@ static struct lambda_list_t* lambda_rsbs_to_rtb_factory
 	DBG_PRINTK("oi->cfg.crop (%d,%d)+(%d,%d) ==> (%d,%d)+(%d,%d)\n",
 			oi->cfg.crop.x, oi->cfg.crop.y, oi->cfg.crop.w, oi->cfg.crop.h,
 			dst->crop.x, dst->crop.y, dst->crop.w, dst->crop.h);
+
+#ifdef CONFIG_HRZ_II
+	oi->cfg.crop.w = 480*2;
+	oi->cfg.crop.h = 800/2;
+	
+	oi->cfg.win.w = oi->cfg.win.w / 2;
+	oi->cfg.win.h = oi->cfg.win.h / 2;
+	
+	oi->cfg.win.x = 0;
+	oi->cfg.win.y = 0;
+#else
 	oi->cfg.crop = dst->crop;
+#endif
 
 	*ret_buf_list = buf_list;
 	DBG_PRINTK("'%s' lambda creation success\n", lambda_rtb->lambda.description);
@@ -2628,9 +2816,11 @@ void dsscomp_adapt_dbg_buffer(struct seq_file *s)
 			case TILER_2D_TYPE:
 				seq_printf(s, "TILER %uB ", buf->buf.tiler.len);
 				break;
+#ifdef CONFIG_MACH_LGE_COSMO
 			case TILER_1D_DYNAMIC_TYPE:
 				seq_printf(s, "DYN_TILER_1D %uB ", buf->buf.tiler_1d_dyn.blk.width);
 				break;				
+#endif
 			default:
 				seq_printf(s, "Invalid Type ");
 				break;

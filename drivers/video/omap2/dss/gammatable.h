@@ -365,8 +365,7 @@ u32 GammaTable_p760[] = {
 };
 //LGE_CHANGE_S [sangjae.han@lge.com]
 u32 GammaTable_LGD[] = {
-#if defined(CONFIG_MACH_LGE_COSMO)  //##hw2002.cho@lge.com
-#if 0
+#if defined(CONFIG_MACH_LGE_CX2)
 0x00000000,
 0x00010101,
 0x00020202,
@@ -623,7 +622,7 @@ u32 GammaTable_LGD[] = {
 0x00FEE4E4,
 0x00FEE5E5,
 0x00FFE6E6,
-#endif
+#elif defined(CONFIG_MACH_LGE_COSMO)
 0x00000000, 
 0x00010101, 
 0x00010101, 

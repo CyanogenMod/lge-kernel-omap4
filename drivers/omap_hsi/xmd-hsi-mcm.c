@@ -188,7 +188,7 @@ static int hsi_ch_net_write(int chno, void *data, int len)
 	int n = 0;
 	int flag = 1;
 	int ret = 0;
-#ifndef CONFIG_MACH_LGE_COSMO
+#ifdef CONFIG_MACH_LGE_U2
 /* [START] Workqueue Flag Check of hsi_write_work 2012-08-24 seunghwan.jin@lge.com */
         unsigned int wq_flags = 0;
 /* [END] Workqueue Flag Check of hsi_write_work 2012-08-24 seunghwan.jin@lge.com */
@@ -241,7 +241,7 @@ static int hsi_ch_net_write(int chno, void *data, int len)
 			hsi_channels[chno].tx_blocked = 1;
 			hsi_mem_free(buf);
 			PREPARE_WORK(&hsi_channels[chno].write_work, hsi_write_work);
-#ifndef CONFIG_MACH_LGE_COSMO
+#ifdef CONFIG_MACH_LGE_U2
 			wq_flags = *((unsigned int *)hsi_write_wq);
 			if (wq_flags & WQ_DYING) {
 				printk("mcm: Workqueue Flag Check is done 0x%x.\n", wq_flags);
@@ -254,7 +254,7 @@ static int hsi_ch_net_write(int chno, void *data, int len)
 			ret = -EBUSY;
 		} else if (n == 1) {
 			PREPARE_WORK(&hsi_channels[chno].write_work, hsi_write_work);
-#ifndef CONFIG_MACH_LGE_COSMO
+#ifdef CONFIG_MACH_LGE_U2
 			wq_flags = *((unsigned int *)hsi_write_wq);
 			if (wq_flags & WQ_DYING) {
 				printk("mcm: Workqueue Flag Check is done 0x%x.\n", wq_flags);

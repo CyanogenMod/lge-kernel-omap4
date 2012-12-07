@@ -31,10 +31,6 @@ typedef enum {
 	MUIC_LG_TA,		// 3
 	MUIC_TA_1A,		// 4
 	MUIC_INVALID_CHG,	// 5
-#ifndef CONFIG_LGE_MACH_COSMO
-	CHARGING_UART,                  // MUIC_AP_UART
-	CHARGING_RESERVE1,              // dummy
-#endif
 	MUIC_AP_UART,		// 6
 	MUIC_CP_UART,		// 7
 	MUIC_AP_USB,		// 8
@@ -59,6 +55,10 @@ typedef enum {
 	CHARGING_LG_TA,		// MUIC_LG_TA
 	CHARGING_TA_1A,
 	CHARGING_INVALID_CHG,
+#ifndef CONFIG_LGE_MACH_COSMO
+	CHARGING_UART,                  // MUIC_AP_UART
+	CHARGING_RESERVE1,              // dummy
+#endif
 	CHARGING_USB,		// MUIC_AP_USB
 	CHARGING_FACTORY,
 } TYPE_CHARGING_MODE;
@@ -74,7 +74,7 @@ typedef enum {
 	BOOTUP,		/* 2 - TSU5611 BUG fix */
 } TYPE_RESET;
 
-#if !defined(CONFIG_MUIC_MAX14526)
+#if !defined(CONFIG_MUIC_MAX14526) && !defined(CONFIG_MACH_LGE_CX2)
 typedef enum {
 	NO_RETAIN,
 	BOOT_CP_USB,

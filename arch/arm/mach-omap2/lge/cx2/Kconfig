@@ -1,0 +1,41 @@
+#
+# LGE CX2
+#
+
+config MACH_LGE_CX2
+	bool "LGE CX2 board"
+	select HIGHMEM
+	select TWL6030_PWM
+	select TWL6030_GPADC
+	select MISC_DEVICES
+	select STAGING
+	select IIO
+	select HWMON
+	select INPUT_MISC
+	select INPUT_KEYBOARD
+	select INPUT_TOUCHSCREEN
+	select POWER_SUPPLY
+	select TWL6030_BCI_BATTERY
+	select SECURITY_MIDDLEWARE_COMPONENT
+	select CDC_TCXO
+	select INPUT_TWL6030_PWRBUTTON
+	select OMAP_REBOOT_REASON
+
+config INPUT_LGE_ANDROID_3KEYS
+	bool "LGE CX2 Android 3kyes for korea domestic board"
+	depends on MACH_LGE_CX2
+
+config MACH_LGE_CX2_P720
+	bool "LGE CX2 P720 board"
+	depends on MACH_LGE_CX2
+	default y
+
+config MACH_LGE_CX2_SU870
+	bool "LGE CX2 SU870 board"
+	depends on MACH_LGE_CX2
+	default y
+
+config MACH_LGE_CX2_3D_DISPLAY
+	bool "LGE CX2 SU870 board"
+	depends on MACH_LGE_CX2
+	default y

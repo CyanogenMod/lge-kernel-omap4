@@ -27,8 +27,6 @@
 #define FC8050_RESULT_ERROR		(int8) 0
 #define FC8050_RESULT_SUCCESS	(int8) 1
 
-#define MON_BURST_MODE
-#undef FEATURE_FIC_BER
 #define LOCK_TIME_TUNING0	/* Fast Channel Scan */
 
 // LGE ADD
@@ -59,9 +57,6 @@
 #define DAT_SVC_ID 2
 #define FEATURE_GET_FIC_POLLING
 
-/* change memcpy mscBuffer -> msc_data -> buffer  to mscBuffer->buffer */
-#define NOT_MSCDATA_MULTIPLE_MEMCPY
-
 uint32 	tp_total_cnt=0;
 
 /* -----------------------------------------------------------------------
@@ -87,6 +82,8 @@ boolean 	send_fic_int_sig_isr2task(void);
 extern int tunerbb_drv_fc8050_fic_cb(uint32 userdata, uint8 *data, int length);
 extern int tunerbb_drv_fc8050_msc_cb(uint32 userdata, uint8 subChId, uint8 *data, int length);
 
+extern void tdmb_fc8050_set_userstop(void);;
+// Added by somesoo 20100730 for removing green block effect
 extern void fc8050_isr_control(uint8 onoff);
 extern void fc8050_isr_interruptclear(void);
 
@@ -132,11 +129,7 @@ fci_u8 tot_subch_cnt=0;
 DATA_BUFFER 	msc_buffer;
 DATA_BUFFER 	fic_buffer;
 fci_u8 g_chinfo[64];
-#ifdef NOT_MSCDATA_MULTIPLE_MEMCPY
-fci_u8* msc_data = NULL;
-#else
 fci_u8 msc_data[188*8*8];
-#endif
 fci_u8 msc_multi_data[188*8*8];
 #endif
 
@@ -155,7 +148,7 @@ fci_u8 msc_multi_data[188*8*8];
 	};
 #endif
 
-//static uint16 data_sequence_count = 0;
+static uint16 data_sequence_count = 0;
 /*============================================================
 **    8.   Local Function Prototype
 *============================================================*/
@@ -200,9 +193,9 @@ int8 tunerbb_drv_fc8050_set_channel(int32 freq_num, uint8 subch_id, uint8 op_mod
 	return ret_val;
 }
 
-void tunerbb_drv_fc8050_set_userstop(int mode)
+void tunerbb_drv_fc8050_set_userstop(void)
 {
-	tdmb_fc8050_set_userstop(mode);
+	tdmb_fc8050_set_userstop( );
 }
 
 int tunerbb_drv_fc8050_is_on(void)
@@ -293,18 +286,17 @@ int tunerbb_drv_fc8050_msc_cb(uint32 userdata, uint8 subChId, uint8 *data, int l
 int tunerbb_drv_fc8050_msc_cb(uint32 userdata, uint8 subChId, uint8 *data, int length)
 {
 	TDMB_BB_HEADER_TYPE dmb_header;
-	uint16 head_size = 0;
 
 	dmb_header.data_type = (serviceType[0] == FC8050_DAB?TDMB_BB_DATA_DAB:TDMB_BB_DATA_TS);
 	dmb_header.size = length;
 	dmb_header.subch_id = subChId;
-	dmb_header.reserved = 0;//data_sequence_count++;//0xDEAD;
-	head_size = sizeof(TDMB_BB_HEADER_TYPE);
-
-	memcpy(&msc_data[0/*msc_buffer.length*/], &dmb_header, sizeof(TDMB_BB_HEADER_TYPE));
-	memcpy(&msc_data[head_size], data, length);
-
-	msc_buffer.length = head_size + length;
+	dmb_header.reserved = data_sequence_count++;//0xDEAD;
+	/* TEST FOR AV Check  110407 */
+//	printk("tunerbb_drv_fc8050_msc_cb data0[0x%x] data1[0x%x] data2[0x%x] data3[0x%x] \n", *(data), *(data+1), *(data+2), *(data+3));	
+	memcpy(&msc_data[msc_buffer.length], &dmb_header, sizeof(TDMB_BB_HEADER_TYPE));
+	msc_buffer.length+=sizeof(TDMB_BB_HEADER_TYPE);
+	memcpy(&msc_data[msc_buffer.length], data, length);
+	msc_buffer.length+=length;
 	msc_buffer.valid=1;
 
 	return FC8050_RESULT_SUCCESS;
@@ -360,7 +352,6 @@ int8	tunerbb_drv_fc8050_init(void)
 	BBM_MSC_CALLBACK_REGISTER((fci_u32)NULL, tunerbb_drv_fc8050_msc_cb);
 	
 	res = BBM_INIT(NULL);
-	res |= BBM_PROBE(NULL);
 	
 	if(res)
 		return FC8050_RESULT_ERROR;
@@ -375,6 +366,8 @@ int8	tunerbb_drv_fc8050_init(void)
 
 	res = BBM_TUNER_SELECT(0, FC8050_TUNER, BAND3_TYPE);
 
+//	res = BBM_PROBE(0);
+//	printk("tunerbb_drv_fc8050_init probe RES = %d\n", res);
 #if 0      //fc8050 <-> Host(MSM) 간의 Interface TEST를 위한 code
 /* test */	
 	for(i=0;i<5000;i++)
@@ -476,40 +469,23 @@ int8 tunerbb_drv_fc8050_control_fic(uint8 enable)
 	return FC8050_RESULT_SUCCESS;
 }
 
-
-//static fci_u16 tunerbb_drv_fc8050_rserror_count(void)
-static fci_u16 tunerbb_drv_fc8050_rserror_count(fci_u16 *nframe)//for dummy channel.
+static fci_u16 tunerbb_drv_fc8050_rserror_count(void)
 {
-	//fci_u32 rt_esum;
+	fci_u32 rt_esum;
 	fci_u16 rt_nframe, rt_rserror;
 	fci_u8  rs_ctrl=0;
 
-#ifdef MON_BURST_MODE
-	uint8 burst[12];
-
-	rs_ctrl = 0x21;
-	BBM_WRITE(0, BBM_RS_CONTROL, rs_ctrl);
-	BBM_BULK_READ(0, BBM_RS_RT_BER_PER, &burst[0], 4);
-	//BBM_LONG_READ(0, BBM_RS_RT_BER_PER, burst[0]);
-	rt_nframe = (uint16)(*(uint16*)burst);
-	rt_rserror = (uint16)(*((uint16*)burst+1));
-
-	rs_ctrl = 0x1;
-	BBM_WRITE(0, BBM_RS_CONTROL, rs_ctrl);
-#else
 	BBM_READ(0, BBM_RS_CONTROL, &rs_ctrl);
 	rs_ctrl |= 0x20;
 	BBM_WRITE(0, BBM_RS_CONTROL, rs_ctrl);
 
-	BBM_WORD_READ(0, BBM_RS_RT_BER_PER, &rt_nframe);	//실시간으로 count 되는 frame 수
-	//BBM_LONG_READ(0, BBM_RS_RT_ERR_SUM, &rt_esum);
+	BBM_WORD_READ(0, BBM_RS_RT_BER_PER, &rt_nframe);
+	BBM_LONG_READ(0, BBM_RS_RT_ERR_SUM, &rt_esum);
 	BBM_WORD_READ(0, BBM_RS_RT_FAIL_CNT, &rt_rserror);
 
 	rs_ctrl &= ~0x20;
 	BBM_WRITE(0, BBM_RS_CONTROL, rs_ctrl);
-#endif
 
-	*nframe=rt_nframe; //실시간으로 count 되는 frame 수
 	return rt_rserror;
 }
 
@@ -543,15 +519,14 @@ int8	tunerbb_drv_fc8050_get_ber(struct broadcast_tdmb_sig_info *dmb_bb_info)
 	uint8 sync_status;
 	uint32 tp_err_cnt=0;
 
-	uint16 nframe = 0;	
-
-	//fc8050_isr_control(0);
+	// Removed by suyong.han 20110922 for FCI V1.3 driver
+	fc8050_isr_control(0);
 
 	tunerbb_drv_fc8050_check_overrun(serviceType[0]);
 
-	dmb_bb_info->msc_ber = tunerbb_drv_fc8050_get_viterbi_ber();
+	dmb_bb_info->msc_ber=tunerbb_drv_fc8050_get_viterbi_ber();
 
-	sync_status = tunerbb_drv_fc8050_get_sync_status();
+	sync_status=tunerbb_drv_fc8050_get_sync_status();
 	dmb_bb_info->sync_lock = ((sync_status & 0x10) ? 1 : 0);
 	dmb_bb_info->cir = ((sync_status & 0x08) ? 1 : 0);
 	dmb_bb_info->afc_ok = (((sync_status & 0x06)==0x06) ? 1 : 0);	
@@ -571,8 +546,7 @@ int8	tunerbb_drv_fc8050_get_ber(struct broadcast_tdmb_sig_info *dmb_bb_info)
 	
 	if(serviceType[0] == FC8050_DMB || serviceType[0] == FC8050_VISUAL)
 	{
-		tp_err_cnt = tunerbb_drv_fc8050_rserror_count(&nframe); //실시간 frame수 체크
-		
+		tp_err_cnt=tunerbb_drv_fc8050_rserror_count();
 		if((dmb_bb_info->sync_lock == 0) || (tp_total_cnt == 0))
 		{
 			dmb_bb_info->tp_err_cnt = 0;
@@ -591,53 +565,19 @@ int8	tunerbb_drv_fc8050_get_ber(struct broadcast_tdmb_sig_info *dmb_bb_info)
 
 		// initialize information		
 		tp_total_cnt = 0;
-		dmb_bb_info->va_ber = tunerbb_drv_fc8050_get_rs_ber();
 	}
 	else
 	{
-		dmb_bb_info->tp_err_cnt = 0;
-		dmb_bb_info->tp_lock	= 0;
-		dmb_bb_info->va_ber = 0;
+		dmb_bb_info->tp_err_cnt =0;
+		dmb_bb_info->tp_lock	=0;
 	}
 
-	dmb_bb_info->fic_ber = 0;
+	dmb_bb_info->fic_ber=0;
+	dmb_bb_info->va_ber=tunerbb_drv_fc8050_get_rs_ber();
+	dmb_bb_info->srv_state_flag=0;
 
-	if(dmb_bb_info->msc_ber < 6000)
-	{
-		dmb_bb_info->antenna_level = 4;
-	}
-	else if(dmb_bb_info->msc_ber >= 6000 && dmb_bb_info->msc_ber < 8000)
-	{
-		dmb_bb_info->antenna_level = 3;
-	}
-	else if(dmb_bb_info->msc_ber >= 8000 && dmb_bb_info->msc_ber < 9000)
-	{
-		dmb_bb_info->antenna_level = 2;
-	}
-	else if(dmb_bb_info->msc_ber >= 9000 && dmb_bb_info->msc_ber < 12000)
-	{
-		dmb_bb_info->antenna_level = 1;
-	}
-	else if(dmb_bb_info->msc_ber >= 12000)
-	{
-		dmb_bb_info->antenna_level = 0;
-	}
-
-#if 0
-	//채널은 잡았으나 (sync_status == 0x3f) frame이 들어오지 않는 경우(nframe == 0) - MBN V-Radio
-	if((sync_status==0x3f)&&(nframe==0))
-	{
-		//antenna level을 0으로 만듬. 
-		dmb_bb_info->antenna_level = 0;
-	}
-
-	//antenna level이 0이면 약전계이므로 5분종료를 위해 dab_ok를 0으로 만듬. 
-	if(dmb_bb_info->antenna_level == 0)
-	{
-		dmb_bb_info->dab_ok = 0; 
-	}
-#endif	
-	//fc8050_isr_control(1);
+	// Removed by suyong.han 20110922 for FCI V1.3 driver
+	fc8050_isr_control(1);
 	
 	return FC8050_RESULT_SUCCESS;
 }
@@ -724,22 +664,12 @@ int8	tunerbb_drv_fc8050_multi_set_channel(int32 freq_num, uint8 subch_cnt, uint8
 	
 	if(svcType == FC8050_ENSQUERY)
 	{
-
-#ifdef FEATURE_FIC_BER
-		BBM_WRITE(0, BBM_VT_CONTROL, 0x01);
-#endif
-
 		if(BBM_SCAN_STATUS(0))
 		{
 			return FC8050_RESULT_ERROR;
 		}
 	}
 
-#ifdef FEATURE_FIC_BER
-	else
-		BBM_WRITE(0, BBM_VT_CONTROL, 0x03);
-#endif
-		
 	BBM_WORD_READ(NULL, BBM_BUF_ENABLE, &mask);
 	mask &= 0x100;
 	
@@ -758,7 +688,7 @@ int8	tunerbb_drv_fc8050_multi_set_channel(int32 freq_num, uint8 subch_cnt, uint8
 				break;
 			case FC8050_DMB:
 			case FC8050_VISUAL:
-				mask |= (1 << (DMB_SVC_ID+dmb_cnt));
+				mask |= (1<<(DMB_SVC_ID+dmb_cnt));	//LGE_BROADCAST_I
 				if(dmb_cnt<2)
 				{
 					BBM_VIDEO_SELECT(0, subch_id[i], DMB_SVC_ID+dmb_cnt, dmb_cnt);
@@ -916,18 +846,13 @@ int8	tunerbb_drv_fc8050_read_data(uint8* buffer, uint32* buffer_size)
 	/* initialize length and valid value before isr routine */
 	msc_buffer.valid = 0;
 	msc_buffer.length=0;
-#ifdef NOT_MSCDATA_MULTIPLE_MEMCPY
-	msc_data = buffer;
-#endif
 	
 	fc8050_isr(NULL);
 	
 	if(msc_buffer.valid && msc_buffer.length)
 	{
 		*buffer_size = msc_buffer.length;
-#ifndef NOT_MSCDATA_MULTIPLE_MEMCPY		
 		memcpy(buffer, &msc_data[0], msc_buffer.length);
-#endif
 		retval = FC8050_RESULT_SUCCESS;
 	}
 	
@@ -1231,34 +1156,6 @@ static uint32 tunerbb_drv_fc8050_get_viterbi_ber(void)	//msc_ber
 	uint32 bper, tbe;
 	uint32 ber;
 
-#ifdef MON_BURST_MODE
-	uint8 burst[12];
-
-#ifdef FEATURE_FIC_BER
-	if(serviceType[0]==FC8050_ENSQUERY)
-		vt_ctrl = 0x11;
-	else
-		vt_ctrl = 0x13;
-#else
-	vt_ctrl = 0x13;
-#endif
-
-	BBM_WRITE(0, BBM_VT_CONTROL, vt_ctrl);
-	BBM_BULK_READ(0, BBM_VT_RT_BER_PERIOD, &burst[0], 8);
-	bper = (uint32)(*(uint32*)burst);
-	tbe = (uint32)(*((uint32*)burst+1));
-
-#ifdef FEATURE_FIC_BER
-	if(serviceType[0]==FC8050_ENSQUERY)
-		vt_ctrl = 0x1;
-	else
-		vt_ctrl = 0x3;
-#else
-	vt_ctrl = 0x3;
-#endif
-
-	BBM_WRITE(0, BBM_VT_CONTROL, vt_ctrl);
-#else
 	BBM_READ(0, BBM_VT_CONTROL, &vt_ctrl);
 	vt_ctrl |= 0x10;
 	BBM_WRITE(0, BBM_VT_CONTROL, vt_ctrl);
@@ -1268,7 +1165,6 @@ static uint32 tunerbb_drv_fc8050_get_viterbi_ber(void)	//msc_ber
 
 	vt_ctrl &= ~0x10;
 	BBM_WRITE(0, BBM_VT_CONTROL, vt_ctrl);
-#endif
 
 	if(bper == 0)
 	{
@@ -1320,18 +1216,9 @@ static uint32 tunerbb_drv_fc8050_get_rs_ber(void)	//va_ber
 	uint32 esum;
 	uint32 ber;
 
-#ifdef MON_BURST_MODE
-	uint8 burst[12];
-
-	BBM_BULK_READ(0, BBM_RS_BER_PERIOD, &burst[0], 8);
-	nframe = (uint16)(*(uint16*)burst);
-	rserror = (uint16)(*((uint16*)burst+1));
-	esum = (uint32)(*((uint32*)burst+1));
-#else
 	BBM_WORD_READ(0, BBM_RS_BER_PERIOD, &nframe);
 	BBM_LONG_READ(0, BBM_RS_ERR_SUM, &esum);
 	BBM_WORD_READ(0, BBM_RS_FAIL_COUNT, &rserror);
-#endif
 
 	if(nframe == 0)
 	{
@@ -1423,10 +1310,7 @@ void tunerbb_drv_fc8050_process_polling_data()
 static int8 tunerbb_drv_fc8050_check_overrun(uint8 op_mode)
 {
 	uint16 mfoverStatus;
-
-	// Patch for BER monitoring 20111115
-	//uint16 buf_set=0;
-
+	uint16 buf_set=0;
 	uint16 veri_val=0;
 	uint8 mask;
 
@@ -1444,11 +1328,9 @@ static int8 tunerbb_drv_fc8050_check_overrun(uint8 op_mode)
 		return FC8050_RESULT_ERROR; /* invaild op_mode */
 	}
 	
-	// Patch for BER monitoring 20111115
-	//BBM_WORD_READ(NULL, BBM_BUF_ENABLE, &buf_set);
+	BBM_WORD_READ(NULL, BBM_BUF_ENABLE, &buf_set);
 
-	// Patch for BER monitoring 20111115
-	//if(buf_set & mask)
+	if(buf_set & mask)
 	{	
 		BBM_WORD_READ(NULL, BBM_BUF_OVERRUN, &mfoverStatus);		
 
@@ -1465,7 +1347,8 @@ static int8 tunerbb_drv_fc8050_check_overrun(uint8 op_mode)
 
 			fc8050_isr_interruptclear();
 
-			printk("======== FC8050  OvernRun and Buffer Reset Done mask (0x%X) over (0x%X) =======\n", mask,mfoverStatus );
+			printk("++++++++++++++++++++++ fc8050 overrun occured!!! ++++++++++++++++++++++++++\n");
+			printk("fc8050 overrun and buffer reset done!! mask %x, over %x\n", mask, mfoverStatus);
 		}
 	}
 

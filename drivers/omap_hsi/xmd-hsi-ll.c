@@ -434,7 +434,7 @@ static void hsi_ll_read_complete_cb(struct hsi_device *dev, unsigned int size)
 {
 	int ret;
 	unsigned int channel = 0, param = 0, ll_msg_type = 0;
-#ifndef CONFIG_MACH_LGE_COSMO
+#ifdef CONFIG_MACH_LGE_U2
 	unsigned int ipc_temp = 0; // ipc temp.
 #endif
 
@@ -451,7 +451,7 @@ static void hsi_ll_read_complete_cb(struct hsi_device *dev, unsigned int size)
 // LGE_UPDATE_START 20120605 seunghwan.jin@lge.com
     if(simple_hsi_log_debug_enable == '1')
         printk("HSI_LL: channel %d CP => AP CMD = 0x%x.\n", channel, hsi_ll_data.rx_cmd);
-#ifndef CONFIG_MACH_LGE_COSMO
+#ifdef CONFIG_MACH_LGE_U2
     // start ipc temp.
     else
     {
@@ -933,7 +933,7 @@ static int hsi_ll_wr_ctrl_ch_th(void *data)
 	int ret, i;
 	unsigned int command, channel;
 	unsigned int phy_id;
-#ifndef CONFIG_MACH_LGE_COSMO
+#ifdef CONFIG_MACH_LGE_U2
 	unsigned int ipc_temp = 0; // ipc temp.
 #endif
 
@@ -1102,7 +1102,7 @@ static int hsi_ll_wr_ctrl_ch_th(void *data)
 // LGE_UPDATE_START 20120605 seunghwan.jin@lge.com
         if (simple_hsi_log_debug_enable == '1')
             printk("HSI_LL: channel %d : AP => CP CMD = 0x%x \n", channel, command);
-#ifndef CONFIG_MACH_LGE_COSMO
+#ifdef CONFIG_MACH_LGE_U2
         // start ipc temp.
         else
         {

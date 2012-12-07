@@ -147,8 +147,6 @@ static struct omap_rproc_pdata omap4_rproc_data[] = {
 		//.suspend_addr	= 0x990F02D8,
 		//.suspend_addr	= 0x997F02D8,
 		.suspend_addr	= 0x9ACF02D8,
-#else
-		.suspend_addr	= 0xb3bf02d8,
 #endif
 		.suspend_mask	= ~0,
 		.sus_timeout	= 5000,

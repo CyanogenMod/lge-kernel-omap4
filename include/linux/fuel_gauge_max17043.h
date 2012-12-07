@@ -68,9 +68,13 @@ typedef struct __battery_graph_prop
 
 //LGE_CHANGE [euiseop.shin@lge.com] 2011-07-11,[P940] moved here from charger_rt9524.h
 #define SAFE_SHUTDOWN_SOC_CON	5
+#ifdef CONFIG_MACH_LGE_CX2
+#define SHUTDOWN_SOC_CON	1 //5
+#else
 #define SHUTDOWN_SOC_CON	6 //5 /*[SU540][MR] charger issue fixed - charger is not able to chrge up 100% capacity  */
+#endif
 
-#ifdef CONFIG_MACH_LGE_COSMO //nthyunjin.yang 120412 [start]
+#if defined(CONFIG_MACH_LGE_COSMO) || defined(CONFIG_MACH_LGE_CX2) //nthyunjin.yang 120412 [start]
 #define GAUGE_INT 21
 
 #define RCOMP_BL44JN (0xB8)

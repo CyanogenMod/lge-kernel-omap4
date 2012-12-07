@@ -6,12 +6,12 @@
 
 #menu "BROADCAST_DEVICE"
 
-config LGE_BROADCAST_TDMB_FC8050
-	bool "LGE broacast TDMB FC8050 device"
-	depends on LGE_BROADCAST_TDMB && MACH_LGE_COSMO_SU760
-	default y
-	help
-	  Select this if you want to use broadcast service
+#config LGE_BROADCAST_TDMB_FC8050
+#	bool "LGE broacast TDMB FC8050 device"
+#	depends on LGE_BROADCAST_TDMB
+#	default y
+#	help
+#	  Select this if you want to use broadcast service
 	  
 #config LGE_BROADCAST_TDMB_LG2102
 #	bool "LGE broacast TDMB LG2102 device"
@@ -20,16 +20,23 @@ config LGE_BROADCAST_TDMB_FC8050
 #	help
 #	  Select this if you want to use broadcast service
 	  
-config LGE_BROADCAST_TDMB_T3900
-	bool "LGE broacast TDMB T3900 device"
-	depends on LGE_BROADCAST_TDMB && (MACH_LGE_P2_SU540 || MACH_LGE_P2_KU5400 || MACH_LGE_P2_LU5400)
-	default y
-	help
-	  Select this if you want to use broadcast service	  	  
+#config LGE_BROADCAST_TDMB_T3900
+#	bool "LGE broacast TDMB T3900 device"
+#	depends on LGE_BROADCAST_TDMB && (MACH_LGE_P2_SU540 || MACH_LGE_P2_KU5400 || MACH_LGE_P2_LU5400)
+#	default y
+#	help
+#	  Select this if you want to use broadcast service	  	  
 
 config LGE_BROADCAST_TDMB_T39FX
 	bool "LGE broacast TDMB T39FX device"
 	depends on LGE_BROADCAST_TDMB && MACH_MSM8960_LX_KR
+	default y
+	help
+	  Select this if you want to use broadcast service	  	  
+
+config LGE_BROADCAST_TDMB_TCC3170
+	bool "LGE broacast TDMB TCC3170 device"
+	depends on LGE_BROADCAST_TDMB && MACH_LGE_CX2_SU870
 	default y
 	help
 	  Select this if you want to use broadcast service	  	  

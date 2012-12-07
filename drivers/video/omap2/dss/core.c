@@ -462,7 +462,7 @@ int omap_dss_register_driver(struct omap_dss_driver *dssdriver)
 	dssdriver->disable = omap_dss_driver_disable;
 	dssdriver->enable_orig = dssdriver->enable;
 	dssdriver->enable = omap_dss_driver_enable;
-#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY) //##hwcho_20120522
+#if defined(CONFIG_MACH_LGE_COSMO_3D_DISPLAY) || defined(CONFIG_MACH_LGE_CX2_3D_DISPLAY) //##hwcho_20120522
 	dssdriver->enable_s3d = dssdriver->enable_s3d;
 	dssdriver->get_s3d_enabled = dssdriver->get_s3d_enabled;
 	dssdriver->set_s3d_disp_type = dssdriver->set_s3d_disp_type;  //mo2sanghyun.lee 

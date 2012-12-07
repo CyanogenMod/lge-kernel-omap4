@@ -112,7 +112,7 @@ static int omap2_gpio_dev_init(struct omap_hwmod *oh, void *unused)
 		break;
 	case 2:
 //mo2haewoon.you@lge.com => [START]
-#ifdef CONFIG_MACH_LGE_COSMO_SU760
+#if defined(CONFIG_MACH_LGE_COSMO_SU760) || defined(CONFIG_MACH_LGE_CX2_SU870)
 #if defined(CONFIG_OMAP_HSI)
 		if (id == 4)
 			/* non-wakeup GPIO pins for OMAP4 Bank4 */

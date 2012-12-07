@@ -34,6 +34,11 @@
 #include <linux/omap4_duty_cycle.h>
 #include <plat/omap_device.h>
 
+#ifdef CONFIG_MACH_LGE_CX2 //nthyunjin.yang 120615 cpufreq test
+#include <linux/charger_rt9524.h>//nthyunjin.yang 111226 for test 
+extern int cpufreq_temp_ctrl_value;
+#endif
+
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Eduardo Valentin <eduardo.valentin@ti.com>");
 MODULE_DESCRIPTION("Module to control max opp duty cycle");
@@ -97,9 +102,17 @@ static void omap4_duty_enter_normal(void)
 	state = OMAP4_DUTY_NORMAL;
 	duty_desc.heating_budget = NITRO_P(nitro_percentage, nitro_interval);
 
+#ifdef CONFIG_MACH_LGE_CX2
+//	printk("#####nthyunjin.yang omap4_duty_cycle cpufreq_temp_ctrl_value = [%d], maxcpufreq = [%u], cpufreq = [%u] \n",cpufreq_temp_ctrl_value, policy->max, policy->cur);
+	if(cpufreq_temp_ctrl_value == 0)
+	{
 	if (duty_desc.cool_device != NULL)
 		duty_desc.cool_device(NULL, 0);
-
+	}
+#else
+	if (duty_desc.cool_device != NULL)
+		duty_desc.cool_device(NULL, 0);
+#endif
 }
 
 static void omap4_duty_exit_cool_wq(struct work_struct *work)
@@ -124,8 +137,17 @@ static void omap4_duty_enter_cooling(unsigned int next_max,
 	state = next_state;
 	pr_debug("%s enter at (%u)\n", __func__, policy->cur);
 
+#ifdef CONFIG_MACH_LGE_CX2
+//	printk("#####nthyunjin.yang omap4_duty_cycle cpufreq_temp_ctrl_value = [%d], maxcpufreq = [%u], cpufreq = [%u] \n",cpufreq_temp_ctrl_value, policy->max, policy->cur);
+	if(cpufreq_temp_ctrl_value == 0)
+	{
+		if ((duty_desc.cool_device != NULL) && (next_max != nitro_rate))
+			duty_desc.cool_device(NULL, 1);
+	}
+#else
 	if ((duty_desc.cool_device != NULL) && (next_max != nitro_rate))
 		duty_desc.cool_device(NULL, 1);
+#endif
 
 	queue_delayed_work(duty_wq, &work_exit_cool, msecs_to_jiffies(
 		NITRO_P(100 - nitro_percentage, nitro_interval)));

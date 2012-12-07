@@ -34,6 +34,8 @@
 #include "SynaImage_p768.h"
 #elif defined(CONFIG_MACH_LGE_COSMO_SU760)
 #include "SynaImage_su760.h"
+#elif defined(CONFIG_MACH_LGE_CX2)
+#include "SynaImage_su870.h"
 #else
 #include "SynaImage.h"
 #endif
@@ -123,6 +125,10 @@
 
 #define FLASH_CONTROL_REG				(ts->flash_dsc.data_base+18)		/* Flash Control */
 #define FLASH_STATUS_MASK				0xF0
+//mo2haewoon.you@lge.com => [START]
+#define COSMO_SYNAPTICS_REG_NOISE_REDUCE	0xF1
+//mo2haewoon.you@lge.com <= [END]
+
 #ifdef CONFIG_MACH_LGE_U2               /* seungbum.park@lge.com - 2012/06/11 - for touch hard key */
 #define PAGE_SELECT_REG					0xFF
 #endif
@@ -162,6 +168,10 @@
 		for(; !((_bit_mask>>_index)&0x01) && _index <= _max_finger; _index++);	\
 		if (_index <= _max_finger) _bit_mask &= ~(_bit_mask & (1<<(_index)));
 
+#ifdef CONFIG_MACH_LGE_CX2
+static struct i2c_client *ts_client;
+#endif
+
 int synaptics_ts_get_data(struct i2c_client *client, struct t_data* data, struct b_data* button, u8* total_num)
 {
 	struct synaptics_ts_data* ts =
@@ -171,21 +181,47 @@ int synaptics_ts_get_data(struct i2c_client *client, struct t_data* data, struct
 	u8 finger_index=0;
 	u8 index=0;
 	u8 cnt;
+#ifdef CONFIG_MACH_LGE_COSMO
 	int retry = 5;
+#endif
 
 	*total_num = 0;
 	if (unlikely(touch_debug_mask & DEBUG_TRACE))
 		TOUCH_DEBUG_MSG("\n");
 
-	if (unlikely(touch_i2c_read(client, INTERRUPT_STATUS_REG,
-			sizeof(ts->ts_data.interrupt_status_reg),
-			&ts->ts_data.interrupt_status_reg) < 0)) {
-		TOUCH_ERR_MSG("INTERRUPT_STATUS_REG read fail\n");
-		goto err_synaptics_getdata;
-	}
+#ifndef CONFIG_MACH_LGE_COSMO
 
-	if (unlikely(touch_debug_mask & DEBUG_GET_DATA))
-		TOUCH_INFO_MSG("Interrupt_status : 0x%x\n", ts->ts_data.interrupt_status_reg);
+       if (unlikely(touch_i2c_read(client, DEVICE_STATUS_REG,
+                       sizeof(ts->ts_data.interrupt_status_reg),
+                       &ts->ts_data.device_status_reg) < 0)) {
+               TOUCH_ERR_MSG("DEVICE_STATUS_REG read fail\n");
+               goto err_synaptics_getdata;
+       }
+
+       /* ESD damage check */
+       if ((ts->ts_data.device_status_reg & DEVICE_FAILURE_MASK)== DEVICE_FAILURE_MASK) {
+
+               TOUCH_ERR_MSG("ESD damage occured. Reset Touch IC\n");
+               goto err_synaptics_device_damage;
+       }
+
+       /* Internal reset check */
+       if (((ts->ts_data.device_status_reg & DEVICE_STATUS_UNCONFIGURED) >> 7)) {
+               TOUCH_ERR_MSG("Touch IC resetted internally. Reconfigure register setting\n");
+               goto err_synaptics_device_damage;
+       }
+#endif
+
+       if (unlikely(touch_i2c_read(client, INTERRUPT_STATUS_REG,
+				       sizeof(ts->ts_data.interrupt_status_reg),
+				       &ts->ts_data.interrupt_status_reg) < 0)) {
+	       TOUCH_ERR_MSG("INTERRUPT_STATUS_REG read fail\n");
+	       goto err_synaptics_getdata;
+       }
+
+#ifdef CONFIG_MACH_LGE_COSMO
+       if (unlikely(touch_debug_mask & DEBUG_GET_DATA))
+	       TOUCH_INFO_MSG("Interrupt_status : 0x%x\n", ts->ts_data.interrupt_status_reg);
 
 	/* Insert check routine for Interrupt status register */
 	while((retry-- > 0) && (ts->ts_data.interrupt_status_reg ==0)){
@@ -196,6 +232,7 @@ int synaptics_ts_get_data(struct i2c_client *client, struct t_data* data, struct
 	if (unlikely(touch_debug_mask & DEBUG_GET_DATA))
 		TOUCH_INFO_MSG("Interrupt_status[%d] When retries read it : 0x%x\n",retry, ts->ts_data.interrupt_status_reg);		
 	}
+#endif
 
 	/* IC bug Exception handling - Interrupt status reg is 0 when interrupt occur */
 	if (ts->ts_data.interrupt_status_reg == 0) {
@@ -203,6 +240,7 @@ int synaptics_ts_get_data(struct i2c_client *client, struct t_data* data, struct
 		goto err_synaptics_device_damage;
 	}
 
+#ifdef CONFIG_MACH_LGE_COSMO
 	/* Because of ESD damage... */
 	if (unlikely(ts->ts_data.interrupt_status_reg & ts->interrupt_mask.flash)){
 		TOUCH_ERR_MSG("Impossible Interrupt\n");
@@ -227,6 +265,7 @@ int synaptics_ts_get_data(struct i2c_client *client, struct t_data* data, struct
 		TOUCH_ERR_MSG("Touch IC resetted internally. Reconfigure register setting\n");
 		goto err_synaptics_device_damage;
 	}
+#endif
 	
 	/* Finger */
 	if (likely(ts->ts_data.interrupt_status_reg & ts->interrupt_mask.abs)) {
@@ -706,6 +745,10 @@ int synaptics_ts_probe(struct i2c_client* client)
 	ts->client = client;
 	ts->pdata = client->dev.platform_data;
 
+#ifdef CONFIG_MACH_LGE_CX2
+	ts_client = client;
+#endif
+	
 	if (ts->pdata->pwr->use_regulator) {
 		ts->regulator_vdd = regulator_get_exclusive(NULL, ts->pdata->pwr->vdd);
 		if (IS_ERR(ts->regulator_vdd)) {
@@ -846,6 +889,27 @@ int synaptics_ts_ic_ctrl(struct i2c_client *client, u8 code, u16 value)
 
 	return buf;
 }
+
+#ifdef CONFIG_MACH_LGE_CX2
+int is_suspend=0;
+
+int synaptics_ts_reduce_noise(u8 enable)
+{
+	int ret;
+
+	if(!is_suspend)
+		ret = touch_i2c_write_byte(ts_client, COSMO_SYNAPTICS_REG_NOISE_REDUCE, enable);
+	
+	if(ret<0)
+	{
+		printk("[touch] i2c write fail!! COSMO_SYNAPTICS_REG_NOISE_REDUCE\n");
+		return -1;
+	}
+	printk("[TOUCH] MHL noise reduce mode = 1\n");
+	return 0;
+}
+EXPORT_SYMBOL(synaptics_ts_reduce_noise);
+#endif
 
 struct touch_device_driver synaptics_ts_driver = {
 	.probe 	= synaptics_ts_probe,
