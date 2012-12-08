@@ -246,9 +246,11 @@ void lge_omap4_prm_global_warm_sw_reset(const char *cmd)
 		printk(KERN_EMERG "omap4_get_sar_ram_base failed\n");
 	}
 
+#ifndef CONFIG_MACH_LGE_COSMO
 	/* clear previous reboot status */
 	omap4_prm_write_inst_reg(0xfff, OMAP4430_PRM_DEVICE_INST,
 			OMAP4_RM_RSTST);
+#endif
 
 	omap4_prm_write_inst_reg(v, OMAP4430_PRM_DEVICE_INST,
 			OMAP4_RM_RSTCTRL);
@@ -267,9 +269,11 @@ void omap4_prm_global_warm_sw_reset(void)
 				    OMAP4_RM_RSTCTRL);
 	v |= OMAP4430_RST_GLOBAL_WARM_SW_MASK;
 
+#ifdef CONFIG_MACH_LGE_COSMO
 	/* clear previous reboot status */
 	omap4_prm_write_inst_reg(0xfff, OMAP4430_PRM_DEVICE_INST,
 			OMAP4_RM_RSTST);    
+#endif
 
 	omap4_prm_write_inst_reg(v, OMAP4430_PRM_DEVICE_INST,
 				 OMAP4_RM_RSTCTRL);
