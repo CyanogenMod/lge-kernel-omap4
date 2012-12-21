@@ -227,7 +227,7 @@ static int hsi_ll_command_decode(
 		break;
 	case HSI_LL_MSG_OPEN_CONN_OCTET:
 		*channel = ((msg & 0x0F000000) >> 24);
-		*param   = (msg & 0x00FFFFFF);
+		*param   = ((msg & 0x00F00000) >> 20) ? (msg & 0x000FFFFF) : (msg & 0x00FFFFFF);
 #if defined (HSI_LL_ENABLE_CRITICAL_LOG)
 		if (*channel == 0) {
 			printk("\nHSI_LL: Unexpected case. Received CMD = 0x%x. %s %d\n",
