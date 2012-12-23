@@ -170,7 +170,7 @@ static void xmd_ch_tty_send_to_user(int chno)
                     break;
                 }
             }
-            printk("xmdtty: AP received data size : %d to ch[%d] %s", len,chno, s);
+            //printk("xmdtty: AP received data size : %d to ch[%d] %s", len,chno, s);
         }
     }
     kfree(str);
@@ -445,8 +445,8 @@ static int xmd_ch_tty_write(
 #endif
 	if(simple_hsi_log_debug_enable == '1')
 		printk("xmdtty: writing data of size %d to ch %d, data: %s\n", written_len,tty_ch->chno,str);
-	else if(tty_ch->chno < 11)
-		printk("xmdtty: CP received data size : %d to ch[%d] %s", written_len,tty_ch->chno,str);
+	//else if(tty_ch->chno < 11)
+		//printk("xmdtty: CP received data size : %d to ch[%d] %s", written_len,tty_ch->chno,str);
 
 	kfree(str);
 }
@@ -547,8 +547,8 @@ static int xmd_ch_tty_write(
  #endif
     if(simple_hsi_log_debug_enable == '1')
         printk("xmdtty: writing data of size %d to ch %d, data: %s\n", len,tty_ch->chno,str);
-    else if(tty_ch->chno < 11)
-        printk("xmdtty: CP received data size : %d to ch[%d] %s", len,tty_ch->chno,str);
+    //else if(tty_ch->chno < 11)
+      //  printk("xmdtty: CP received data size : %d to ch[%d] %s", len,tty_ch->chno,str);
     kfree(str);
 
 

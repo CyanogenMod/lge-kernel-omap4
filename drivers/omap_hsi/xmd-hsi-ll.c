@@ -457,8 +457,8 @@ static void hsi_ll_read_complete_cb(struct hsi_device *dev, unsigned int size)
     {
         ipc_temp = hsi_ll_data.rx_cmd;
         ipc_temp = ipc_temp >> 28;
-        if(ipc_temp == 9 && channel < 11)
-            printk("HSI_LL: CP closed ch[%d] successfully.\n", channel);
+        /*if(ipc_temp == 9 && channel < 11)
+            printk("HSI_LL: CP closed ch[%d] successfully.\n", channel);*/
     }
     // end ipc start
 #endif
@@ -1108,8 +1108,8 @@ static int hsi_ll_wr_ctrl_ch_th(void *data)
         {
             ipc_temp = command;
             ipc_temp = ipc_temp >> 28;
-            if(ipc_temp == 9 && channel < 11)
-                printk("HSI_LL: AP closed ch[%d] successfully.\n", channel);
+            /*if(ipc_temp == 9 && channel < 11)
+                printk("HSI_LL: AP closed ch[%d] successfully.\n", channel);*/
         }
         // end ipc temp
 #endif

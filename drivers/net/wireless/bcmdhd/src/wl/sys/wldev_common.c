@@ -375,7 +375,6 @@ int wldev_set_country(
 			get_customized_country_code((char *)&cspec.country_abbrev, &cspec);
 		}
 	}
-	WLDEV_ERROR(("%s: set country for %s as %s rev %d\n",	__FUNCTION__, country_code, cspec.ccode, cspec.rev));
 	//bill.jung@lge.com - Country Code and rev from framework	
 	
 	error = wldev_iovar_setbuf(dev, "country", &cspec, sizeof(cspec),
@@ -386,7 +385,5 @@ int wldev_set_country(
 		return error;
 	}
 	dhd_bus_country_set(dev, &cspec);
-	WLDEV_ERROR(("%s: set country for %s as %s rev %d\n",
-		__FUNCTION__, country_code, cspec.ccode, cspec.rev));
 	return 0;
 }

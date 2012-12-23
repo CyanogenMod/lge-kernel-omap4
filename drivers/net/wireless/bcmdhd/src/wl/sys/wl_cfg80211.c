@@ -3311,7 +3311,7 @@ wl_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
 
 		/* Report the current tx rate */
 		err = wldev_ioctl(dev, WLC_GET_RATE, &rate, sizeof(rate), false);
-		WL_ERR(("2LEE rate is %d \n", rate));
+		WL_TRACE(("2LEE rate is %d \n", rate));
 		
 		if (err) {
 			WL_ERR(("Could not get rate (%d)\n", err));
@@ -3326,7 +3326,7 @@ wl_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
 		scb_val.val = 0;
 		err = wldev_ioctl(dev, WLC_GET_RSSI, &scb_val,
 			sizeof(scb_val_t), false);
-		WL_ERR(("2LEE rssi is  %d \n", scb_val.val));
+		WL_TRACE(("2LEE rssi is  %d \n", scb_val.val));
 
 		if (err) {
 			WL_ERR(("Could not get rssi (%d)\n", err));
@@ -7224,7 +7224,7 @@ s32 wl_cfg80211_up(void *para)
 		return BCME_VERSION;
 	}
 	ioctl_version = val;
-	WL_ERR(("WLC_GET_VERSION=%d\n", ioctl_version));
+	WL_TRACE(("WLC_GET_VERSION=%d\n", ioctl_version));
 
 	mutex_lock(&wl->usr_sync);
 	wl_cfg80211_attach_post(wl_to_prmry_ndev(wl));

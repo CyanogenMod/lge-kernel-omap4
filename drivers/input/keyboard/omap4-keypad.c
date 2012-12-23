@@ -239,6 +239,7 @@ static irqreturn_t omap4_keypad_interrupt(int irq, void *dev_id)
                             keypad_data->keymap[code],
                             (bool)(key_state[col] & (1 << row)));
 
+#if 0
 #ifdef CONFIG_MACH_LGE_U2	/* seungbum.park@lge.com - 2012/05/21 - the HOME_key is added */
                     printk("[omap4-keypad] %s KEY %s\n",
                                                 (keypad_data->keymap[code] == KEY_VOLUMEUP) ? "Vol_UP" : ((keypad_data->keymap[code] == KEY_VOLUMEDOWN) ? "Vol_DOWN" : "HOME"),
@@ -247,6 +248,7 @@ static irqreturn_t omap4_keypad_interrupt(int irq, void *dev_id)
                     printk("[omap4-keypad] %s KEY %s\n",
 						(keypad_data->keymap[code] == KEY_VOLUMEUP) ? "Vol_UP" : ((keypad_data->keymap[code] == KEY_VOLUMEDOWN) ? "Vol_DOWN" : "CAPTURE"),
 						(key_state[col] & (1 << row)) ? "PRESS" : "RELEASE" );
+#endif
 #endif
 
 #ifdef CONFIG_INPUT_LGE_GKPD
@@ -280,7 +282,7 @@ static irqreturn_t omap4_keypad_interrupt(int irq, void *dev_id)
 			keypad_data->base + OMAP4_KBD_IRQSTATUS);
 
 
-	printk("#################################### %s is finished!!!!!\n", __func__);
+	//printk("#################################### %s is finished!!!!!\n", __func__);
 	return IRQ_HANDLED;
 }
 

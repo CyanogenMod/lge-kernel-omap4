@@ -101,7 +101,7 @@ int	lm3533_set_brightness_control(struct lm3533_private_data* pdata, int val)
 		{
 			val = (val - UI_DEFAULT) * (LM3533_MAX_BRT - LM3533_DEFAULT_BRT) / (UI_MAX - UI_DEFAULT) + LM3533_DEFAULT_BRT;
 		}
-		printk("[dyotest]%s val=0x%x\n",__func__,val);
+		//printk("[dyotest]%s val=0x%x\n",__func__,val);
 	/* LGE_CHANGE [wonhui.lee@lge.com] 2011-11-23, To prevent Backlight control in Factory*/
 #if defined(CONFIG_LG_FW_MAX17043_FUEL_GAUGE_I2C) || defined(CONFIG_LG_FW_MAX17048_FUEL_GAUGE_I2C)
 	if (get_bat_present() == 0 &&

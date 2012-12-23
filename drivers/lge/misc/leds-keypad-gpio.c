@@ -61,14 +61,14 @@ void set_pw_led_on_off(int value)
 	printk(KERN_ERR ">>>>>>> set_pw_led_on_off PW_LED: %d, pw_led_on_off: %d>>>>>>>>>>>>\n", value, pw_led_on_off);
 	if(value == PW_LED_ON && pw_led_on_off == 0)
 	{
-		printk(KERN_ERR ">>>>>>> SYSFS_LED ON!>>>>>>>>>>>>\n");
+		//printk(KERN_ERR ">>>>>>> SYSFS_LED ON!>>>>>>>>>>>>\n");
 		gpio_set_value(hold_key_gpio, 1);
 		pw_led_on_off = 1;
 		return ;
 	}
 	else if(value == PW_LED_OFF && pw_led_on_off == 1 && cause_of_pw_pressed!=1)
 	{
-		printk(KERN_ERR " SYSFS_LED OFF!\n");
+	//	printk(KERN_ERR " SYSFS_LED OFF!\n");
 		gpio_set_value(hold_key_gpio, 0);
 		pw_led_on_off = 0;
 		return ;
@@ -99,11 +99,11 @@ static void keypad_led_store(struct led_classdev *led_cdev,
 	else		
 	{
 		if (value != 0 && value < 255) {
-			printk(KERN_INFO "FRONT_LED: SYSFS_LED On!\n");
+			//printk(KERN_INFO "FRONT_LED: SYSFS_LED On!\n");
 			gpio_set_value(keypad_gpio, 1);
 
 		} else if(value == 255){
-			printk(KERN_INFO "ALL_LED: SYSFS_LED On!\n");
+		//	printk(KERN_INFO "ALL_LED: SYSFS_LED On!\n");
 			gpio_set_value(keypad_gpio, 1);
 			if(use_hold_key)
 				gpio_set_value(hold_key_gpio, 1);
@@ -112,7 +112,7 @@ static void keypad_led_store(struct led_classdev *led_cdev,
 			cause_of_pw_pressed = 1;
 #endif
 		} else {
-			printk(KERN_INFO "ALL_LED: SYSFS_LED Off!\n");
+			//printk(KERN_INFO "ALL_LED: SYSFS_LED Off!\n");
 			gpio_set_value(keypad_gpio, 0);
 			if(use_hold_key)
 				gpio_set_value(hold_key_gpio, 0);
