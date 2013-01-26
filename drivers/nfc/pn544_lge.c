@@ -89,7 +89,7 @@ static void pn544_disable_irq(struct pn544_dev *pn544_dev)
 static irqreturn_t pn544_dev_irq_handler(int irq, void *dev_id)
 {
 	struct pn544_dev *pn544_dev = dev_id;
-	pr_info("[%s] in!\n", __func__);
+	pr_debug("[%s] in!\n", __func__);
 	pn544_disable_irq(pn544_dev);
 #ifdef READ_IRQ_MODIFY
 	do_reading=1;//DY_TEST
@@ -169,16 +169,29 @@ void pn544_factory_standby_set(void)
 static char pn544_standby_set_val1[6]={0x05, 0xF9, 0x04, 0x00, 0xC3, 0xE5};
 static char pn544_standby_set_val2[6]={0x05, 0x80, 0x83, 0x03, 0x5A, 0x0A};
 static char pn544_standby_set_val3[10]={0x09, 0x89, 0x83, 0x3F, 0x00, 0x9E, 0xAA, 0x01, 0xC2, 0x85};
+#define NFC_I2C_WRITE_RETRY_NUM 3
 
 static int __pn544_kwrite(void *dev, void* data, int size)
 {
     struct pn544_dev *pn544_dev;
     int ret = 0;
+    unsigned int retry = 0;
+
 
     if(dev != NULL)
         pn544_dev = (struct pn544_dev*)dev;
 
     ret = i2c_master_send(pn544_client, data, size);
+    while(retry != NFC_I2C_WRITE_RETRY_NUM)
+    {
+        msleep(10);
+        if(ret == size)
+            break;
+        ret = i2c_master_send(pn544_client, data, size);
+        retry++;
+        printk("%s i2c_master_send retry[%d]\n",__func__, retry);
+    }
+
     if(ret != size){
         printk("%s i2c_master_send failed[%d]\n", __func__, ret);
         return -1;
@@ -260,11 +273,15 @@ void pn544_factory_standby_set(void)
     pr_info("%s pn544_dev->ven_gpio[%d]\n", __func__, pn544_dev->ven_gpio);
     pr_info("%s pn544_dev->firm_gpio[%d]\n", __func__, pn544_dev->firm_gpio);
      printk("[seokmin] print test\n");        
+#if !defined(CONFIG_LGE_NFC_PN544_C3)
    gpio_set_value(platform_data->ven_gpio, 1);
     gpio_set_value(platform_data->firm_gpio, 1);
     msleep(10);
+#endif
     gpio_set_value(platform_data->ven_gpio, 0);
-//    gpio_set_value(platform_data->firm_gpio, 0);
+#if defined(CONFIG_LGE_NFC_PN544_C3)
+    gpio_set_value(platform_data->firm_gpio, 0);
+#endif
     msleep(10);
     gpio_set_value(platform_data->ven_gpio, 1);
     msleep(10);
