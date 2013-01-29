@@ -3,11 +3,7 @@
 static struct pn544_i2c_platform_data nfc_pdata = {
         .irq_gpio = NFC_GPIO_IRQ,
         .ven_gpio = NFC_GPIO_VEN,
-#ifdef CONFIG_MACH_LGE_U2
         .firm_gpio = 0xFF,
-#else
-        .firm_gpio = NFC_GPIO_FIRM,
-#endif
 };
 
 #define NFC_I2C_BOARD_INFO						\

@@ -99,13 +99,13 @@ void lge_set_reboot_reason(unsigned int reason);
 #endif /* CONFIG_ANDROID_RAM_CONSOLE */
 
 /* LGE_SJIT_S 2011-12-14 [mohamed.khadri@lge.com] gpios for NFC - PN544 */
-#ifdef CONFIG_LGE_NFC_PN544
+#ifdef CONFIG_LGE_NFC_PN544_C3
 //#define NFC_GPIO_IRQ		4
 //#define NFC_GPIO_VEN		62
 //#define NFC_GPIO_FRIM		49
 #define NFC_GPIO_FRIM_HW_1_X	42
 //#define NFC_I2C_SLAVE_ADDR 	0x28
-#endif //CONFIG_LGE_NFC_PN544
+#endif //CONFIG_LGE_NFC_PN544_C3
 /* LGE_SJIT_E 2011-12-14 [mohamed.khadri@lge.com] gpios for NFC - PN544 */
 
 /* LGE_SJIT_S 2011-12-19 [mohamed.khadri@lge.com] gpios for GPS */

@@ -238,7 +238,7 @@ u8 lgd_lcd_command_for_mipi[][30] = {
 };
 #else // CONFIG_DSI_VIDEO_MODE
 u8 lgd_lcd_command_for_mipi[][30] = {
-#if 1
+#ifndef CONFIG_MACH_LGE_P2
 	{SHORT_CMD_MIPI,DSI_GEN_SHORTWRITE_1PARAM,0x01,0x20,},											/* Display Inversion */
 	{SHORT_CMD_MIPI,DSI_GEN_SHORTWRITE_2PARAM,0x02,0x36,0x00,}, 									/* Set Address Mode */
 	{SHORT_CMD_MIPI,DSI_GEN_SHORTWRITE_2PARAM,0x02,0x3A,0x70,}, 									/* Interface Pixel Fromat */

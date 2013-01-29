@@ -1879,7 +1879,7 @@ static int twl6040_headset_power_put_enum(struct snd_kcontrol *kcontrol,
 
 //LGE_D1_BSP_ICS_S  seungdae.goh@lge.com 2012-04-24    [START_LGE]
 /* Codec Pre Power On */
-#ifdef CONFIG_MACH_LGE_U2
+#if defined(CONFIG_MACH_LGE_U2) || defined(CONFIG_MACH_LGE_P2)
 static const char *twl6040_earpiece_fir_texts[] = {
     "Off", "On",
 };
@@ -1908,7 +1908,7 @@ static const struct soc_enum twl6040_codec_power_enum =
 
 static int set_codec_power(struct snd_soc_codec *codec, int pwr_on );
 
-#ifdef CONFIG_MACH_LGE_U2
+#if defined(CONFIG_MACH_LGE_U2) || defined(CONFIG_MACH_LGE_P2)
 #ifdef MAIN_MIC_BIAS_CONTROL
 static int twl6040_main_mic_bias_get_enum(struct snd_kcontrol *kcontrol,
         struct snd_ctl_elem_value *ucontrol)
@@ -2106,7 +2106,7 @@ static const struct snd_kcontrol_new twl6040_snd_controls[] = {
 	SOC_ENUM_EXT("TWL Codec Power", twl6040_codec_power_enum,
 		twl6040_codec_power_get_enum,
 		twl6040_codec_power_put_enum),
-#ifdef CONFIG_MACH_LGE_U2
+#if defined(CONFIG_MACH_LGE_U2) || defined(CONFIG_MACH_LGE_P2)
     SOC_ENUM_EXT("Earpiece FIR Enable",twl6040_earpiece_fir_enum,
         twl6040_earpiece_fir_get_enum,
         twl6040_earpiece_fir_put_enum),

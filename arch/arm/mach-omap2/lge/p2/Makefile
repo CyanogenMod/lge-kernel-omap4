@@ -2,6 +2,8 @@
 # Makefile for the LGE p2 board
 #
 
+obj-y += ../board-lg-wifi.o
+
 obj-y += p2.o \
 		 p2_i2c.o \
 		 p2_mux.o \

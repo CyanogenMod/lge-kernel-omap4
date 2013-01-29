@@ -50,7 +50,7 @@
 #include <linux/lge/lm3559.h>
 #include <linux/muic/muic.h>
 //garam.kim@lge.com
-#ifdef CONFIG_LGE_NFC_PN544
+#ifdef CONFIG_LGE_NFC_PN544_C3
 #include "board-lge-nfc.h"
 #endif
 
@@ -921,7 +921,7 @@ static struct i2c_board_info i2c_4_info[] __initdata = {
 		.platform_data = &mpu3050_data.compass,
 	},
 //garam.kim@lge.com
-#ifdef CONFIG_LGE_NFC_PN544
+#ifdef CONFIG_LGE_NFC_PN544_C3
 	NFC_I2C_BOARD_INFO,
 #endif
 	/* LGE_SJIT 2011-12-07 [dojip.kim@lge.com] add max17043 platform_data */
@@ -1053,7 +1053,7 @@ int __init lge_i2c_init(void)
 	fixed_rev = LGE_PCB_1_0;
 #endif
 
-#ifdef CONFIG_LGE_NFC_PN544
+#ifdef CONFIG_LGE_NFC_PN544_C3
 	((struct pn544_i2c_platform_data *)i2c_4_info[3].platform_data)->
 	    firm_gpio =
 	    (system_rev >= fixed_rev) ? NFC_GPIO_FRIM_HW_1_X : NFC_GPIO_FIRM;

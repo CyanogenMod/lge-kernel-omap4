@@ -3,6 +3,8 @@ obj-$(CONFIG_MUIC)		+= muic_class.o muic_client_class.o
 obj-$(CONFIG_MUIC_TS5USBA33402) += muic_ts5usba33402.o
 ifeq ($(CONFIG_MACH_LGE_CX2), y)
 obj-$(CONFIG_MUIC_TSU5611) += muic_tsu5611_cx2.o
+else ifeq ($(CONFIG_MACH_LGE_P2), y)
+obj-$(CONFIG_MUIC_TSU5611) += muic_tsu5611_p2.o
 else
 obj-$(CONFIG_MUIC_TSU5611) += muic_tsu5611.o
 endif

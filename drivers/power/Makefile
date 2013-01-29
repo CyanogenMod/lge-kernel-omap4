@@ -41,7 +41,11 @@ obj-$(CONFIG_CHARGER_BQ2415x)	+= bq2415x_charger.o
 #obj-$(CONFIG_CHARGER_RT9524)	+= rt9524_charger.o
 ifdef CONFIG_LG_FW_MAX17043_FUEL_GAUGE_I2C
 ## LGE_SJIT 2011-10-26 [choongryeol.lee@lge.com]
+ifeq ($(CONFIG_MACH_LGE_P2),y)
+obj-$(CONFIG_TWL6030_BCI_BATTERY)	+= twl6030_bci_battery_ap_fuel_p2.o
+else
 obj-$(CONFIG_TWL6030_BCI_BATTERY)	+= twl6030_bci_battery_ap_fuel.o
+endif
 else ifdef CONFIG_LG_FW_MAX17048_FUEL_GAUGE_I2C
 obj-$(CONFIG_TWL6030_BCI_BATTERY)   += twl6030_bci_battery_u2.o
 else
