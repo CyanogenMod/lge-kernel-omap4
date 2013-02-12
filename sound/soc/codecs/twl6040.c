@@ -1108,7 +1108,11 @@ static int twl6040_hf_dac_event(struct snd_soc_dapm_widget *w,
 {
 	/* HFDAC settling time */
 	//usleep_range(80, 200);
+#ifndef CONFIG_MACH_LGE_U2
 	usleep_range(200, 300);  // MO2_COSMO_SKT_ICS, mo2sujin.kim, 120816, Remove tic noise in idle mode
+#else
+	usleep_range(1000, 2000);
+#endif
 
 	return 0;
 }
@@ -1591,30 +1595,6 @@ static irqreturn_t twl6040_hookkey_handler(int irq, void *data)
 }
 #endif /* CONFIG_SND_OMAP_SOC_LGE_JACK */
 
-#ifdef CONFIG_MACH_LGE_U2
-static int u2_cap_put_volsw(struct snd_kcontrol *kcontrol,
-				  struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	unsigned int regval = twl6040_read_reg_cache(codec,TWL6040_REG_EARCTL);
-	int ret;
-
-	/* If the Earphone switch is enabled, disable microphone gain
-	 * - This should prevent in-call (non-speakerphone) mic from picking
-	 *   up too much ambient noise (and echo the remote caller's voice)
-	 */
-	if (regval & 0x1) {
-		ucontrol->value.integer.value[0]=0;
-		ucontrol->value.integer.value[1]=0;
-	}
-	ret = snd_soc_put_volsw(kcontrol, ucontrol);
-	if (ret < 0)
-		return ret;
-
-	return 1;
-}
-#endif
-
 static int twl6040_put_volsw(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
 {
@@ -2067,13 +2047,8 @@ static const struct snd_kcontrol_new twl6040_snd_controls[] = {
 	/* Capture gains */
 	SOC_DOUBLE_TLV("Capture Preamplifier Volume",
 		TWL6040_REG_MICGAIN, 6, 7, 1, 1, mic_preamp_tlv),
-#if defined (CONFIG_MACH_LGE_U2)
-	SOC_DOUBLE_EXT_TLV("Capture Volume",
-		TWL6040_REG_MICGAIN, 0, 3, 4, 0, snd_soc_get_volsw, u2_cap_put_volsw, mic_amp_tlv),
-#else
 	SOC_DOUBLE_TLV("Capture Volume",
 		TWL6040_REG_MICGAIN, 0, 3, 4, 0, mic_amp_tlv),
-#endif
 
 	/* AFM gains */
 	SOC_DOUBLE_TLV("Aux FM Volume",
