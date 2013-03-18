@@ -1345,7 +1345,8 @@ static void twl6040_accessory_work(struct work_struct *work)
     else
     {
 #ifdef CONFIG_MACH_LGE_U2
-       if( (priv_jack & 0xFF ) ==  state) { //LGE_BSP seungdae.goh@lge.com 2012-09-05  If diff state  make retry 2 time
+        recheck_cnt = ( 0x0F00 & priv_jack ) >> 8 ;
+        if( (priv_jack & 0xFF ) ==  state) { //LGE_BSP seungdae.goh@lge.com 2012-09-05  If diff state  make retry 2 time
             recheck_cnt--;
         }
         else { /* Unstable state */
