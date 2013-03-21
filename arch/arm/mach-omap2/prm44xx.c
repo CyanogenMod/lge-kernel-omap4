@@ -227,6 +227,10 @@ void lge_omap4_prm_global_warm_sw_reset(const char *cmd)
 		} else if (!strcmp(cmd, "hidden")) {
 			restart_reason = 0x729F2000;
 			v |= OMAP4430_RST_GLOBAL_WARM_SW_MASK;
+		} else if (!strcmp(cmd, "oem-unlock") || !strcmp(cmd, "bootloader")) {
+                        /* Reboot and go to fastboot/unlock mode */
+			restart_reason = 0x77665533;
+			v |= OMAP4430_RST_GLOBAL_WARM_SW_MASK;
 		} else {
 			printk(KERN_EMERG "reboot: non-supported mode [%s]\n",
 					cmd);
