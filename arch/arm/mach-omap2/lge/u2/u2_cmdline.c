@@ -130,4 +130,10 @@ void __init lge_manipulate_cmdline(char *default_command_line)
 #ifdef NO_CONSOLE_SUSPEND
 	no_console_suspend(s);
 #endif
+
+	if (matchstr(p, "chg=68") ||
+	     matchstr(p, "chg=66") ||
+	     matchstr(p, "chg=65")) {
+		strlcat(s, " androidboot.battchg_pause=true", COMMAND_LINE_SIZE);
+	}
 }
