@@ -123,6 +123,12 @@ config CPU_FREQ_DEFAULT_GOV_HOTPLUG
 	  the help section of the driver. Fallback governor will be the
 	  performance governor.
 
+config CPU_FREQ_DEFAULT_GOV_SMARTASS2
+	bool "smartass2"
+	select CPU_FREQ_GOV_SMARTASS2
+	help
+	  Use the CPUFreq governor 'smartassV2' as default.
+
 ## SJIT 2012-02-01 [dojip.kim@lge.com] Add SANJOSE governor
 config CPU_FREQ_DEFAULT_GOV_SANJOSE
 	bool "sanjose (Experimental)"
@@ -252,6 +258,13 @@ config CPU_FREQ_GOV_HOTPLUG
 	  If you don't have one of these architectures or devices, use
 	  'ondemand' instead.
 
+	  If in doubt, say N.
+
+config CPU_FREQ_GOV_SMARTASS2
+	tristate "'smartassV2' cpufreq governor"
+	depends on CPU_FREQ
+	help
+	  'smartassV2' - a "smart" interactive governor
 	  If in doubt, say N.
 
 ## SJIT 2012-02-01 [dojip.kim@lge.com] Add SANJOSE governor
