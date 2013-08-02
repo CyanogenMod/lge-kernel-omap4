@@ -115,6 +115,10 @@ u32 wl_dbg_level = WL_DBG_ERR;
 extern uint dhd_init_ap_val;
 #endif /* defined(CONFIG_COMMON_PATCH) && defined(WLP2P) */
 
+#if defined(CONFIG_HAS_EARLYSUSPEND) && ! defined(SUPPORT_PM2_ONLY)
+extern uint wifi_pm;
+#endif
+
 #define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
 #define MACSTR "%02x:%02x:%02x:%02x:%02x:%02x"
 #define MAX_WAIT_TIME 1500
@@ -3384,7 +3388,7 @@ wl_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 
 #if !defined(SUPPORT_PM2_ONLY)
 	/* android has special hooks to change pm when kernel suspended */
-	pm = enabled ? ((dhd->in_suspend) ? PM_MAX : PM_FAST) : PM_OFF;
+	pm = enabled ? ((dhd->in_suspend && (wifi_pm == 0)) ? PM_MAX : PM_FAST) : PM_OFF;
 #else
 	pm = enabled ? PM_FAST : PM_OFF;
 #endif

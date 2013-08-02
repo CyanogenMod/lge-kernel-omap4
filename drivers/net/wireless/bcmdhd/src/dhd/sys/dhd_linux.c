@@ -335,6 +335,13 @@ struct semaphore dhd_chipup_sem;
 #endif
 /* LGE_UPDATE_E, moon-wifi@lge.com by 2lee, 20120601 */
 
+// Control wifi power mode during sleep sys/module/bcmdhd/wifi_pm
+// Set to 0 (default) to force PM_MAX, set to 1 to force PM_FAST
+#if defined(CONFIG_HAS_EARLYSUSPEND) && !defined(SUPPORT_PM2_ONLY)
+uint wifi_pm = 0;
+module_param(wifi_pm, uint, 0644);
+#endif
+
 #define DHD_REGISTRATION_TIMEOUT  12000  /* msec : allowed time to finished dhd registration */
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) */
 
@@ -645,7 +652,7 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 {
 
 #ifndef SUPPORT_PM2_ONLY
-	int power_mode = PM_MAX;
+	int power_mode = (wifi_pm == 1) ? PM_FAST : PM_MAX;
 #endif
 
 	/* wl_pkt_filter_enable_t	enable_parm; */
