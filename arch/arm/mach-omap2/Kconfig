@@ -540,6 +540,11 @@ config OMAP4430_GPU_OVERCLOCK
 	depends on ARCH_OMAP4
 	default n
 
+config OMAP4430_IVA_OVERCLOCK
+	bool "Enables OMAP 4430 IVA (Multimedia DSP) overclock"
+	depends on ARCH_OMAP4
+	default n
+
 endmenu
 
 endif
