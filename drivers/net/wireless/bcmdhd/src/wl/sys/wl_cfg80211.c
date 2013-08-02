@@ -3369,11 +3369,12 @@ static s32
 wl_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 	bool enabled, s32 timeout)
 {
-	//bill.jung@lge.com - For config file setup
-	#if 0
 	s32 pm;
 	s32 err = 0;
 	struct wl_priv *wl = wiphy_priv(wiphy);
+#if !defined(SUPPORT_PM2_ONLY)
+	dhd_pub_t *dhd = (dhd_pub_t *)(wl->pub);
+#endif
 
 	CHECK_SYS_UP(wl);
 
@@ -3381,7 +3382,13 @@ wl_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 		return err;
 	}
 
+#if !defined(SUPPORT_PM2_ONLY)
+	/* android has special hooks to change pm when kernel suspended */
+	pm = enabled ? ((dhd->in_suspend) ? PM_MAX : PM_FAST) : PM_OFF;
+#else
 	pm = enabled ? PM_FAST : PM_OFF;
+#endif
+
 	/* Do not enable the power save after assoc if it is p2p interface */
 	if (wl->p2p && wl->p2p->vif_created) {
 		WL_DBG(("Do not enable the power save for p2p interfaces even after assoc\n"));
@@ -3398,10 +3405,6 @@ wl_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 		return err;
 	}
 	return err;
-	#endif
-
-	return 0;
-	//bill.jung@lge.com - For config file setup
 }
 
 static __used u32 wl_find_msb(u16 bit16)
