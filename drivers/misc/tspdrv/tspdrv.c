@@ -305,6 +305,48 @@ static ssize_t write(struct file *file, const char *buf, size_t count, loff_t *p
 	return count;
 }
 
+#define DEFAULT_TIMED_STRENGTH 120
+static VibeInt8 nForce[1] = {DEFAULT_TIMED_STRENGTH};
+
+static ssize_t nforce_val_show(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%hu", nForce[0]);
+}
+
+static ssize_t nforce_val_store(struct device *dev, struct device_attribute *attr,
+			const char *buf, size_t size)
+{
+	unsigned short int strength_val = DEFAULT_TIMED_STRENGTH;
+	if (kstrtoul(buf, 0, (unsigned long int*)&strength_val))
+		pr_err("[VIB] %s: error on storing nforce\n", __func__);
+
+
+	/* make sure new pwm duty is in range */
+	if (strength_val > 127)
+		strength_val = 127;
+	else if (strength_val < 32)
+		strength_val = 32;
+
+        nForce[0] = strength_val;
+
+	return size;
+}
+
+static DEVICE_ATTR(nforce_timed, S_IRUGO | S_IWUSR, nforce_val_show, nforce_val_store);
+
+static int create_vibrator_sysfs(struct kobject *vibrator_kobj)
+{
+	int ret;
+
+	ret = sysfs_create_file(vibrator_kobj, &dev_attr_nforce_timed.attr);
+	if (unlikely(ret < 0)) {
+		return ret;
+	}
+
+	return 0;
+}
+
 #if HAVE_UNLOCKED_IOCTL
 static long unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 #else
@@ -315,7 +357,6 @@ static int ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsig
 #ifdef QA_TEST
 	int i;
 #endif
-	VibeInt8 nForce[1] = {128};
 
 	//printk("{tspdrv} : ioctl cmd = %x\n", cmd);
 
@@ -510,6 +551,9 @@ static int vibrator_probe(struct platform_device *pdev)
 #endif
 
 	platform_set_drvdata(pdev, data);
+
+	create_vibrator_sysfs(&pdev->dev.kobj);
+        nForce[0] = DEFAULT_TIMED_STRENGTH;
 
 	dev_info(&pdev->dev, "tspdrv: probed\n");
 	return 0;
