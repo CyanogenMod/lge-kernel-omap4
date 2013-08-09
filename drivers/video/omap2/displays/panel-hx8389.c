@@ -750,16 +750,16 @@ static DEVICE_ATTR(file_tuning, 0660, NULL, display_file_tuning_store);
 #endif
 //LGE_CHANGE_S [jeonghoon.cho@lge.com] 2012-0208, P940 : Add sysfile for gamma tuning + at%kcal jeonghoon.cho@lge.com
 extern int dispc_set_gamma_rgb(enum omap_channel ch, u8 gamma,int red,int green,int blue);
+static int red = 255,green = 255,blue = 255;
 static ssize_t display_gamma_tuning_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	return 0;
+	return snprintf(buf, PAGE_SIZE, "%d,%d,%d",red,green,blue);
 }
 static ssize_t display_gamma_tuning_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf, size_t size)
 {
-	int red,green,blue;
 	sscanf(buf, "%d,%d,%d",&red,&green,&blue);
 	printk("SJ	:	RED	:	%d	GREEN :		%d	BLUE :		%d\n",red,green,blue);
 	dispc_set_gamma_rgb(OMAP_DSS_CHANNEL_LCD, 0,red,green,blue);
