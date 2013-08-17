@@ -388,6 +388,8 @@ static int apds_9190_init(struct i2c_client *client)
 	data->ps_detection = 1; // we are forcing Near-to-Far interrupt, so this is defaulted to 1
 
 	printk("%s: configurations are set\n", __func__);
+
+	return ret;
 }
 
 static void apds9190_change_ps_threshold(struct i2c_client *client)
