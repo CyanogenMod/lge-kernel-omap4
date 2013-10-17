@@ -21,6 +21,17 @@ config IOSCHED_DEADLINE
 	  a new point in the service tree and doing a batch of IO from there
 	  in case of expiry.
 
+config IOSCHED_SIO
+	bool
+	default y
+	---help---
+	  SIO Scheduler is based on the deadline scheduler but it's more like a mix 
+	  between no-op and deadline. In other words, SIO is like a lighter version of 
+	  deadline but it doesn't do any kind of sorting, so it's aimed mainly for 
+	  random-access devices (like SSD hard disks) where request sorting is no 
+	  needed (as any sector can be accesed in a constant time, regardless of 
+	  its physical location).  
+
 config IOSCHED_CFQ
 	tristate "CFQ I/O scheduler"
 	# If BLK_CGROUP is a module, CFQ has to be built as module.
@@ -57,7 +68,10 @@ choice
 		bool "CFQ" if IOSCHED_CFQ=y
 
 	config DEFAULT_NOOP
-		bool "No-op"
+		bool "No-op" if IOSCHED_NOOP=y
+
+	config DEFAULT_SIO
+		bool "SIO" if IOSCHED_SIO=y
 
 endchoice
 
@@ -66,6 +80,7 @@ config DEFAULT_IOSCHED
 	default "deadline" if DEFAULT_DEADLINE
 	default "cfq" if DEFAULT_CFQ
 	default "noop" if DEFAULT_NOOP
+	default "sio" if DEFAULT_SIO
 
 endmenu
 

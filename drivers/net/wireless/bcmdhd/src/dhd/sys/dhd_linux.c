@@ -335,6 +335,13 @@ struct semaphore dhd_chipup_sem;
 #endif
 /* LGE_UPDATE_E, moon-wifi@lge.com by 2lee, 20120601 */
 
+// Control wifi power mode during sleep sys/module/bcmdhd/wifi_pm
+// Set to 0 (default) to force PM_MAX, set to 1 to force PM_FAST
+#if defined(CONFIG_HAS_EARLYSUSPEND) && !defined(SUPPORT_PM2_ONLY)
+uint wifi_pm = 0;
+module_param(wifi_pm, uint, 0644);
+#endif
+
 #define DHD_REGISTRATION_TIMEOUT  12000  /* msec : allowed time to finished dhd registration */
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) */
 
@@ -644,11 +651,9 @@ static void dhd_set_packet_filter(int value, dhd_pub_t *dhd)
 static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 {
 
-//bill.jung@lge.com - Don't set up filter and Power save mode
-#if 0
-	int power_mode = PM_MAX;
+#ifndef SUPPORT_PM2_ONLY
+	int power_mode = (wifi_pm == 1) ? PM_FAST : PM_MAX;
 #endif
-//bill.jung@lge.com - Don't set up filter and Power save mode
 
 	/* wl_pkt_filter_enable_t	enable_parm; */
 	char iovbuf[32];
@@ -664,15 +669,11 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 				/* Kernel suspended */
 				DHD_ERROR(("%s: force extra Suspend setting \n", __FUNCTION__));
 				
-//bill.jung@lge.com - Don't set up filter and Power save mode
-#if 0
+#ifndef SUPPORT_PM2_ONLY
 				dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&power_mode,
 				                 sizeof(power_mode), TRUE, 0);
 
-				/* Enable packet filter, only allow unicast packet to send up */
-				dhd_set_packet_filter(1, dhd);
 #endif
-//bill.jung@lge.com - Don't set up filter and Power save mode
 				/* Enable packet filter, only allow unicast packet to send up */
 				dhd_set_packet_filter(1, dhd);
 
@@ -694,16 +695,11 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 				/* Kernel resumed  */
 				DHD_TRACE(("%s: Remove extra suspend setting \n", __FUNCTION__));
 				
-//bill.jung@lge.com - Don't set up filter and Power save mode
-#if 0
+#ifndef SUPPORT_PM2_ONLY
 				power_mode = PM_FAST;
 				dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&power_mode,
 				                 sizeof(power_mode), TRUE, 0);
-
-				/* disable pkt filter */
-				dhd_set_packet_filter(0, dhd);
 #endif
-//bill.jung@lge.com - Don't set up filter and Power save mode
 				/* disable pkt filter */
 				dhd_set_packet_filter(0, dhd);
 
@@ -2699,6 +2695,9 @@ dhd_open(struct net_device *net)
 
 	OLD_MOD_INC_USE_COUNT;
 exit:
+	if (ret)
+		dhd_stop(net);
+
 	DHD_OS_WAKE_UNLOCK(&dhd->pub);
 	return ret;
 }
@@ -3472,9 +3471,9 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	char eventmask[WL_EVENTING_MASK_LEN];
 	char iovbuf[WL_EVENTING_MASK_LEN + 12];	/*  Room for "event_msgs" + '\0' + bitvec  */
 
-	//bill.jung@lge.com - For config file setup
-	//uint power_mode = PM_FAST;
-	//bill.jung@lge.com - For config file setup
+#ifndef SUPPORT_PM2_ONLY
+	uint power_mode = PM_FAST;
+#endif 
 	uint32 dongle_align = DHD_SDALIGN;
 	uint32 glom = 0;
 	uint bcn_timeout = 8;  // for CCX
@@ -3636,9 +3635,9 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		DHD_ERROR(("%s assoc_listen failed %d\n", __FUNCTION__, ret));
 
 	/* Set PowerSave mode */
-	//bill.jung@lge.com - For config file setup
-	//dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&power_mode, sizeof(power_mode), TRUE, 0);
-	//bill.jung@lge.com - For config file setup
+#ifndef SUPPORT_PM2_ONLY
+	dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&power_mode, sizeof(power_mode), TRUE, 0);
+#endif
 
 	/* Match Host and Dongle rx alignment */
 	bcm_mkiovar("bus:txglomalign", (char *)&dongle_align, 4, iovbuf, sizeof(iovbuf));
@@ -4941,14 +4940,13 @@ int net_os_set_suspend_disable(struct net_device *dev, int val)
 
 int net_os_set_suspend(struct net_device *dev, int val)
 {
-	int ret = 0;
-#if defined(CONFIG_HAS_EARLYSUSPEND)
 	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(dev);
+	int ret = 0;
 
 	if (dhd) {
-		ret = dhd_set_suspend(val, &dhd->pub);
+		ret = dhd->pub.suspend_disable_flag;
+		dhd->pub.suspend_disable_flag = val;
 	}
-#endif /* defined(CONFIG_HAS_EARLYSUSPEND) */
 	return ret;
 }
 

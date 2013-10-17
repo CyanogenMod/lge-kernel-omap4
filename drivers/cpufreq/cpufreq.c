@@ -32,6 +32,13 @@
 
 #include <trace/events/power.h>
 
+
+#ifdef CONFIG_OMAP4430_CPU_OVERCLOCK
+#define OMAP4430_SAFE_CPU_BOOT_SPEED_MIN   300000
+#define OMAP4430_SAFE_CPU_BOOT_SPEED_MAX  1008000
+#endif
+
+
 /**
  * The "cpufreq driver" - the arch- or hardware-dependent low
  * level driver of CPUFreq support, and its spinlock. This lock
@@ -941,6 +948,15 @@ static int cpufreq_add_dev(struct sys_device *sys_dev)
 		pr_debug("initialization failed\n");
 		goto err_unlock_policy;
 	}
+
+#ifdef CONFIG_OMAP4430_CPU_OVERCLOCK
+	if (policy->min < OMAP4430_SAFE_CPU_BOOT_SPEED_MIN) 
+		policy->min = OMAP4430_SAFE_CPU_BOOT_SPEED_MIN;
+
+	if (policy->max > OMAP4430_SAFE_CPU_BOOT_SPEED_MAX) 
+		policy->max = OMAP4430_SAFE_CPU_BOOT_SPEED_MAX;
+#endif
+
 	policy->user_policy.min = policy->min;
 	policy->user_policy.max = policy->max;
 

@@ -37,6 +37,7 @@ DHDCFLAGS += -DBCMCCX
 endif
 #LGE_CHANGE_E, real-wifi@lge.com by kyunghoe.kim, 20120626, for ccx
 
+#DHDCFLAGS += -DSUPPORT_PM2_ONLY
 
 ifeq ($(CONFIG_BCMDHD_HW_OOB),y)
 DHDCFLAGS += -DHW_OOB -DOOB_INTR_ONLY

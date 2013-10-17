@@ -115,6 +115,10 @@ u32 wl_dbg_level = WL_DBG_ERR;
 extern uint dhd_init_ap_val;
 #endif /* defined(CONFIG_COMMON_PATCH) && defined(WLP2P) */
 
+#if defined(CONFIG_HAS_EARLYSUSPEND) && ! defined(SUPPORT_PM2_ONLY)
+extern uint wifi_pm;
+#endif
+
 #define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
 #define MACSTR "%02x:%02x:%02x:%02x:%02x:%02x"
 #define MAX_WAIT_TIME 1500
@@ -3369,11 +3373,12 @@ static s32
 wl_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 	bool enabled, s32 timeout)
 {
-	//bill.jung@lge.com - For config file setup
-	#if 0
 	s32 pm;
 	s32 err = 0;
 	struct wl_priv *wl = wiphy_priv(wiphy);
+#if !defined(SUPPORT_PM2_ONLY)
+	dhd_pub_t *dhd = (dhd_pub_t *)(wl->pub);
+#endif
 
 	CHECK_SYS_UP(wl);
 
@@ -3381,7 +3386,13 @@ wl_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 		return err;
 	}
 
+#if !defined(SUPPORT_PM2_ONLY)
+	/* android has special hooks to change pm when kernel suspended */
+	pm = enabled ? ((dhd->in_suspend && (wifi_pm == 0)) ? PM_MAX : PM_FAST) : PM_OFF;
+#else
 	pm = enabled ? PM_FAST : PM_OFF;
+#endif
+
 	/* Do not enable the power save after assoc if it is p2p interface */
 	if (wl->p2p && wl->p2p->vif_created) {
 		WL_DBG(("Do not enable the power save for p2p interfaces even after assoc\n"));
@@ -3398,10 +3409,6 @@ wl_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 		return err;
 	}
 	return err;
-	#endif
-
-	return 0;
-	//bill.jung@lge.com - For config file setup
 }
 
 static __used u32 wl_find_msb(u16 bit16)
