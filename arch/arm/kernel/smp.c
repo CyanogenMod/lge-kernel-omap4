@@ -279,6 +279,7 @@ asmlinkage void __cpuinit secondary_start_kernel(void)
 {
 	struct mm_struct *mm = &init_mm;
 	unsigned int cpu;
+	static bool booted;
 
 	/*
 	 * The identity mapping is uncached (strongly ordered), so
