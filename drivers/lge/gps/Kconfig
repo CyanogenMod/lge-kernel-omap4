@@ -1,0 +1,12 @@
+config GPS
+	bool "GPS GPIO driver"
+	default n
+	help
+	  This is a driver to control GPS by GPIO.
+
+config P940_GPS_LNA_SD_USE
+	bool "GPS extend LNA GPIO support"
+	depends on GPS
+	default n
+	help
+	  If you want to support GPS extend LNA GPIO, say Y.

@@ -242,7 +242,12 @@
 #define OMAP_DMA_AMODE_DOUBLE_IDX	0x03
 
 #define DMA_DEFAULT_FIFO_DEPTH		0x10
-#define DMA_DEFAULT_ARB_RATE		0x01
+#if 1
+#define DMA_DEFAULT_ARB_RATE		0x01 	//0x01->0x02 0x64 =100
+#else
+#define DMA_DEFAULT_ARB_RATE		0x02	//for DMA Priority //hyunh0.cho
+#endif
+
 /* Pass THREAD_RESERVE ORed with THREAD_FIFO for tparams */
 #define DMA_THREAD_RESERVE_NORM		(0x00 << 12) /* Def */
 #define DMA_THREAD_RESERVE_ONET		(0x01 << 12)

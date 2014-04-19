@@ -1208,6 +1208,11 @@ capture:
 	return ret;
 }
 
+#define ABE_SUSPEND_ENABLE_IN_PARTIAL  //                                                                             
+#ifdef ABE_SUSPEND_ENABLE_IN_PARTIAL
+extern int s_partial_suspend;
+#endif
+
 int soc_dsp_be_digital_mute(struct snd_soc_pcm_runtime *fe, int mute)
 {
 	struct snd_soc_dsp_params *dsp_params;
@@ -1373,17 +1378,27 @@ int soc_dsp_fe_suspend(struct snd_soc_pcm_runtime *fe)
 	struct snd_soc_platform *platform = fe->platform;
 	struct snd_soc_platform_driver *plat_drv = platform->driver;
 
+#ifdef ABE_SUSPEND_ENABLE_IN_PARTIAL
+	if( s_partial_suspend == 0)
+#endif
+        {
 	if (dai_drv->suspend && !dai_drv->ac97_control)
 		dai_drv->suspend(dai);
 
+        }
 	if (plat_drv->suspend && !platform->suspended) {
 		plat_drv->suspend(dai);
 		platform->suspended = 1;
 	}
 
+#ifdef ABE_SUSPEND_ENABLE_IN_PARTIAL
+	if( s_partial_suspend == 0)
+#endif
+        {
 	soc_dsp_be_cpu_dai_suspend(fe);
 	soc_dsp_be_platform_suspend(fe);
 
+	}
 	return 0;
 }
 
@@ -1529,12 +1544,17 @@ int soc_dsp_fe_resume(struct snd_soc_pcm_runtime *fe)
 	struct snd_soc_platform *platform = fe->platform;
 	struct snd_soc_platform_driver *plat_drv = platform->driver;
 
+#ifdef ABE_SUSPEND_ENABLE_IN_PARTIAL
+	if( s_partial_suspend == 0)
+#endif
+        {
 	soc_dsp_be_cpu_dai_resume(fe);
 	soc_dsp_be_platform_resume(fe);
 
 	if (dai_drv->resume && !dai_drv->ac97_control)
 		dai_drv->resume(dai);
 
+	}
 	if (plat_drv->resume && platform->suspended) {
 		plat_drv->resume(dai);
 		platform->suspended = 0;
@@ -1658,13 +1678,14 @@ static ssize_t soc_dsp_show_state(struct snd_soc_pcm_runtime *fe,
 
 	list_for_each_entry(dsp_params, &fe->dsp[stream].be_clients, list_be) {
 		struct snd_soc_pcm_runtime *be = dsp_params->be;
+		params = &dsp_params->hw_params;
 
 		offset += snprintf(buf + offset, size - offset,
 				"- %s\n", be->dai_link->name);
 
 		offset += snprintf(buf + offset, size - offset,
 				"   State: %s\n",
-				dsp_state_string(fe->dsp[stream].state));
+				dsp_state_string(be->dsp[stream].state));
 
 		if ((be->dsp[stream].state >= SND_SOC_DSP_STATE_HW_PARAMS) &&
 		    (be->dsp[stream].state <= SND_SOC_DSP_STATE_STOP))

@@ -16,6 +16,8 @@
 #include <linux/platform_device.h>
 #include <linux/reboot.h>
 #include <linux/notifier.h>
+/*                                                                */
+#include <linux/io.h>
 
 #include <mach/hardware.h>
 #include <mach/omap4-common.h>
@@ -32,11 +34,21 @@ static int omap_reboot_notifier_call(struct notifier_block *this,
 	if (!sar_base)
 		return notifier_from_errno(-ENOMEM);
 
+	/*                                        
+                                               
+  */
+#if defined(CONFIG_LGE_HANDLE_PANIC)
+	if (code == SYS_RESTART)
+		__raw_writel(0, sar_base + OMAP_REBOOT_REASON_OFFSET);
+	else if (code == SYS_POWER_OFF)
+		reason = "off";
+#else
 	/* Save reboot mode in scratch memory */
 	if (code == SYS_RESTART && cmd != NULL && strlen(cmd))
 		reason = cmd;
 	else if (code == SYS_POWER_OFF)
 		reason = "off";
+#endif
 
 	strncpy(sar_base + OMAP_REBOOT_REASON_OFFSET,
 			reason, OMAP_REBOOT_REASON_SIZE);

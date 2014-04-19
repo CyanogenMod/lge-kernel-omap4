@@ -828,9 +828,12 @@ void tf_crypto_enable_clock(uint32_t clock_paddr)
 		clock_paddr);
 
 	/* Ensure none concurrent access when changing clock registers */
-	spin_lock_irqsave(&clk_lock, flags);
+	//spin_lock_irqsave(&clk_lock, flags);
 
 	tf_clock_timer_start();
+
+	/* Ensure none concurrent access when changing clock registers */
+	spin_lock_irqsave(&clk_lock, flags);
 
 	clock_reg = (u32 *)IO_ADDRESS(clock_paddr);
 

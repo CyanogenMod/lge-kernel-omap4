@@ -32,6 +32,11 @@
 #define ANDROID_ALARM_PRINT_INT (1U << 5)
 #define ANDROID_ALARM_PRINT_FLOW (1U << 6)
 
+/*                                                                     */
+#define MAX_COUNT_SAME_TRIGGERED_ALARM 30
+static int alarm_triggered_count = 0;
+static s64 previous_triggered_but_not_called_time = 0;
+/*                                                                     */
 static int debug_mask = ANDROID_ALARM_PRINT_ERROR | \
 			ANDROID_ALARM_PRINT_INIT_STATUS;
 module_param_named(debug_mask, debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP);
@@ -335,10 +340,37 @@ static enum hrtimer_restart alarm_timer_triggered(struct hrtimer *timer)
 
 	while (base->first) {
 		alarm = container_of(base->first, struct alarm, node);
+#ifdef CONFIG_MACH_LGE
+		/*                                           
+                                                  */
+		if ((alarm->softexpires.tv64 > now.tv64) &&
+		    (alarm->softexpires.tv64 - now.tv64 > 500000000)) {
+#else
 		if (alarm->softexpires.tv64 > now.tv64) {
+#endif
 			pr_alarm(FLOW, "don't call alarm, %pF, %lld (s %lld)\n",
 				alarm->function, ktime_to_ns(alarm->expires),
 				ktime_to_ns(alarm->softexpires));
+			/*                                                                      */
+			if (previous_triggered_but_not_called_time == alarm->softexpires.tv64) {
+				if (alarm_triggered_count > MAX_COUNT_SAME_TRIGGERED_ALARM) {
+					/* We have seen that if an app. uses alarm API wrongly,
+					 * it causes the same alarm is triggered endlessly
+					 * and the system hangs.
+					 * Therefore, we will just remove that alarm
+					 * to avoid the system lockup. */
+					printk("alarm: WRONG alarm was triggerd more than 0x%x times, JUST REMOVE IT!\n", MAX_COUNT_SAME_TRIGGERED_ALARM);
+					base->first = rb_next(&alarm->node);
+					rb_erase(&alarm->node, &base->alarms);
+					RB_CLEAR_NODE(&alarm->node);
+				} else {
+					alarm_triggered_count++;
+				}
+			} else {
+				alarm_triggered_count = 0;
+				previous_triggered_but_not_called_time = alarm->softexpires.tv64;
+			}
+			/*                                                                      */
 			break;
 		}
 		base->first = rb_next(&alarm->node);
@@ -380,6 +412,10 @@ static int alarm_suspend(struct platform_device *pdev, pm_message_t state)
 	struct timespec     wall_time;
 	struct alarm_queue *wakeup_queue = NULL;
 	struct alarm_queue *tmp_queue = NULL;
+#ifdef CONFIG_MACH_LGE
+	struct rtc_wkalrm current_rtc_alarm;
+	unsigned long current_rtc_alarm_time;
+#endif
 
 	pr_alarm(SUSPEND, "alarm_suspend(%p, %d)\n", pdev, state.event);
 
@@ -420,8 +456,22 @@ static int alarm_suspend(struct platform_device *pdev, pm_message_t state)
 			"rtc alarm set at %ld, now %ld, rtc delta %ld.%09ld\n",
 			rtc_alarm_time, rtc_current_time,
 			rtc_delta.tv_sec, rtc_delta.tv_nsec);
+#ifdef CONFIG_MACH_LGE
+		/*                                            
+                                */
+		rtc_read_alarm(alarm_rtc_dev, &current_rtc_alarm);
+		rtc_tm_to_time(&current_rtc_alarm.time, &current_rtc_alarm_time);
+		pr_alarm(SUSPEND,
+				"current rtc alarm set at %ld, enabled %hhd\n",
+				current_rtc_alarm_time, current_rtc_alarm.enabled);
+
+		if (rtc_current_time + 1 >= rtc_alarm_time ||
+		    rtc_alarm_time != current_rtc_alarm_time || !current_rtc_alarm.enabled) {
+			pr_alarm(SUSPEND, "alarm about to go off or failure in setting rtc alarm \n");
+#else
 		if (rtc_current_time + 1 >= rtc_alarm_time) {
 			pr_alarm(SUSPEND, "alarm about to go off\n");
+#endif
 			memset(&rtc_alarm, 0, sizeof(rtc_alarm));
 			rtc_alarm.enabled = 0;
 			rtc_set_alarm(alarm_rtc_dev, &rtc_alarm);

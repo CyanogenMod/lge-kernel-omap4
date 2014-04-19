@@ -297,6 +297,22 @@
 
 #include "gadget_chips.h"
 
+#if defined(CONFIG_LGE_ANDROID_USB)
+
+#if defined(CONFIG_MACH_LGE_U2)
+#define PRODUCT_NAME_EXTERNAL   "U2 SD Card"
+#else
+#define PRODUCT_NAME_EXTERNAL 	"P2 SD Card"
+#endif
+
+static const char product_name_external[] = PRODUCT_NAME_EXTERNAL;
+
+enum
+{
+	INTERNAL_MASS_STORAGE = 0,
+	EXTERNAL_MASS_STORAGE = 1
+};
+#endif /*                        */
 
 /*------------------------------------------------------------------------*/
 
@@ -404,7 +420,11 @@ struct fsg_common {
 	 * Vendor (8 chars), product (16 chars), release (4
 	 * hexadecimal digits) and NUL byte
 	 */
+#if defined(CONFIG_LGE_ANDROID_USB)
+	char inquiry_string[FSG_MAX_LUNS][8 + 16 + 4 + 1];
+#else
 	char inquiry_string[8 + 16 + 4 + 1];
+#endif
 
 	struct kref		ref;
 };
@@ -625,8 +645,18 @@ static int fsg_setup(struct usb_function *f,
 		if (ctrl->bRequestType !=
 		    (USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE))
 			break;
+
+//                                                                            
+#if defined(CONFIG_LGE_ANDROID_USB)
+		VDBG(fsg, "fsg->interface_number = %d \n", fsg->interface_number);
+
+		if (w_value != 0)
+			return -EDOM;
+#else
 		if (w_index != fsg->interface_number || w_value != 0)
 			return -EDOM;
+#endif
+//                                        
 
 		/*
 		 * Raise an exception to stop the current operation
@@ -640,8 +670,19 @@ static int fsg_setup(struct usb_function *f,
 		if (ctrl->bRequestType !=
 		    (USB_DIR_IN | USB_TYPE_CLASS | USB_RECIP_INTERFACE))
 			break;
+
+//                                                                           
+#if defined(CONFIG_LGE_ANDROID_USB)
+		VDBG(fsg, "fsg->interface_number = %d \n",fsg->interface_number);
+
+		if (w_value != 0)
+			return -EDOM;	
+#else
 		if (w_index != fsg->interface_number || w_value != 0)
 			return -EDOM;
+#endif
+//                                        
+
 		VDBG(fsg, "get max LUN\n");
 		*(u8 *)req->buf = fsg->common->nluns - 1;
 
@@ -1217,7 +1258,13 @@ static int do_inquiry(struct fsg_common *common, struct fsg_buffhd *bh)
 	buf[5] = 0;		/* No special options */
 	buf[6] = 0;
 	buf[7] = 0;
+
+#if defined(CONFIG_LGE_ANDROID_USB)
+	memcpy(buf + 8, common->inquiry_string[common->lun], sizeof common->inquiry_string[0]);
+#else
 	memcpy(buf + 8, common->inquiry_string, sizeof common->inquiry_string);
+#endif
+
 	return 36;
 }
 
@@ -1385,10 +1432,12 @@ static int do_mode_sense(struct fsg_common *common, struct fsg_buffhd *bh)
 
 	/* No block descriptors */
 
-	/*
-	 * The mode pages, in numerical order.  The only page we support
-	 * is the Caching page.
+//                                                               
+	/* Disabled to workaround USB reset problems with a Vista host.
 	 */
+#if 1
+	/* The mode pages, in numerical order.  The only page we support
+	 * is the Caching page. */
 	if (page_code == 0x08 || all_pages) {
 		valid_page = 1;
 		buf[0] = 0x08;		/* Page code */
@@ -1409,7 +1458,10 @@ static int do_mode_sense(struct fsg_common *common, struct fsg_buffhd *bh)
 		}
 		buf += 12;
 	}
-
+#else
+	valid_page = 1;
+#endif
+//                                                               
 	/*
 	 * Check that a valid page was requested and the mode data length
 	 * isn't too long.
@@ -1509,7 +1561,12 @@ static int do_prevent_allow(struct fsg_common *common)
 		return -EINVAL;
 	}
 
+/* Check NO FUA (QCT patch) */
+#if defined(CONFIG_LGE_ANDROID_USB)
+	if (!curlun->nofua && curlun->prevent_medium_removal && !prevent)
+#else
 	if (curlun->prevent_medium_removal && !prevent)
+#endif
 		fsg_lun_fsync_sub(curlun);
 	curlun->prevent_medium_removal = prevent;
 	return 0;
@@ -2349,7 +2406,15 @@ static int alloc_request(struct fsg_common *common, struct usb_ep *ep,
 /* Reset interface setting and re-init endpoint state (toggle etc). */
 static int do_set_interface(struct fsg_common *common, struct fsg_dev *new_fsg)
 {
+#if !defined(CONFIG_LGE_ANDROID_USB)
+	/* Kernel panic in usb_ep_fifo_flush when USB disconnect
+	 * Orginated from Qualcom patch
+	 * https://www.codeaurora.org/gitweb/quic/la/
+	 * ?p=kernel/msm.git;a=commit;h=c56a55cfdbcad209188a0fe7120d544b519077d3
+	 */
 	const struct usb_endpoint_descriptor *d;
+#endif
+
 	struct fsg_dev *fsg;
 	int i, rc = 0;
 
@@ -2374,6 +2439,13 @@ reset:
 			}
 		}
 
+#if !defined(CONFIG_LGE_ANDROID_USB)
+		/* Kernel panic in usb_ep_fifo_flush when USB disconnect
+		 * Orginated from Qualcom patch
+		 * https://www.codeaurora.org/gitweb/quic/la/
+		 * ?p=kernel/msm.git;a=commit;h=c56a55cfdbcad209188a0fe7120d544b519077d3
+		 */
+
 		/* Disable the endpoints */
 		if (fsg->bulk_in_enabled) {
 			usb_ep_disable(fsg->bulk_in);
@@ -2383,6 +2455,7 @@ reset:
 			usb_ep_disable(fsg->bulk_out);
 			fsg->bulk_out_enabled = 0;
 		}
+#endif
 
 		common->fsg = NULL;
 		wake_up(&common->fsg_wait);
@@ -2394,6 +2467,13 @@ reset:
 
 	common->fsg = new_fsg;
 	fsg = common->fsg;
+
+#if !defined(CONFIG_LGE_ANDROID_USB)
+	/* Kernel panic in usb_ep_fifo_flush when USB disconnect
+	 * Orginated from Qualcom patch
+	 * https://www.codeaurora.org/gitweb/quic/la/
+	 * ?p=kernel/msm.git;a=commit;h=c56a55cfdbcad209188a0fe7120d544b519077d3
+	 */
 
 	/* Enable the endpoints */
 	d = fsg_ep_desc(common->gadget,
@@ -2411,6 +2491,7 @@ reset:
 	fsg->bulk_out_enabled = 1;
 	common->bulk_out_maxpacket = le16_to_cpu(d->wMaxPacketSize);
 	clear_bit(IGNORE_BULK_OUT, &fsg->atomic_bitflags);
+#endif
 
 	/* Allocate the requests */
 	for (i = 0; i < FSG_NUM_BUFFERS; ++i) {
@@ -2440,6 +2521,39 @@ reset:
 static int fsg_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 {
 	struct fsg_dev *fsg = fsg_from_func(f);
+
+#if defined(CONFIG_LGE_ANDROID_USB)
+	/* Kernel panic in usb_ep_fifo_flush when USB disconnect
+	 * Orginated from Qualcom patch
+	 * https://www.codeaurora.org/gitweb/quic/la/
+	 * ?p=kernel/msm.git;a=commit;h=c56a55cfdbcad209188a0fe7120d544b519077d3
+	 */
+
+	struct fsg_common *common = fsg->common;
+	const struct usb_endpoint_descriptor *d;
+	int rc;
+
+	/* Enable the endpoints */
+	d = fsg_ep_desc(common->gadget,
+			&fsg_fs_bulk_in_desc, &fsg_hs_bulk_in_desc);
+	rc = enable_endpoint(common, fsg->bulk_in, d);
+	if (rc)
+		return rc;
+	fsg->bulk_in_enabled = 1;
+
+	d = fsg_ep_desc(common->gadget,
+			&fsg_fs_bulk_out_desc, &fsg_hs_bulk_out_desc);
+	rc = enable_endpoint(common, fsg->bulk_out, d);
+	if (rc) {
+		usb_ep_disable(fsg->bulk_in);
+		fsg->bulk_in_enabled = 0;
+		return rc;
+	}
+	fsg->bulk_out_enabled = 1;
+	common->bulk_out_maxpacket = le16_to_cpu(d->wMaxPacketSize);
+	clear_bit(IGNORE_BULK_OUT, &fsg->atomic_bitflags);
+#endif
+
 	fsg->common->new_fsg = fsg;
 	raise_exception(fsg->common, FSG_STATE_CONFIG_CHANGE);
 	return USB_GADGET_DELAYED_STATUS;
@@ -2448,6 +2562,27 @@ static int fsg_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 static void fsg_disable(struct usb_function *f)
 {
 	struct fsg_dev *fsg = fsg_from_func(f);
+
+#if defined(CONFIG_LGE_ANDROID_USB)
+	/* Kernel panic in usb_ep_fifo_flush when USB disconnect
+	 * Orginated from Qualcom patch
+	 * https://www.codeaurora.org/gitweb/quic/la/
+	 * ?p=kernel/msm.git;a=commit;h=c56a55cfdbcad209188a0fe7120d544b519077d3
+	 */
+
+	/* Disable the endpoints */
+	if (fsg->bulk_in_enabled) {
+		usb_ep_disable(fsg->bulk_in);
+		fsg->bulk_in_enabled = 0;
+		fsg->bulk_in->driver_data = NULL;
+	}
+	if (fsg->bulk_out_enabled) {
+		usb_ep_disable(fsg->bulk_out);
+		fsg->bulk_out_enabled = 0;
+		fsg->bulk_out->driver_data = NULL;
+	}
+#endif
+
 	fsg->common->new_fsg = NULL;
 	raise_exception(fsg->common, FSG_STATE_CONFIG_CHANGE);
 }
@@ -2694,7 +2829,11 @@ static int fsg_main_thread(void *common_)
 static DEVICE_ATTR(ro, 0644, fsg_show_ro, fsg_store_ro);
 static DEVICE_ATTR(nofua, 0644, fsg_show_nofua, fsg_store_nofua);
 static DEVICE_ATTR(file, 0644, fsg_show_file, fsg_store_file);
-
+/*                                                                 */
+#if defined(CONFIG_LGE_ANDROID_USB)
+static DEVICE_ATTR(cdrom, 0644, fsg_show_cdrom, fsg_store_cdrom);
+#endif
+/*                                                                 */
 
 /****************************** FSG COMMON ******************************/
 
@@ -2725,6 +2864,10 @@ static struct fsg_common *fsg_common_init(struct fsg_common *common,
 	struct fsg_lun_config *lcfg;
 	int nluns, i, rc;
 	char *pathbuf;
+
+#if defined(CONFIG_LGE_ANDROID_USB)
+	int j;
+#endif
 
 	/* Find out how many LUNs there should be */
 	nluns = cfg->nluns;
@@ -2779,6 +2922,10 @@ static struct fsg_common *fsg_common_init(struct fsg_common *common,
 		curlun->ro = lcfg->cdrom || lcfg->ro;
 		curlun->initially_ro = curlun->ro;
 		curlun->removable = lcfg->removable;
+/* Check NO FUA (QCT patch) */
+#if defined(CONFIG_LGE_ANDROID_USB)
+		curlun->nofua = lcfg->nofua;
+#endif
 		curlun->dev.release = fsg_lun_release;
 		curlun->dev.parent = &gadget->dev;
 		/* curlun->dev.driver = &fsg_driver.driver; XXX */
@@ -2806,7 +2953,13 @@ static struct fsg_common *fsg_common_init(struct fsg_common *common,
 		rc = device_create_file(&curlun->dev, &dev_attr_nofua);
 		if (rc)
 			goto error_luns;
-
+/*                                                                 */
+#if defined(CONFIG_LGE_ANDROID_USB)
+		rc = device_create_file(&curlun->dev, &dev_attr_cdrom);
+		if (rc)
+			goto error_luns;
+#endif
+/*                                                                 */
 		if (lcfg->filename) {
 			rc = fsg_lun_open(curlun, lcfg->filename);
 			if (rc)
@@ -2848,6 +3001,26 @@ buffhds_first_it:
 			i = 0x0399;
 		}
 	}
+
+#if defined(CONFIG_LGE_ANDROID_USB)
+	#define OR(x, y) ((x) ? (x) : (y))
+
+	for (j = 0 ; j < nluns; ++j) {
+
+		if(j == EXTERNAL_MASS_STORAGE) {
+			sprintf(common->inquiry_string[j], "%-8s%-16s%04x", OR(cfg->vendor_name, "Linux   "), product_name_external, i);
+		} else {
+			snprintf(common->inquiry_string[j], sizeof common->inquiry_string[j],
+				 "%-8s%-16s%04x",
+				 OR(cfg->vendor_name, "Linux   "),
+				 ///* Assume product name dependent on the first LUN */
+				 OR(cfg->product_name, common->luns->cdrom
+							 ? "File-Stor Gadget"
+							 : "File-CD Gadget	"),
+				 i);
+		}
+	}
+#else
 	snprintf(common->inquiry_string, sizeof common->inquiry_string,
 		 "%-8s%-16s%04x", cfg->vendor_name ?: "Linux",
 		 /* Assume product name dependent on the first LUN */
@@ -2855,6 +3028,7 @@ buffhds_first_it:
 				     ? "File-Stor Gadget"
 				     : "File-CD Gadget"),
 		 i);
+#endif
 
 	/*
 	 * Some peripheral controllers are known not to be able to
@@ -2877,6 +3051,10 @@ buffhds_first_it:
 	}
 	init_completion(&common->thread_notifier);
 	init_waitqueue_head(&common->fsg_wait);
+
+#if defined(CONFIG_LGE_ANDROID_USB)
+#undef OR
+#endif
 
 	/* Information */
 	INFO(common, FSG_DRIVER_DESC ", version: " FSG_DRIVER_VERSION "\n");
@@ -2938,6 +3116,11 @@ static void fsg_common_release(struct kref *ref)
 			device_remove_file(&lun->dev, &dev_attr_nofua);
 			device_remove_file(&lun->dev, &dev_attr_ro);
 			device_remove_file(&lun->dev, &dev_attr_file);
+/*                                                                 */			
+#if defined(CONFIG_LGE_ANDROID_USB)
+			device_remove_file(&lun->dev, &dev_attr_cdrom);
+#endif
+/*                                                                 */
 			fsg_lun_close(lun);
 			device_unregister(&lun->dev);
 		}

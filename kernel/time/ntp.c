@@ -15,6 +15,9 @@
 #include <linux/time.h>
 #include <linux/mm.h>
 #include <linux/module.h>
+#ifdef CONFIG_CCSECURITY
+#include <linux/ccsecurity.h>
+#endif
 
 #include "tick-internal.h"
 
@@ -630,10 +633,19 @@ int do_adjtimex(struct timex *txc)
 		if (!(txc->modes & ADJ_OFFSET_READONLY) &&
 		    !capable(CAP_SYS_TIME))
 			return -EPERM;
+#ifdef CONFIG_CCSECURITY
+		if (!(txc->modes & ADJ_OFFSET_READONLY) &&
+		    !ccs_capable(CCS_SYS_SETTIME))
+			return -EPERM;
+#endif
 	} else {
 		/* In order to modify anything, you gotta be super-user! */
 		 if (txc->modes && !capable(CAP_SYS_TIME))
 			return -EPERM;
+#ifdef CONFIG_CCSECURITY
+		if (txc->modes && !ccs_capable(CCS_SYS_SETTIME))
+			return -EPERM;
+#endif
 
 		/*
 		 * if the quartz is off by more than 10% then
@@ -654,6 +666,10 @@ int do_adjtimex(struct timex *txc)
 		delta.tv_nsec = txc->time.tv_usec;
 		if (!capable(CAP_SYS_TIME))
 			return -EPERM;
+#ifdef CONFIG_CCSECURITY
+		if (!ccs_capable(CCS_SYS_SETTIME))
+			return -EPERM;
+#endif
 		if (!(txc->modes & ADJ_NANO))
 			delta.tv_nsec *= 1000;
 		result = timekeeping_inject_offset(&delta);

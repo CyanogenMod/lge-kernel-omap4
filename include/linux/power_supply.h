@@ -116,6 +116,29 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG,
 	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
 	POWER_SUPPLY_PROP_TIME_TO_FULL_AVG,
+/*                                                                          */
+#if defined(CONFIG_MACH_LGE)
+	POWER_SUPPLY_PROP_PMIC_SOC,
+	POWER_SUPPLY_PROP_GAUGE_VOLTAGE,
+	POWER_SUPPLY_PROP_GAUGE_CONTROL,
+	POWER_SUPPLY_PROP_GAUGE_CONTROL_COUNT,
+	POWER_SUPPLY_PROP_CHARGER_MODE,
+	POWER_SUPPLY_PROP_CHARGER_TEMP_CONTROL,
+	POWER_SUPPLY_PROP_BATT_TEMP_ADC,    /*                                                                             */
+#if defined(CONFIG_MAX8971_CHARGER)
+	POWER_SUPPLY_PROP_BATT_CURRENT_ADC,    /*                                                                                  */
+	/*                                                                                      */
+	POWER_SUPPLY_PROP_CHARGER_TEMP_ADC,	
+	POWER_SUPPLY_PROP_PARM_TEMP_ADC,	
+	POWER_SUPPLY_PROP_CHARGER_TEMP,
+	POWER_SUPPLY_PROP_PARM_TEMP,
+	POWER_SUPPLY_PROP_TEMP_HIGH,
+	POWER_SUPPLY_PROP_TEMP_LOW,
+	/*                                                                                   */
+#endif
+#endif
+/*                                          */
+
 	POWER_SUPPLY_PROP_TYPE, /* use power_supply.type instead */
 	/* Properties of type `const char *' */
 	POWER_SUPPLY_PROP_MODEL_NAME,
@@ -131,6 +154,13 @@ enum power_supply_type {
 	POWER_SUPPLY_TYPE_USB_DCP,	/* Dedicated Charging Port */
 	POWER_SUPPLY_TYPE_USB_CDP,	/* Charging Downstream Port */
 	POWER_SUPPLY_TYPE_USB_ACA,	/* Accessory Charger Adapters */
+/*                                                                  */
+#if defined(CONFIG_MACH_LGE)
+	POWER_SUPPLY_TYPE_FACTORY,
+	POWER_SUPPLY_TYPE_UNKNOWN,
+#endif
+/*                                          */
+
 };
 
 union power_supply_propval {

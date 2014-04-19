@@ -21,10 +21,13 @@
 #ifndef _HDMI_TI_4xxx_
 #define _HDMI_TI_4xxx_
 
+#include <video/cec.h>
+
 #define HDMI_HPD_LOW		0x10
 #define HDMI_HPD_HIGH		0x20
 #define HDMI_BCAP		0x40
 #define HDMI_RI_ERR		0x80
+#define HDMI_CEC_INT		0x100
 enum hdmi_pll_pwr {
 	HDMI_PLLPWRCMD_ALLOFF = 0,
 	HDMI_PLLPWRCMD_PLLONLY = 1,
@@ -55,6 +58,7 @@ struct hdmi_ip_data {
 	unsigned long hdmi_core_av_offset;
 	unsigned long hdmi_pll_offset;
 	unsigned long hdmi_phy_offset;
+	unsigned long hdmi_cec_offset;
 };
 
 struct hdmi_video_timings {
@@ -82,11 +86,58 @@ struct hdmi_cm {
 	int	mode;
 };
 
+
+// by Joshua
+/*
+ * Refer to section 8.2 in HDMI 1.3 specification for
+ * details about infoframe databytes
+ */
+struct hdmi_core_infoframe_avi {
+	u8	db1_format;
+		/* Y0, Y1 rgb,yCbCr */
+	u8	db1_active_info;
+		/* A0  Active information Present */
+	u8	db1_bar_info_dv;
+		/* B0, B1 Bar info data valid */
+	u8	db1_scan_info;
+		/* S0, S1 scan information */
+	u8	db2_colorimetry;
+		/* C0, C1 colorimetry */
+	u8	db2_aspect_ratio;
+		/* M0, M1 Aspect ratio (4:3, 16:9) */
+	u8	db2_active_fmt_ar;
+		/* R0...R3 Active format aspect ratio */
+	u8	db3_itc;
+		/* ITC IT content. */
+	u8	db3_ec;
+		/* EC0, EC1, EC2 Extended colorimetry */
+	u8	db3_q_range;
+		/* Q1, Q0 Quantization range */
+	u8	db3_nup_scaling;
+		/* SC1, SC0 Non-uniform picture scaling */
+	u8	db4_videocode;
+		/* VIC0..6 Video format identification */
+	u8	db5_pixel_repeat;
+		/* PR0..PR3 Pixel repetition factor */
+	u16	db6_7_line_eoftop;
+		/* Line number end of top bar */
+	u16	db8_9_line_sofbottom;
+		/* Line number start of bottom bar */
+	u16	db10_11_pixel_eofleft;
+		/* Pixel number end of left bar */
+	u16	db12_13_pixel_sofright;
+		/* Pixel number start of right bar */
+};
+
+
+
 struct hdmi_config {
 	struct fb_videomode timings;
 	struct hdmi_cm cm;
 	enum hdmi_deep_color_mode	deep_color;
+	struct hdmi_core_infoframe_avi avi_cfg;  // by Joshua
 };
+
 
 /* HDMI PLL structure */
 struct hdmi_pll_info {
@@ -382,7 +433,7 @@ enum hdmi_aksv_err {
 	HDMI_AKSV_VALID = 2
 };
 
-int hdmi_ti_4xxx_phy_init(struct hdmi_ip_data *ip_data);
+int hdmi_ti_4xxx_phy_init(struct hdmi_ip_data *ip_data, int phy);
 void hdmi_ti_4xxx_phy_off(struct hdmi_ip_data *ip_data,
 			enum hdmi_pwrchg_reasons reason);
 int read_ti_4xxx_edid(struct hdmi_ip_data *ip_data, u8 *pedid, u16 max_length);
@@ -415,4 +466,24 @@ int hdmi_ti_4xxx_set_wait_soft_reset(struct hdmi_ip_data *ip_data);
 int hdmi_ti_4xx_check_aksv_data(struct hdmi_ip_data *ip_data);
 void hdmi_core_vsi_config(struct hdmi_ip_data *ip_data,
 		struct hdmi_core_vendor_specific_infoframe *config);
+
+// by Joshua
+void hdmi_ti_4xxx_avi_dbq3(struct hdmi_ip_data *ip_data, struct hdmi_config *cfg, char qs_vcdb);
+void hdmi_avi_cfg_lr_fr();
+int hdmi_ti_4xx_cec_get_rx_cmd(struct hdmi_ip_data *ip_data,
+		char *rx_cmd);
+int hdmi_ti_4xx_cec_read_rx_cmd(struct hdmi_ip_data *ip_data,
+		struct cec_rx_data *rx_data);
+int hdmi_ti_4xx_cec_transmit_cmd(struct hdmi_ip_data *ip_data,
+		struct cec_tx_data *data, int *cmd_acked);
+int hdmi_ti_4xxx_power_on_cec(struct hdmi_ip_data *ip_data);
+int hdmi_ti_4xxx_cec_get_rx_int(struct hdmi_ip_data *ip_data);
+int hdmi_ti_4xxx_cec_clr_rx_int(struct hdmi_ip_data *ip_data, int cec_rx);
+int hdmi_ti_4xxx_cec_get_listening_mask(struct hdmi_ip_data *ip_data);
+int hdmi_ti_4xxx_cec_add_listening_device(struct hdmi_ip_data *ip_data,
+		int device_id, int clear);
+int hdmi_ti_4xxx_cec_set_listening_mask(struct hdmi_ip_data *ip_data,
+		int mask);
+
+
 #endif

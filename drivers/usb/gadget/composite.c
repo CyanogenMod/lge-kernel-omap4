@@ -579,10 +579,6 @@ static int unbind_config(struct usb_composite_dev *cdev,
 			/* may free memory for "f" */
 		}
 	}
-<<<<<<< HEAD
-	list_del(&config->list);
-=======
->>>>>>> 379ef79... Merge latest changes from google kernel/common.git
 	if (config->unbind) {
 		DBG(cdev, "unbind config '%s'/%p\n", config->label, config);
 		config->unbind(config);
@@ -600,6 +596,8 @@ int usb_remove_config(struct usb_composite_dev *cdev,
 
 	if (cdev->config == config)
 		reset_config(cdev);
+
+	list_del(&config->list);
 
 	spin_unlock_irqrestore(&cdev->lock, flags);
 
@@ -1087,12 +1085,8 @@ composite_unbind(struct usb_gadget *gadget)
 		struct usb_configuration	*c;
 		c = list_first_entry(&cdev->configs,
 				struct usb_configuration, list);
-<<<<<<< HEAD
-		remove_config(cdev, c);
-=======
 		list_del(&c->list);
 		unbind_config(cdev, c);
->>>>>>> 379ef79... Merge latest changes from google kernel/common.git
 	}
 	if (composite->unbind)
 		composite->unbind(cdev);

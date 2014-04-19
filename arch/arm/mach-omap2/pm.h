@@ -26,6 +26,9 @@ extern void omap4_enter_sleep(unsigned int cpu, unsigned int power_state,
 				bool suspend);
 extern void omap4_trigger_ioctrl(void);
 extern u32 omap4_device_off_counter;
+/* For tuning twl in pmxx.c */
+extern int twl_i2c_write_u8(unsigned char mod_no, unsigned char value, unsigned char reg);
+
 
 #ifdef CONFIG_PM
 extern void omap4_device_set_state_off(u8 enable);

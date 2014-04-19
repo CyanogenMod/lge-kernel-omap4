@@ -354,6 +354,9 @@ CFLAGS_KERNEL	=
 AFLAGS_KERNEL	=
 CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
 
+ifeq ($(TARGET_BUILD_VARIANT),user)
+CFLAGS_KERNEL 	+= -DUSER_MODE
+endif
 
 # Use LINUXINCLUDE when you must reference the include/ directory.
 # Needed to be compatible with the O= option

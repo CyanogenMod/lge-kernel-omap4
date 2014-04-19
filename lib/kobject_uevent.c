@@ -48,6 +48,10 @@ static const char *kobject_actions[] = {
 	[KOBJ_MOVE] =		"move",
 	[KOBJ_ONLINE] =		"online",
 	[KOBJ_OFFLINE] =	"offline",
+//                                               
+	[KOBJ_HDCP_ON] =	"hdcp_on",
+	[KOBJ_HDCP_OFF] =	"hdcp_off",
+//                                               
 };
 
 /**

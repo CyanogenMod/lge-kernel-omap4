@@ -223,7 +223,7 @@ struct hsi_dev { /* HSI_TODO:  should be later renamed into hsi_controller*/
 */
 struct hsi_platform_data {
 	void (*set_min_bus_tput) (struct device *dev, u8 agent_id,
-						unsigned long r);
+				  unsigned long r);
 	int (*device_enable) (struct platform_device *pdev);
 	int (*device_shutdown) (struct platform_device *pdev);
 	int (*device_idle) (struct platform_device *pdev);
@@ -249,6 +249,8 @@ int hsi_port_event_handler(struct hsi_port *p, unsigned int event, void *arg);
 int hsi_bus_init(void);
 void hsi_bus_exit(void);
 /* End HSI Bus */
+
+extern struct device *hsi_temp_ptr; /*                                                                                          */
 
 void hsi_reset_ch_read(struct hsi_channel *ch);
 void hsi_reset_ch_write(struct hsi_channel *ch);
@@ -345,6 +347,12 @@ void hsi_debug_remove_ctrl(struct hsi_dev *hsi_ctrl);
 #define	hsi_debug_init()		0
 #define	hsi_debug_exit()
 #endif /* CONFIG_DEBUG_FS */
+
+//                                                  
+#if defined(CONFIG_MACH_LGE_COSMOPOLITAN)
+extern int IFX_CP_CRASH_DUMP_INIT(void);
+#endif
+//                                                
 
 static inline struct hsi_channel *hsi_ctrl_get_ch(struct hsi_dev *hsi_ctrl,
 					      unsigned int port,

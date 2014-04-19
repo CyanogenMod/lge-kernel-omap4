@@ -805,12 +805,15 @@ int omap_abe_connect_serial_port(struct omap_abe *abe,
 	(abe_port[id]).protocol.p.prot_serial.iter =
 		abe_dma_port_iter_factor(f);
 
+        //                                                                      
+	abe_port[id].status = OMAP_ABE_PORT_ACTIVITY_IDLE;
+
 	/* load the ATC descriptors - disabled */
 	omap_abe_init_atc(abe, id);
 	/* load the micro-task parameters */
 	abe_init_io_tasks(id, &((abe_port[id]).format),
 			  &((abe_port[id]).protocol));
-	abe_port[id].status = OMAP_ABE_PORT_INITIALIZED;
+	//                                                                                                                         
 
 	return 0;
 }

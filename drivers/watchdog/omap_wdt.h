@@ -49,7 +49,13 @@
  * with the 60 second default assumed by most tools and docs.
  */
 #define TIMER_MARGIN_MAX	(24 * 60 * 60)	/* 1 day */
+
+#ifdef CONFIG_MACH_LGE
+#define TIMER_MARGIN_DEFAULT	90	/* 120 -> 90 secs */
+#else
 #define TIMER_MARGIN_DEFAULT	60	/* 60 secs */
+#endif
+
 #define TIMER_MARGIN_MIN	1
 
 #define PTV			0	/* prescale */

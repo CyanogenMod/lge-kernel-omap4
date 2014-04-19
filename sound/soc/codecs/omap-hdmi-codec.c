@@ -42,6 +42,7 @@
 #include "../../../drivers/video/omap2/dss/dss_features.h"
 #include "../../../drivers/video/omap2/dss/dss.h"
 
+#include "../omap/omap-hdmi.h"
 #define HDMI_WP		0x0
 #define HDMI_CORE_SYS	0x400
 #define HDMI_CORE_AV	0x900
@@ -83,6 +84,7 @@ static int hdmi_audio_set_configuration(struct hdmi_codec_data *priv)
 	enum hdmi_core_audio_sample_freq sample_freq;
 	u32 pclk = omapdss_hdmi_get_pixel_clock();
 	struct omap_chip_id audio_must_use_mclk;
+	HDMI_AUDIO("ENTER priv->params.format = %d\n", priv->params.format);
 
 	audio_must_use_mclk.oc = CHIP_IS_OMAP4430ES2_3 | CHIP_IS_OMAP446X |
 				CHIP_IS_OMAP447X;
@@ -250,6 +252,7 @@ static int hdmi_audio_set_configuration(struct hdmi_codec_data *priv)
 	aud_if_cfg->db5_lsv = 0;
 
 	hdmi_ti_4xxx_core_audio_infoframe_config(&priv->ip_data, aud_if_cfg);
+	HDMI_AUDIO("LEAVE \n");	
 	return 0;
 
 }
@@ -258,6 +261,7 @@ int hdmi_audio_notifier_callback(struct notifier_block *nb,
 				unsigned long arg, void *ptr)
 {
 	enum omap_dss_display_state state = arg;
+	HDMI_AUDIO("ENTER \n");
 
 	if (state == OMAP_DSS_DISPLAY_ACTIVE) {
 		/* this happens just after hdmi_power_on */
@@ -273,6 +277,7 @@ int hdmi_audio_notifier_callback(struct notifier_block *nb,
 	} else {
 		cancel_delayed_work(&hdmi_data.delayed_work);
 	}
+	HDMI_AUDIO("LEAVE \n");
 	return 0;
 }
 
@@ -293,10 +298,12 @@ static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
 	struct hdmi_codec_data *priv = snd_soc_codec_get_drvdata(codec);
+	HDMI_AUDIO("ENTER \n");
 
 	priv->params.format = params_format(params);
 	priv->params.sample_freq = params_rate(params);
 	priv->params.channels_nr = params_channels(params);
+	HDMI_AUDIO("LEAVE \n");
 	return hdmi_audio_set_configuration(priv);
 }
 
@@ -307,6 +314,7 @@ static int hdmi_audio_trigger(struct snd_pcm_substream *substream, int cmd,
 	struct snd_soc_codec *codec = rtd->codec;
 	struct hdmi_codec_data *priv = snd_soc_codec_get_drvdata(codec);
 	int err = 0;
+	HDMI_AUDIO("ENTER cmd = %d\n", cmd);
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
@@ -341,6 +349,7 @@ static int hdmi_audio_trigger(struct snd_pcm_substream *substream, int cmd,
 	default:
 		err = -EINVAL;
 	}
+	HDMI_AUDIO("LEAVE \n");
 	return err;
 }
 

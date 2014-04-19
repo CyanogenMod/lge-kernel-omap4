@@ -74,7 +74,11 @@ bool omap_dss_check_wb(struct writeback_cache_data *wb, int overlayId,
 	if ((wb->mode == OMAP_WB_MEM2MEM_MODE) &&
 				((wb->source - 3) == overlayId))
 		result = true;
-	else if (wb->mode == OMAP_WB_CAPTURE_MODE) {
+	else if (wb->mode == OMAP_WB_MEM2MEM_MODE &&
+						wb->source < OMAP_WB_GFX &&
+						managerId == wb->source) {
+		result = true;
+	} else if (wb->mode == OMAP_WB_CAPTURE_MODE) {
 		switch (wb->source) {
 		case OMAP_WB_LCD1:
 			if (managerId == OMAP_DSS_CHANNEL_LCD)
@@ -128,6 +132,36 @@ static int omap_dss_wb_set_info(struct omap_writeback *wb,
 	return 0;
 }
 
+static void wb_irq_handler(void *data, u32 mask)
+{
+	complete((struct completion *)data);
+#ifdef CONFIG_MACH_LGE
+	omap_dispc_unregister_isr_nosync(wb_irq_handler,
+		(struct completion *)data, DISPC_IRQ_FRAMEDONE_WB);
+#else
+	omap_dispc_unregister_isr(wb_irq_handler,
+		(struct completion *)data, DISPC_IRQ_FRAMEDONE_WB);
+#endif
+}
+
+static int omap_dss_wb_wait_framedone(struct omap_writeback *wb)
+{
+	int timeout = wait_for_completion_timeout(&wb->wb_completion,
+					msecs_to_jiffies(50));
+	if (timeout == 0)
+		return -ETIMEDOUT;
+	if (timeout == -ERESTARTSYS)
+		return -ERESTARTSYS;
+	return 0;
+}
+
+static int omap_dss_wb_register_framedone(struct omap_writeback *wb)
+{
+	INIT_COMPLETION(wb->wb_completion);
+	return omap_dispc_register_isr(wb_irq_handler,
+			&wb->wb_completion, DISPC_IRQ_FRAMEDONE_WB);
+}
+
 static void omap_dss_wb_get_info(struct omap_writeback *wb,
 		struct omap_writeback_info *info)
 {
@@ -168,7 +202,11 @@ void dss_init_writeback(struct platform_device *pdev)
 	wb->check_wb = &dss_check_wb;
 	wb->set_wb_info = &omap_dss_wb_set_info;
 	wb->get_wb_info = &omap_dss_wb_get_info;
+	wb->register_framedone = &omap_dss_wb_register_framedone;
+	wb->wait_framedone = &omap_dss_wb_wait_framedone;
 	mutex_init(&wb->lock);
+
+	init_completion(&wb->wb_completion);
 
 	omap_dss_add_wb(wb);
 

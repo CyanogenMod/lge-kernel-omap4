@@ -246,4 +246,18 @@ static inline bool gadget_supports_altsettings(struct usb_gadget *gadget)
 	return true;
 }
 
+/* usb: g_ether: dma alignment fix (TI GB patch) */
+#if defined(CONFIG_LGE_ANDROID_USB)
+/**
+ * gadget_dma32 - return true if we want buffer aligned on 32 bits (for dma)
+ * @gadget: the gadget in question
+ */
+static inline bool gadget_dma32(struct usb_gadget *gadget)
+{
+	if (gadget_is_musbhdrc(gadget))
+		return true;
+	return false;
+}
+#endif
+
 #endif /* __GADGET_CHIPS_H */

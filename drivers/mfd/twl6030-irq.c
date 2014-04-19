@@ -57,7 +57,11 @@
 static int twl6030_interrupt_mapping_table[24] = {
 	PWR_INTR_OFFSET,	/* Bit 0	PWRON			*/
 	PWR_INTR_OFFSET,	/* Bit 1	RPWRON			*/
+#if 1 //                                                              
+	PWR_INTR_OFFSET,    /* Bit 2	BAT_VLOW		*/
+#else	
 	TWL_VLOW_INTR_OFFSET,	/* Bit 2	BAT_VLOW		*/
+#endif
 	RTC_INTR_OFFSET,	/* Bit 3	RTC_ALARM		*/
 	RTC_INTR_OFFSET,	/* Bit 4	RTC_PERIOD		*/
 	HOTDIE_INTR_OFFSET,	/* Bit 5	HOT_DIE			*/
@@ -354,7 +358,16 @@ int twl6030_mmc_card_detect_config(void)
 		pr_err("twl6030: Failed to read MMCCTRL, error %d\n", ret);
 		return ret;
 	}
+	/*                                                   
+                                                         
+   
+                                      
+  */
+#if defined(CONFIG_MMC_OMAP_HS_VMMC_AUTO_OFF)
+	reg_val |= VMMC_AUTO_OFF;
+#else
 	reg_val &= ~VMMC_AUTO_OFF;
+#endif
 	reg_val |= SW_FC;
 	ret = twl_i2c_write_u8(TWL6030_MODULE_ID0, reg_val, TWL6030_MMCCTRL);
 	if (ret < 0) {
@@ -549,14 +562,31 @@ int twl6030_init_irq(int irq_num, unsigned irq_base, unsigned irq_end,
 	twl_irq = irq_num;
 	register_pm_notifier(&twl6030_irq_pm_notifier_block);
 
+#if 0 //                                                              
 	status = twl6030_vlow_init(twl6030_irq_base + TWL_VLOW_INTR_OFFSET);
 	if (status < 0)
 		goto fail_vlow;
+#endif
+
+//                        
+	if (cpu_is_omap44xx()) {
+		if (twl_class_is_6030()) {
+		   twl6030_interrupt_unmask
+				(TWL6030_PWR_INT_MASK,
+				 REG_INT_MSK_LINE_A);
+		   twl6030_interrupt_unmask
+				(TWL6030_PWR_INT_MASK,
+				 REG_INT_MSK_STS_A);
+		}
+	}
+//                        
 
 	return status;
 
+#if 0 //                                                              
 fail_vlow:
 	free_irq(irq_num, &irq_event);
+#endif
 
 fail_irq:
 	kthread_stop(task);
@@ -580,8 +610,10 @@ int twl6030_exit_irq(void)
 		return -ENOSYS;
 	}
 
+#if 0 //                                                              
 	free_irq(twl6030_irq_base + TWL_VLOW_INTR_OFFSET,
 		handle_twl6030_vlow);
+#endif
 
 	free_irq(twl_irq, &irq_event);
 

@@ -107,6 +107,8 @@ struct mtp_dev {
 	uint16_t xfer_command;
 	uint32_t xfer_transaction_id;
 	int xfer_result;
+
+	int zlp_maxpacket;
 };
 
 static struct usb_interface_descriptor mtp_interface_desc = {
@@ -410,6 +412,8 @@ static int mtp_create_bulk_endpoints(struct mtp_dev *dev,
 	ep->driver_data = dev;		/* claim the endpoint */
 	dev->ep_out = ep;
 
+/* Remove duplicate code (QCT patch) */
+#if 0
 	ep = usb_ep_autoconfig(cdev->gadget, out_desc);
 	if (!ep) {
 		DBG(cdev, "usb_ep_autoconfig for ep_out failed\n");
@@ -418,6 +422,7 @@ static int mtp_create_bulk_endpoints(struct mtp_dev *dev,
 	DBG(cdev, "usb_ep_autoconfig for mtp ep_out got %s\n", ep->name);
 	ep->driver_data = dev;		/* claim the endpoint */
 	dev->ep_out = ep;
+#endif
 
 	ep = usb_ep_autoconfig(cdev->gadget, intr_desc);
 	if (!ep) {
@@ -503,8 +508,24 @@ requeue_req:
 		DBG(cdev, "rx %p queue\n", req);
 	}
 
+/* Handle corner cases on reception of cancel request from host (QCT patch) */
+#if defined(CONFIG_LGE_ANDROID_USB)
+	/* wait for a request to complete */
+	ret = wait_event_interruptible(dev->read_wq,
+				dev->rx_done || dev->state != STATE_BUSY);
+	if (dev->state == STATE_CANCELED) {
+		r = -ECANCELED;
+		if (!dev->rx_done)
+			usb_ep_dequeue(dev->ep_out, req);
+		spin_lock_irq(&dev->lock);
+		dev->state = STATE_CANCELED;
+		spin_unlock_irq(&dev->lock);
+		goto done;
+	}
+#else
 	/* wait for a request to complete */
 	ret = wait_event_interruptible(dev->read_wq, dev->rx_done);
+#endif
 	if (ret < 0) {
 		r = ret;
 		usb_ep_dequeue(dev->ep_out, req);
@@ -564,9 +585,8 @@ static ssize_t mtp_write(struct file *fp, const char __user *buf,
 	/* we need to send a zero length packet to signal the end of transfer
 	 * if the transfer size is aligned to a packet boundary.
 	 */
-	if ((count & (dev->ep_in->maxpacket - 1)) == 0) {
+	if ((count & (dev->zlp_maxpacket - 1)) == 0)
 		sendZLP = 1;
-	}
 
 	while (count > 0 || sendZLP) {
 		/* so we exit after sending ZLP */
@@ -658,9 +678,8 @@ static void send_file_work(struct work_struct *data) {
 	/* we need to send a zero length packet to signal the end of transfer
 	 * if the transfer size is aligned to a packet boundary.
 	 */
-	if ((count & (dev->ep_in->maxpacket - 1)) == 0) {
+	if ((count & (dev->zlp_maxpacket - 1)) == 0)
 		sendZLP = 1;
-	}
 
 	while (count > 0 || sendZLP) {
 		/* so we exit after sending ZLP */
@@ -707,7 +726,13 @@ static void send_file_work(struct work_struct *data) {
 		ret = usb_ep_queue(dev->ep_in, req, GFP_KERNEL);
 		if (ret < 0) {
 			DBG(cdev, "send_file_work: xfer error %d\n", ret);
+/* Fix corner cases in MTP while syncing (QCT patch) */
+#if defined(CONFIG_LGE_ANDROID_USB)
+			if (dev->state != STATE_OFFLINE)
+				dev->state = STATE_ERROR;
+#else
 			dev->state = STATE_ERROR;
+#endif
 			r = -EIO;
 			break;
 		}
@@ -759,7 +784,13 @@ static void receive_file_work(struct work_struct *data)
 			ret = usb_ep_queue(dev->ep_out, read_req, GFP_KERNEL);
 			if (ret < 0) {
 				r = -EIO;
+/* Fix corner cases in MTP while syncing (QCT patch) */
+#if defined(CONFIG_LGE_ANDROID_USB)
+				if (dev->state != STATE_OFFLINE)
+					dev->state = STATE_ERROR;
+#else
 				dev->state = STATE_ERROR;
+#endif
 				break;
 			}
 		}
@@ -771,7 +802,13 @@ static void receive_file_work(struct work_struct *data)
 			DBG(cdev, "vfs_write %d\n", ret);
 			if (ret != write_req->actual) {
 				r = -EIO;
+/* Fix corner cases in MTP while syncing (QCT patch) */
+#if defined(CONFIG_LGE_ANDROID_USB)
+				if (dev->state != STATE_OFFLINE)
+					dev->state = STATE_ERROR;
+#else
 				dev->state = STATE_ERROR;
+#endif
 				break;
 			}
 			write_req = NULL;
@@ -942,8 +979,23 @@ out:
 	return ret;
 }
 
+/* Factory USB(0x6000) for MFT in case of AP USB & QEM =1 */
+/* Fix Kernel crash with misc_open */
+extern bool factory_mode_enabled;
+
 static int mtp_open(struct inode *ip, struct file *fp)
 {
+	struct usb_descriptor_header **descriptors;
+
+/* Factory USB(0x6000) for MFT in case of AP USB & QEM =1 */
+/* Fix Kernel crash with misc_open */
+#if defined(CONFIG_LGE_ANDROID_USB)
+	if(factory_mode_enabled) {
+		pr_info("%s: Fails with factory_mode_enabled\n", __func__);
+		return -ENODEV;
+	}
+#endif
+
 	printk(KERN_INFO "mtp_open\n");
 	if (mtp_lock(&_mtp_dev->open_excl))
 		return -EBUSY;
@@ -952,8 +1004,28 @@ static int mtp_open(struct inode *ip, struct file *fp)
 	if (_mtp_dev->state != STATE_OFFLINE)
 		_mtp_dev->state = STATE_READY;
 
-	fp->private_data = _mtp_dev;
-	return 0;
+	if (_mtp_dev->cdev->gadget->speed == USB_SPEED_HIGH)
+		descriptors = _mtp_dev->function.hs_descriptors;
+	else
+		descriptors = _mtp_dev->function.descriptors;
+
+	/* find mtp ep_in descriptor */
+	for (; *descriptors; ++descriptors) {
+		struct usb_endpoint_descriptor *ep;
+
+		ep = (struct usb_endpoint_descriptor *)*descriptors;
+
+		if (ep->bDescriptorType == USB_DT_ENDPOINT
+				&& (ep->bEndpointAddress & USB_DIR_IN)
+				&& ep->bmAttributes == USB_ENDPOINT_XFER_BULK) {
+			_mtp_dev->zlp_maxpacket =
+					__le16_to_cpu(ep->wMaxPacketSize);
+
+			fp->private_data = _mtp_dev;
+			return 0;
+		}
+	}
+	return -ENODEV;
 }
 
 static int mtp_release(struct inode *ip, struct file *fp)
@@ -1020,7 +1092,12 @@ static int mtp_ctrlrequest(struct usb_composite_dev *cdev,
 		DBG(cdev, "class request: %d index: %d value: %d length: %d\n",
 			ctrl->bRequest, w_index, w_value, w_length);
 
+/* Add w_index to work correctly on file transfer in  Window 7 (QCT patch) */
+#if defined(CONFIG_LGE_ANDROID_USB)
+		if (ctrl->bRequest == MTP_REQ_CANCEL && (w_index == 0 || w_index == 3)
+#else
 		if (ctrl->bRequest == MTP_REQ_CANCEL && w_index == 0
+#endif
 				&& w_value == 0) {
 			DBG(cdev, "MTP_REQ_CANCEL\n");
 
@@ -1038,7 +1115,12 @@ static int mtp_ctrlrequest(struct usb_composite_dev *cdev,
 			 */
 			value = w_length;
 		} else if (ctrl->bRequest == MTP_REQ_GET_DEVICE_STATUS
+/* Add w_index to work correctly on file transfer in  Window 7 (QCT patch) */
+#if defined(CONFIG_LGE_ANDROID_USB)
+				&& (w_index == 0 || w_index == 3) && w_value == 0) {
+#else
 				&& w_index == 0 && w_value == 0) {
+#endif
 			struct mtp_device_status *status = cdev->req->buf;
 			status->wLength =
 				__constant_cpu_to_le16(sizeof(*status));
@@ -1087,6 +1169,12 @@ mtp_function_bind(struct usb_configuration *c, struct usb_function *f)
 	if (id < 0)
 		return id;
 	mtp_interface_desc.bInterfaceNumber = id;
+/* Fix interface number for PTP & MS Desc (QCT patch) */
+#if defined(CONFIG_LGE_ANDROID_USB)
+	/* for ptp & MS desc */
+	ptp_interface_desc.bInterfaceNumber = id;
+	mtp_ext_config_desc.function.bFirstInterfaceNumber = id;
+#endif
 
 	/* allocate endpoints */
 	ret = mtp_create_bulk_endpoints(dev, &mtp_fullspeed_in_desc,

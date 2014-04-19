@@ -479,7 +479,13 @@ static struct omap_opp_def __initdata omap447x_opp_low_def_list[] = {
 	/* SGX OPP2 - OPP100 */
 	OPP_INITIALIZER("gpu", "dpll_per_m7x2_ck", "core", true, 307200000, OMAP4470_VDD_CORE_OPP100_UV),
 	/* SGX OPP3 - OPPOV */
-	OPP_INITIALIZER("gpu", "dpll_per_m7x2_ck", "core", false, 384000000, OMAP4470_VDD_CORE_OPP100_OV_UV),
+	OPP_INITIALIZER("gpu", "dpll_per_m7x2_ck", "core", true, 384000000, OMAP4470_VDD_CORE_OPP100_OV_UV),
+	/* BB2D OPP1 - OPP50 */
+	OPP_INITIALIZER("bb2d", "dpll_per_m6x2_ck", "core", true, 153600000, OMAP4470_VDD_CORE_OPP50_UV),
+	/* BB2D OPP1 - OPP100 */
+	OPP_INITIALIZER("bb2d", "dpll_per_m6x2_ck", "core", true, 307200000, OMAP4470_VDD_CORE_OPP100_UV),
+	/* BB2D OPP2 - OPP-OV */
+	OPP_INITIALIZER("bb2d", "dpll_per_m6x2_ck", "core", true, 384000000, OMAP4470_VDD_CORE_OPP100_OV_UV),
 	/* FDIF OPP1 - OPP25 */
 	OPP_INITIALIZER("fdif", "fdif_fck", "core", true, 32000000, OMAP4470_VDD_CORE_OPP50_UV),
 	/* FDIF OPP2 - OPP50 */
@@ -534,6 +540,10 @@ static struct omap_opp_def __initdata omap447x_opp_high_def_list[] = {
 	/* SGX OPP2 - OPP100 is absent*/
 	/* SGX OPP3 - OPPOV */
 	OPP_INITIALIZER("gpu", "dpll_per_m7x2_ck", "core", true, 384000000, OMAP4470_VDD_CORE_OPP100_OV_UV),
+	/* BB2D OPP1 - OPP50 */
+	OPP_INITIALIZER("bb2d", "dpll_per_m6x2_ck", "core", true, 192000000, OMAP4470_VDD_CORE_OPP50_UV),
+	/* BB2D OPP2 - OPP-OV */
+	OPP_INITIALIZER("bb2d", "dpll_per_m6x2_ck", "core", true, 384000000, OMAP4470_VDD_CORE_OPP100_OV_UV),
 	/* FDIF OPP1 - OPP25 */
 	OPP_INITIALIZER("fdif", "fdif_fck", "core", true, 32000000, OMAP4470_VDD_CORE_OPP50_UV),
 	/* FDIF OPP2 - OPP50 */
@@ -651,9 +661,18 @@ int __init omap4_opp_init(void)
 		r = omap_init_opp_table(omap446x_opp_def_list,
 			ARRAY_SIZE(omap446x_opp_def_list));
 		trimmed = omap_readl(0x4a002268) & ((1 << 18) | (1 << 19));
+		/*                                        
+                                                     
+   */
+#ifdef CONFIG_MACH_LGE_IFF
+		/* if device is untrimmed override DPLL TRIM register */
+		if (system_rev > 2 && !trimmed)
+			omap_writel(0x29, 0x4a002330);
+#else
 		/* if device is untrimmed override DPLL TRIM register */
 		if (!trimmed)
 			omap_writel(0x29, 0x4a002330);
+#endif
 	} else if (cpu_is_omap447x()) {
 		struct clk *dpll_core_ck;
 		unsigned long rate = 0;
@@ -684,8 +703,10 @@ int __init omap4_opp_init(void)
 		omap4_opp_enable("iva", 500000000);
 
 	/* Enable Nitro and NitroSB MPU OPPs */
+#if !defined(CONFIG_MACH_LGE_U2)
 	if (omap4_has_mpu_1_2ghz())
 		omap4_opp_enable("mpu", 1200000000);
+#endif
 	if (!trimmed)
 		pr_info("This is DPLL un-trimmed SOM. OPP is limited at 1.2 GHz\n");
 	if (omap4_has_mpu_1_5ghz() && trimmed)

@@ -36,6 +36,8 @@
 
 void __init omap2_i2c_mux_pins(int bus_id)
 {
+/*                                                                                            */
+#if !defined(CONFIG_MACH_LGE)
 	char mux_name[sizeof("i2c2_scl.i2c2_scl")];
 
 	/* First I2C bus is not muxable */
@@ -46,6 +48,8 @@ void __init omap2_i2c_mux_pins(int bus_id)
 	omap_mux_init_signal(mux_name, OMAP_PIN_INPUT);
 	sprintf(mux_name, "i2c%i_sda.i2c%i_sda", bus_id, bus_id);
 	omap_mux_init_signal(mux_name, OMAP_PIN_INPUT);
+#endif
+/*                                         */
 }
 
 /**

@@ -61,6 +61,10 @@ static LIST_HEAD(codec_list);
 
 static int soc_new_pcm(struct snd_soc_pcm_runtime *rtd, int num);
 int soc_dsp_debugfs_add(struct snd_soc_pcm_runtime *rtd);
+#define ABE_SUSPEND_ENABLE_IN_PARTIAL  //                                                                             
+#ifdef ABE_SUSPEND_ENABLE_IN_PARTIAL
+int s_partial_suspend = 0; //                                              
+#endif
 
 /*
  * This is a timeout to do a DAPM powerdown after a stream is closed().
@@ -196,7 +200,26 @@ static ssize_t codec_reg_show(struct device *dev,
 	return soc_codec_reg_show(rtd->codec, buf, PAGE_SIZE, 0);
 }
 
-static DEVICE_ATTR(codec_reg, 0444, codec_reg_show, NULL);
+//                                                                         
+ssize_t codec_reg_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+    int reg, data;
+    char *r, *d;
+    struct snd_soc_pcm_runtime *rtd =
+        container_of(dev, struct snd_soc_pcm_runtime, dev);
+
+    r= &buf[0];
+    d= &buf[5];
+    reg = simple_strtoul(r, NULL, 16);
+    data = simple_strtoul(d, NULL, 16);
+
+    snd_soc_write(rtd->codec, reg, data);
+
+    return count;
+}
+
+static DEVICE_ATTR(codec_reg, 0644, codec_reg_show, codec_reg_store);
+//                                                                     
 
 static ssize_t pmdown_time_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
@@ -1175,6 +1198,18 @@ int snd_soc_suspend(struct device *dev)
 	/* cancel pending deferred resume if any */
 	cancel_work_sync(&card->deferred_resume_work);
 
+        //                                              
+#ifdef ABE_SUSPEND_ENABLE_IN_PARTIAL
+        for (i = 0; i < card->num_rtd; i++) {
+            if( card->rtd[i].dai_link->name && strcmp(card->rtd[i].dai_link->name, "SDP4430 Media Capture") == 0 ){
+                struct snd_soc_pcm_runtime *rtd = &card->rtd[i];
+                if( card->rtd[i].dai_link->active && rtd->codec_dai && rtd->codec_dai->capture_active ){
+                    printk(KERN_DEBUG"$$$ check active:%d [%s][%s] codec capture_active\n", card->rtd[i].dai_link->active, card->rtd[i].dai_link->name , card->rtd[i].dai_link->stream_name);
+                    s_partial_suspend = 1;
+                }
+            }
+        }
+#endif
 	/* If the initialization of this soc device failed, there is no codec
 	 * associated with it. Just bail out in this case.
 	 */
@@ -1184,9 +1219,20 @@ int snd_soc_suspend(struct device *dev)
 	/* Due to the resume being scheduled into a workqueue we could
 	* suspend before that's finished - wait for it to complete.
 	 */
+	/*                                          
+                                                               
+                                                                  
+  */
+	/*
 	snd_power_lock(card->snd_card);
 	snd_power_wait(card->snd_card, SNDRV_CTL_POWER_D0);
 	snd_power_unlock(card->snd_card);
+	*/
+	if (card->snd_card != SNDRV_CTL_POWER_D0) {
+		dev_dbg(card->dev, "Warning: %s(): Not 'SNDRV_CTL_POWER_D0' (%x)\n",
+				__func__, (unsigned int)card->snd_card);
+	}
+	/*                                           */
 
 	/* we're going to block userspace touching us until resume completes */
 	snd_power_change_state(card->snd_card, SNDRV_CTL_POWER_D3hot);
@@ -1213,7 +1259,22 @@ int snd_soc_suspend(struct device *dev)
 		if (card->rtd[i].dai_link->ignore_suspend ||
 				card->rtd[i].dai_link->no_pcm)
 			continue;
+#ifdef ABE_SUSPEND_ENABLE_IN_PARTIAL
 
+                //                                                                
+                if( s_partial_suspend ) {
+                    if( card->rtd[i].dai_link->name && strcmp(card->rtd[i].dai_link->name, "SDP4430 Media"  ) ==0) {
+                        printk(KERN_DEBUG"$$$ Do NOT suspend stream [%d][%s][%s] ~~\n", i , card->rtd[i].dai_link->name, card->rtd[i].dai_link->stream_name );
+                    }
+                    else if(card->rtd[i].dai_link->name && strcmp(card->rtd[i].dai_link->name, "SDP4430 Media Capture") == 0 ) {
+                        printk(KERN_DEBUG"$$$ Do NOT suspend stream [%d][%s][%s] ~~\n", i , card->rtd[i].dai_link->name, card->rtd[i].dai_link->stream_name);
+                    }
+                    else
+                        snd_pcm_suspend_all(card->rtd[i].pcm);
+                }
+                else
+                //                                                              
+#endif
 		snd_pcm_suspend_all(card->rtd[i].pcm);
 	}
 
@@ -1240,6 +1301,9 @@ int snd_soc_suspend(struct device *dev)
 		}
 	}
 
+#ifdef ABE_SUSPEND_ENABLE_IN_PARTIAL
+      if(s_partial_suspend==0){
+#endif
 	/* close any waiting streams and save state */
 	for (i = 0; i < card->num_rtd; i++) {
 		flush_delayed_work_sync(&card->rtd[i].delayed_work);
@@ -1295,6 +1359,10 @@ int snd_soc_suspend(struct device *dev)
 				cpu_dai->driver->suspend(cpu_dai);
 	}
 
+#ifdef ABE_SUSPEND_ENABLE_IN_PARTIAL
+     }
+#endif
+
 	if (card->suspend_post)
 		card->suspend_post(card);
 
@@ -1323,6 +1391,10 @@ static void soc_resume_deferred(struct work_struct *work)
 
 	if (card->resume_pre)
 		card->resume_pre(card);
+
+#ifdef ABE_SUSPEND_ENABLE_IN_PARTIAL
+        if( s_partial_suspend == 0 ){
+#endif
 
 	/* resume AC97 DAIs */
 	for (i = 0; i < card->num_rtd; i++) {
@@ -1390,6 +1462,13 @@ static void soc_resume_deferred(struct work_struct *work)
 				drv->ops->digital_mute(dai, 0);
 		}
 	}
+#ifdef ABE_SUSPEND_ENABLE_IN_PARTIAL
+   }
+  else{
+        s_partial_suspend = 0;
+
+    }
+#endif
 
 	for (i = 0; i < card->num_rtd; i++) {
 		struct snd_soc_dai *cpu_dai = card->rtd[i].cpu_dai;

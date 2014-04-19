@@ -7,6 +7,9 @@
  * published by the Free Software Foundation.
  */
 
+#ifndef __MUX_H__
+#define __MUX_H__
+
 #include "mux2420.h"
 #include "mux2430.h"
 #include "mux34xx.h"
@@ -391,3 +394,4 @@ int omap_mux_init(const char *name, u32 flags,
 		  struct omap_board_mux *board_mux,
 		  struct omap_ball *package_balls);
 
+#endif

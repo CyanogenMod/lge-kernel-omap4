@@ -345,6 +345,7 @@ static struct twl4030_bci_platform_data bci_data = {
 	.low_bat_voltagemV		= 3300,
 	.battery_tmp_tbl		= batt_table,
 	.tblsize			= ARRAY_SIZE(batt_table),
+	.sense_resistor_mohm		= 10,
 };
 
 static struct twl4030_usb_data omap4_usbphy_data = {
@@ -385,11 +386,16 @@ static int twl6040_init(void)
 	 * when AUDPWRON = 0, which causes current drain on this pin's
 	 * pull-down on OMAP side. The workaround consists of disabling
 	 * pull-down resistor of ABE_PDM_UL_DATA pin
-	 * Impacted revisions: ES1.1 and ES1.2 (both share same ASICREV value)
+	 * Impacted revisions: ES1.1, ES1.2 (both share same ASICREV value),
+	 * ES1.3, ES2.0 and ES2.2
 	 */
-	if (rev == TWL6040_REV_1_1)
+	if ((rev == TWL6040_REV_1_1) ||
+	    (rev == TWL6040_REV_1_3) ||
+	    (rev == TWL6041_REV_2_0) ||
+	    (rev == TWL6041_REV_2_2)) {
 		omap_mux_init_signal("abe_pdm_ul_data.abe_pdm_ul_data",
 			OMAP_PIN_INPUT);
+	}
 
 	return 0;
 }

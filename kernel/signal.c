@@ -2620,6 +2620,10 @@ SYSCALL_DEFINE4(rt_sigtimedwait, const sigset_t __user *, uthese,
 SYSCALL_DEFINE2(kill, pid_t, pid, int, sig)
 {
 	struct siginfo info;
+#ifdef CONFIG_CCSECURITY
+	if (ccs_kill_permission(pid, sig))
+		return -EPERM;
+#endif
 
 	info.si_signo = sig;
 	info.si_errno = 0;
@@ -2688,6 +2692,10 @@ SYSCALL_DEFINE3(tgkill, pid_t, tgid, pid_t, pid, int, sig)
 	/* This is only valid for single tasks */
 	if (pid <= 0 || tgid <= 0)
 		return -EINVAL;
+#ifdef CONFIG_CCSECURITY
+	if (ccs_tgkill_permission(tgid, pid, sig))
+		return -EPERM;
+#endif
 
 	return do_tkill(tgid, pid, sig);
 }
@@ -2704,6 +2712,10 @@ SYSCALL_DEFINE2(tkill, pid_t, pid, int, sig)
 	/* This is only valid for single tasks */
 	if (pid <= 0)
 		return -EINVAL;
+#ifdef CONFIG_CCSECURITY
+	if (ccs_tkill_permission(pid, sig))
+		return -EPERM;
+#endif
 
 	return do_tkill(0, pid, sig);
 }
@@ -2731,6 +2743,10 @@ SYSCALL_DEFINE3(rt_sigqueueinfo, pid_t, pid, int, sig,
 		return -EPERM;
 	}
 	info.si_signo = sig;
+#ifdef CONFIG_CCSECURITY
+	if (ccs_sigqueue_permission(pid, sig))
+		return -EPERM;
+#endif
 
 	/* POSIX.1b doesn't mention process groups.  */
 	return kill_proc_info(sig, &info, pid);
@@ -2751,6 +2767,10 @@ long do_rt_tgsigqueueinfo(pid_t tgid, pid_t pid, int sig, siginfo_t *info)
 		return -EPERM;
 	}
 	info->si_signo = sig;
+#ifdef CONFIG_CCSECURITY
+	if (ccs_tgsigqueue_permission(tgid, pid, sig))
+		return -EPERM;
+#endif
 
 	return do_send_specific(tgid, pid, sig, info);
 }

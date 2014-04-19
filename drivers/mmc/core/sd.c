@@ -1015,10 +1015,26 @@ static void mmc_sd_detect(struct mmc_host *host)
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
         int retries = 5;
 #endif
+#if defined(CONFIG_MMC_LGE_HW_DETECTION)
+	int is_sdcard=0;
+#endif
 
 	BUG_ON(!host);
 	BUG_ON(!host->card);
        
+	/*                                        
+                                         
+   
+                                                             
+  */
+#if defined(CONFIG_MMC_LGE_HW_DETECTION)
+	if (host->ops->get_cd && host->ops->get_cd(host) == 0) {
+		err = 1;
+		goto err;
+	}
+	is_sdcard = 1;
+#endif
+
 	mmc_claim_host(host);
 
 	/*
@@ -1035,14 +1051,33 @@ static void mmc_sd_detect(struct mmc_host *host)
 		break;
 	}
 	if (!retries) {
+#ifdef CONFIG_MACH_LGE_P2
+		WARN(1, "%s(%s): Unable to re-detect card (%d)\n", __func__, mmc_hostname(host), err);
+#else
 		printk(KERN_ERR "%s(%s): Unable to re-detect card (%d)\n",
 		       __func__, mmc_hostname(host), err);
+#endif //                  
+#if defined(CONFIG_MMC_LGE_HW_DETECTION)
+		if((is_sdcard == 1) && (err == -ETIMEDOUT) && !(strcmp(mmc_hostname(host),"mmc1"))) {
+			printk("[%s:%d] is_sdcard: %d\n",__func__,__LINE__,is_sdcard);
+			err = 0;
+			mdelay(2);
+		}
+#endif
 	}
 #else
 	err = mmc_send_status(host->card, NULL);
 #endif
 	mmc_release_host(host);
 
+	/*                                        
+                                         
+   
+                                                             
+  */
+#if defined(CONFIG_MMC_LGE_HW_DETECTION)
+err:
+#endif
 	if (err) {
 		mmc_sd_remove(host);
 
@@ -1065,7 +1100,7 @@ static int mmc_sd_suspend(struct mmc_host *host)
 	if (!mmc_host_is_spi(host))
 		mmc_deselect_cards(host);
 	host->card->state &= ~MMC_STATE_HIGHSPEED;
-	mmc_release_host(host);
+	mmc_release_host_sync(host);
 
 	return 0;
 }
@@ -1092,6 +1127,17 @@ static int mmc_sd_resume(struct mmc_host *host)
 	while (retries) {
 		err = mmc_sd_init_card(host, host->ocr, host->card);
 
+		/*                                        
+                               
+   */
+#ifdef CONFIG_MACH_LGE
+		if (err == -ENOMEDIUM) {
+			printk(KERN_ERR "%s: Re-init card error: nomedium\n",
+					mmc_hostname(host));
+			break;
+		}
+#endif
+
 		if (err) {
 			printk(KERN_ERR "%s: Re-init card rc = %d (retries = %d)\n",
 			       mmc_hostname(host), err, retries);
@@ -1104,7 +1150,7 @@ static int mmc_sd_resume(struct mmc_host *host)
 #else
 	err = mmc_sd_init_card(host, host->ocr, host->card);
 #endif
-	mmc_release_host(host);
+	mmc_release_host_sync(host);
 
 	return err;
 }
@@ -1112,6 +1158,14 @@ static int mmc_sd_resume(struct mmc_host *host)
 static int mmc_sd_power_restore(struct mmc_host *host)
 {
 	int ret;
+
+	/*                                        
+                        
+   
+                                                       
+  */
+	if (host == NULL || host->card == NULL)
+		return -ENOENT;
 
 	host->card->state &= ~MMC_STATE_HIGHSPEED;
 	mmc_claim_host(host);

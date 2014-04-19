@@ -214,6 +214,10 @@ config ARM_PATCH_PHYS_VIRT_16BIT
 	  to allow physical memory down to a theoretical minimum of 64K
 	  boundaries.
 
+config GENERIC_BUG
+	def_bool y
+	depends on BUG
+
 source "init/Kconfig"
 
 source "kernel/Kconfig.freezer"
@@ -1797,6 +1801,15 @@ config CMDLINE_FORCE
 	  loader passes other arguments to the kernel.
 	  This is useful if you cannot or don't want to change the
 	  command-line options your boot loader passes to the kernel.
+
+# SJIT 2011-12-23 [dojip.kim@lge.com]
+config CMDLINE_MANIPULATE
+	bool "Manipulate boootloader kernel arguments"
+	depends on MACH_LGE
+	help
+	  The command-line arguments provided by the boot loader will be
+	  manipulated. You cannot or don't want to change the bootloader,
+	  however you need to change the command-line in kernel.
 endchoice
 
 config XIP_KERNEL

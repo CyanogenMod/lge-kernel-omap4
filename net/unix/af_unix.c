@@ -1762,6 +1762,12 @@ static int unix_dgram_recvmsg(struct kiocb *iocb, struct socket *sock,
 	wake_up_interruptible_sync_poll(&u->peer_wait,
 					POLLOUT | POLLWRNORM | POLLWRBAND);
 
+#ifdef CONFIG_CCSECURITY
+	if (ccs_socket_post_recvmsg_permission(sk, skb, flags)) {
+		err = -EAGAIN; /* Hope less harmful than -EPERM. */
+		goto out_unlock;
+	}
+#endif
 	if (msg->msg_name)
 		unix_copy_addr(msg, skb->sk);
 

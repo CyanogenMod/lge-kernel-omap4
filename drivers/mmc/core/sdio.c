@@ -161,7 +161,7 @@ static int sdio_enable_wide(struct mmc_card *card)
 	int ret;
 	u8 ctrl;
 
-	if (!(card->host->caps & MMC_CAP_4_BIT_DATA))
+	if (!(card->host->caps & (MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA)))
 		return 0;
 
 	if (card->cccr.low_speed && !card->cccr.wide_bus)
@@ -171,7 +171,10 @@ static int sdio_enable_wide(struct mmc_card *card)
 	if (ret)
 		return ret;
 
-	ctrl |= SDIO_BUS_WIDTH_4BIT;
+	if (card->host->caps & MMC_CAP_8_BIT_DATA)
+		ctrl |= SDIO_BUS_WIDTH_8BIT;
+	else if (card->host->caps & MMC_CAP_4_BIT_DATA)
+		ctrl |= SDIO_BUS_WIDTH_4BIT;
 
 	ret = mmc_io_rw_direct(card, 1, 0, SDIO_CCCR_IF, ctrl, NULL);
 	if (ret)
@@ -212,7 +215,7 @@ static int sdio_disable_wide(struct mmc_card *card)
 	int ret;
 	u8 ctrl;
 
-	if (!(card->host->caps & MMC_CAP_4_BIT_DATA))
+	if (!(card->host->caps & (MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA)))
 		return 0;
 
 	if (card->cccr.low_speed && !card->cccr.wide_bus)
@@ -222,10 +225,10 @@ static int sdio_disable_wide(struct mmc_card *card)
 	if (ret)
 		return ret;
 
-	if (!(ctrl & SDIO_BUS_WIDTH_4BIT))
+	if (!(ctrl & (SDIO_BUS_WIDTH_4BIT | MMC_CAP_8_BIT_DATA)))
 		return 0;
 
-	ctrl &= ~SDIO_BUS_WIDTH_4BIT;
+	ctrl &= ~(SDIO_BUS_WIDTH_4BIT | SDIO_BUS_WIDTH_8BIT);
 	ctrl |= SDIO_BUS_ASYNC_INT;
 
 	ret = mmc_io_rw_direct(card, 1, 0, SDIO_CCCR_IF, ctrl, NULL);
@@ -532,8 +535,12 @@ static int mmc_sdio_init_card(struct mmc_host *host, u32 ocr,
 	 * Switch to wider bus (if supported).
 	 */
 	err = sdio_enable_4bit_bus(card);
-	if (err > 0)
-		mmc_set_bus_width(card->host, MMC_BUS_WIDTH_4);
+	if (err > 0) {
+		if (card->host->caps & MMC_CAP_8_BIT_DATA)
+			mmc_set_bus_width(card->host, MMC_BUS_WIDTH_8);
+		else if (card->host->caps & MMC_CAP_4_BIT_DATA)
+			mmc_set_bus_width(card->host, MMC_BUS_WIDTH_4);
+	}
 	else if (err)
 		goto remove;
 
@@ -655,7 +662,7 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 	if (!err && mmc_card_keep_power(host) && mmc_card_wake_sdio_irq(host)) {
 		mmc_claim_host(host);
 		sdio_disable_wide(host->card);
-		mmc_release_host(host);
+		mmc_release_host_sync(host);
 	}
 
 	return err;
@@ -679,14 +686,17 @@ static int mmc_sdio_resume(struct mmc_host *host)
 		/* We may have switched to 1-bit mode during suspend */
 		err = sdio_enable_4bit_bus(host->card);
 		if (err > 0) {
-			mmc_set_bus_width(host, MMC_BUS_WIDTH_4);
+			if (host->caps & MMC_CAP_8_BIT_DATA)
+				mmc_set_bus_width(host, MMC_BUS_WIDTH_8);
+			else if (host->caps & MMC_CAP_4_BIT_DATA)
+				mmc_set_bus_width(host, MMC_BUS_WIDTH_4);
 			err = 0;
 		}
 	}
 
 	if (!err && host->sdio_irqs)
 		mmc_signal_sdio_irq(host);
-	mmc_release_host(host);
+	mmc_release_host_sync(host);
 
 	/*
 	 * If the card looked to be the same as before suspending, then
@@ -984,8 +994,12 @@ int sdio_reset_comm(struct mmc_card *card)
 	mmc_set_clock(host, mmc_sdio_get_max_clock(card));
 
 	err = sdio_enable_4bit_bus(card);
-	if (err > 0)
-		mmc_set_bus_width(host, MMC_BUS_WIDTH_4);
+	if (err > 0) {
+		if (host->caps & MMC_CAP_8_BIT_DATA)
+			mmc_set_bus_width(host, MMC_BUS_WIDTH_8);
+		else if (host->caps & MMC_CAP_4_BIT_DATA)
+			mmc_set_bus_width(host, MMC_BUS_WIDTH_4);
+	}
 	else if (err)
 		goto err;
 

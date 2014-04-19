@@ -51,7 +51,29 @@ obj-$(CONFIG_WL127X_RFKILL)	+= wl127x-rfkill.o
 obj-$(CONFIG_APANIC)		+= apanic.o
 obj-$(CONFIG_SENSORS_AK8975)	+= akm8975.o
 obj-$(CONFIG_OMAP_DIE_TEMP_SENSOR)	+= omap_temp_sensor.o
+#LGE_SJIT 09/28/2011 [mohamed.khadri@lge.com] BT control path 
+obj-$(CONFIG_LBEE9QMB_RFKILL)	+= lbee9qmb-rfkill.o
+obj-$(CONFIG_BD_ADDRESS)       += bd_address.o
+#LGE_SJIT 09/28/2011 [mohamed.khadri@lge.com] BT control path
+obj-$(CONFIG_CDC_TCXO)		+= cdc_tcxo.o
+
+# LGE_CHANGE [younglae.kim@lge.com] 2012-03-26 mpu3050 will be used for P2
+# LGE_SJIT 2011-11-24 [dojip.kim@lge.com] will be use inv_mpu instead of this
+# LGE_CHANGE [eugene.goh] 2011-07-01
+obj-$(CONFIG_MPU_SENSORS_MPU3050)   += mpu3050/
+#obj-y				+= inv_mpu/
+# LGE_CHANGE [younglae.kim@lge.com] 2012-04-18 BMC050 will be used for U2
+obj-$(CONFIG_SENSORS_BMC050)        += bmc050/
 obj-$(CONFIG_TWL6040_VIB)	+= twl6040-vib.o
+obj-$(CONFIG_CDC_TCXO)		+= cdc_tcxo.o
 obj-$(CONFIG_GCCORE)		+= gcx/gccore/
 obj-$(CONFIG_GCBV)		+= gcx/gcbv/
 obj-$(CONFIG_GCIOCTL)		+= gcx/gcioctl/
+# LGE_SJIT 2011-11-29 [dojip.kim@lge.com] add tspdrv from P940 GB
+# LGE_CHANGE [seungmoon.lee@lge.com] 2011-08-18
+obj-$(CONFIG_TSPDRV)		+= tspdrv/
+
+# RIP-12331 : handling CP Crash of RIL Recovery
+obj-$(CONFIG_LGE_MODEM_WATCHER)	+= modem_watcher.o
+obj-$(CONFIG_TS0710_MUX)	+= ts0710mux/
+obj-$(CONFIG_CACHE2DMANAGER)	+= cache-2dmanager/

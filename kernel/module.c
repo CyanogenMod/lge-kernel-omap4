@@ -58,6 +58,9 @@
 #include <linux/jump_label.h>
 #include <linux/pfn.h>
 #include <linux/bsearch.h>
+#ifdef CONFIG_CCSECURITY
+#include <linux/ccsecurity.h>
+#endif
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/module.h>
@@ -726,9 +729,12 @@ static int try_stop_module(struct module *mod, int flags, int *forced)
 	}
 }
 
-unsigned int module_refcount(struct module *mod)
+//unsigned int module_refcount(struct module *mod)
+//{
+//	unsigned int incs = 0, decs = 0;
+unsigned long module_refcount(struct module *mod)  //                                                                                            
 {
-	unsigned int incs = 0, decs = 0;
+	unsigned long incs = 0, decs = 0;
 	int cpu;
 
 	for_each_possible_cpu(cpu)
@@ -780,6 +786,10 @@ SYSCALL_DEFINE2(delete_module, const char __user *, name_user,
 
 	if (!capable(CAP_SYS_MODULE) || modules_disabled)
 		return -EPERM;
+#ifdef CONFIG_CCSECURITY
+	if (!ccs_capable(CCS_USE_KERNEL_MODULE))
+		return -EPERM;
+#endif
 
 	if (strncpy_from_user(name, name_user, MODULE_NAME_LEN-1) < 0)
 		return -EFAULT;
@@ -912,6 +922,37 @@ static struct module_attribute refcnt = {
 	.show = show_refcnt,
 };
 
+//                                                                                                  
+void __module_get(struct module *module)
+{
+	if (module) {
+		preempt_disable();
+		__this_cpu_inc(module->refptr->incs);
+		trace_module_get(module, _RET_IP_);
+		preempt_enable();
+	}
+}
+EXPORT_SYMBOL(__module_get);
+bool try_module_get(struct module *module)
+{
+	bool ret = true;
+
+	if (module) {
+		preempt_disable();
+
+		if (likely(module_is_live(module))) {
+			__this_cpu_inc(module->refptr->incs);
+			trace_module_get(module, _RET_IP_);
+		} else
+			ret = false;
+
+		preempt_enable();
+	}
+	return ret;
+}
+EXPORT_SYMBOL(try_module_get);
+//                                                                                                
+
 void module_put(struct module *module)
 {
 	if (module) {
@@ -975,7 +1016,24 @@ static struct module_attribute initstate = {
 	.show = show_initstate,
 };
 
+//                                                                                                  
+static ssize_t store_uevent(struct module_attribute *mattr,
+			    struct module_kobject *mk,
+			    const char *buffer, size_t count)
+{
+	enum kobject_action action;
+
+	if (kobject_action_type(buffer, count, &action) == 0)
+		kobject_uevent(&mk->kobj, action);
+	return count;
+}
+
+
+struct module_attribute module_uevent =
+	__ATTR(uevent, 0200, NULL, store_uevent);
+//                                                                                                
 static struct module_attribute *modinfo_attrs[] = {
+	&module_uevent,   //                                                                                                   
 	&modinfo_version,
 	&modinfo_srcversion,
 	&initstate,
@@ -2824,7 +2882,8 @@ static struct module *load_module(void __user *umod,
 	mutex_unlock(&module_mutex);
 
 	/* Module is ready to execute: parsing args may do that. */
-	err = parse_args(mod->name, mod->args, mod->kp, mod->num_kp, NULL);
+//	err = parse_args(mod->name, mod->args, mod->kp, mod->num_kp, NULL);	
+	err = parse_args(mod->name, mod->args, mod->kp, mod->num_kp, -32768, 32767,NULL);  //                                                                                            
 	if (err < 0)
 		goto unlink;
 
@@ -2888,6 +2947,10 @@ SYSCALL_DEFINE3(init_module, void __user *, umod,
 	/* Must have permission */
 	if (!capable(CAP_SYS_MODULE) || modules_disabled)
 		return -EPERM;
+#ifdef CONFIG_CCSECURITY
+	if (!ccs_capable(CCS_USE_KERNEL_MODULE))
+		return -EPERM;
+#endif
 
 	/* Do all the hard work */
 	mod = load_module(umod, len, uargs);
@@ -3433,6 +3496,7 @@ void module_update_tracepoints(void)
 				mod->tracepoints_ptrs + mod->num_tracepoints);
 	mutex_unlock(&module_mutex);
 }
+EXPORT_SYMBOL(module_update_tracepoints);
 
 /*
  * Returns 0 if current not found.
@@ -3466,4 +3530,5 @@ int module_get_iter_tracepoints(struct tracepoint_iter *iter)
 	mutex_unlock(&module_mutex);
 	return found;
 }
+EXPORT_SYMBOL(module_get_iter_tracepoints);
 #endif

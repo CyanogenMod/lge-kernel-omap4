@@ -27,34 +27,58 @@
 #define DEBUG
 #endif
 
+/*                                                     */
+#ifndef MHL_ADDITIONAL_CODE_INFO
+#define MHL_ADDITIONAL_CODE_INFO
+#endif
+
+#if defined(MHL_ADDITIONAL_CODE_INFO)
+//#define D(fmt, args...) printk(fmt " :: file=%s, func=%s, line=%d\n", ##args, __FILE__, __func__, __LINE__ )
+#define MHL_CODE_LINE_INFO1 "\n :: , func=%s, line=%d"
+#define MHL_CODE_LINE_INFO2 , __func__, __LINE__
+#else
+#define MHL_CODE_LINE_INFO1
+#define MHL_CODE_LINE_INFO2
+#endif
+
+/*                                                     */
+
 #ifdef DEBUG
 extern unsigned int dss_debug;
 #ifdef DSS_SUBSYS_NAME
 #define DSSDBG(format, ...) \
 	if (dss_debug) \
-		printk(KERN_DEBUG "omapdss " DSS_SUBSYS_NAME ": " format, \
-		## __VA_ARGS__)
+		printk(KERN_DEBUG "omapdss " DSS_SUBSYS_NAME ": " format MHL_CODE_LINE_INFO1, \
+		## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #else
 #define DSSDBG(format, ...) \
 	if (dss_debug) \
-		printk(KERN_DEBUG "omapdss: " format, ## __VA_ARGS__)
+		printk(KERN_DEBUG "omapdss: " format MHL_CODE_LINE_INFO1, ## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #endif
 
 #ifdef DSS_SUBSYS_NAME
 #define DSSDBGF(format, ...) \
 	if (dss_debug) \
 		printk(KERN_DEBUG "omapdss " DSS_SUBSYS_NAME \
-				": %s(" format ")\n", \
+				": %s(" format ")\n" MHL_CODE_LINE_INFO1, \
 				__func__, \
-				## __VA_ARGS__)
+				## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #else
 #define DSSDBGF(format, ...) \
 	if (dss_debug) \
 		printk(KERN_DEBUG "omapdss: " \
-				": %s(" format ")\n", \
+				": %s(" format ")\n" MHL_CODE_LINE_INFO1, \
 				__func__, \
-				## __VA_ARGS__)
+				## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #endif
+
+#if 0
+	#define HDMIDBG(format, args...) \
+		printk(KERN_DEBUG "[LG_HDMI] func:%s, line:%d :: " format, __func__, __LINE__, ##args )
+#else
+	#define HDMIDBG(format, ...)
+#endif
+
 
 #else /* DEBUG */
 #define DSSDBG(format, ...)
@@ -64,29 +88,29 @@ extern unsigned int dss_debug;
 
 #ifdef DSS_SUBSYS_NAME
 #define DSSERR(format, ...) \
-	printk(KERN_ERR "omapdss " DSS_SUBSYS_NAME " error: " format, \
-	## __VA_ARGS__)
+	printk(KERN_ERR "omapdss " DSS_SUBSYS_NAME " error: " format MHL_CODE_LINE_INFO1, \
+	## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #else
 #define DSSERR(format, ...) \
-	printk(KERN_ERR "omapdss error: " format, ## __VA_ARGS__)
+	printk(KERN_ERR "omapdss error: " format MHL_CODE_LINE_INFO1, ## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #endif
 
 #ifdef DSS_SUBSYS_NAME
 #define DSSINFO(format, ...) \
-	printk(KERN_INFO "omapdss " DSS_SUBSYS_NAME ": " format, \
-	## __VA_ARGS__)
+	printk(KERN_INFO "omapdss " DSS_SUBSYS_NAME ": " format MHL_CODE_LINE_INFO1, \
+	## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #else
 #define DSSINFO(format, ...) \
-	printk(KERN_INFO "omapdss: " format, ## __VA_ARGS__)
+	printk(KERN_INFO "omapdss: " format MHL_CODE_LINE_INFO1, ## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #endif
 
 #ifdef DSS_SUBSYS_NAME
 #define DSSWARN(format, ...) \
-	printk(KERN_WARNING "omapdss " DSS_SUBSYS_NAME ": " format, \
-	## __VA_ARGS__)
+	printk(KERN_WARNING "omapdss " DSS_SUBSYS_NAME ": " format MHL_CODE_LINE_INFO1, \
+	## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #else
 #define DSSWARN(format, ...) \
-	printk(KERN_WARNING "omapdss: " format, ## __VA_ARGS__)
+	printk(KERN_WARNING "omapdss: " format MHL_CODE_LINE_INFO1, ## __VA_ARGS__ MHL_CODE_LINE_INFO2)
 #endif
 
 /* OMAP TRM gives bitfields as start:end, where start is the higher bit
@@ -237,7 +261,7 @@ void default_get_overlay_fifo_thresholds(enum omap_plane plane,
 int dss_init_overlay_managers(struct platform_device *pdev);
 void dss_uninit_overlay_managers(struct platform_device *pdev);
 int dss_mgr_wait_for_go_ovl(struct omap_overlay *ovl);
-void dss_setup_partial_planes(struct omap_dss_device *dssdev,
+int dss_setup_partial_planes(struct omap_dss_device *dssdev,
 				u16 *x, u16 *y, u16 *w, u16 *h,
 				bool enlarge_update_area);
 void dss_start_update(struct omap_dss_device *dssdev);
@@ -462,6 +486,7 @@ void dispc_set_plane_pos(enum omap_plane plane, u16 x, u16 y);
 void dispc_set_plane_size(enum omap_plane plane, u16 width, u16 height);
 void dispc_set_channel_out(enum omap_plane plane,
 		enum omap_channel channel_out);
+void dispc_set_wb_channel_out(enum omap_plane plane);
 
 void dispc_enable_gamma_table(bool enable);
 int dispc_setup_plane(enum omap_plane plane,
@@ -476,7 +501,7 @@ int dispc_setup_plane(enum omap_plane plane,
 		      u8 rotation, bool mirror,
 		      u8 global_alpha, u8 pre_mult_alpha,
 		      enum omap_channel channel,
-		      u32 puv_addr);
+		      u32 puv_addr, bool source_of_wb);
 int dispc_scaling_decision(u16 width, u16 height,
 		u16 out_width, u16 out_height,
 		enum omap_plane plane,
@@ -533,6 +558,7 @@ int dispc_get_clock_div(enum omap_channel channel,
 		struct dispc_clock_info *cinfo);
 u32 sa_calc_wrap(struct dispc_config *dispc_reg_config, u32 channel_no);
 int dispc_setup_wb(struct writeback_cache_data *wb);
+void dispc_setup_wb_source(enum omap_writeback_source source);
 void dispc_go_wb(void);
 
 /* VENC */
@@ -590,6 +616,8 @@ int omapdss_hdmi_get_s3d_enable(void);
 
 int hdmi_get_current_hpd(void);
 void hdmi_get_monspecs(struct fb_monspecs *specs);
+void hdmi_inform_hpd_to_cec(int status);
+void hdmi_inform_power_on_to_cec(int status);
 u8 *hdmi_read_edid(struct omap_video_timings *);
 
 int hdmi_panel_init(void);
@@ -598,6 +626,12 @@ void hdmi_dump_regs(struct seq_file *s);
 int omapdss_hdmi_register_hdcp_callbacks(void (*hdmi_start_frame_cb)(void),
 					 void (*hdmi_irq_cb)(int status),
 					 bool (*hdmi_power_on_cb)(void));
+int omapdss_hdmi_register_cec_callbacks(void (*hdmi_cec_enable_cb)(int status),
+					void (*hdmi_cec_irq_cb)(void),
+					void (*hdmi_cec_hpd)(int phy_addr,
+					int status));
+int omapdss_hdmi_unregister_cec_callbacks(void);
+
 int omap_dss_ovl_set_info(struct omap_overlay *ovl,
 		struct omap_overlay_info *info);
 

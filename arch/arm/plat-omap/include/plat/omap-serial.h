@@ -146,6 +146,11 @@ struct uart_omap_port {
 	unsigned char		wer;
 	unsigned char		scr;
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	unsigned int            baud_rate;
+	struct notifier_block   nb;
+#endif
+
 	int			use_dma;
 	bool			suspended;
 	/*
@@ -172,4 +177,8 @@ struct uart_omap_port {
 
 int omap_serial_ext_uart_enable(u8 port_id);
 int omap_serial_ext_uart_disable(u8 port_id);
+#if defined(CONFIG_LGE_FELICA)
+void serial_omap_enable_console_port(void); 
+int serial_omap_disable_console_port(void); 
+#endif
 #endif /* __OMAP_SERIAL_H__ */

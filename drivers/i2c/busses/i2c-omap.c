@@ -43,6 +43,14 @@
 #include <linux/pm_runtime.h>
 #include <linux/pm_qos_params.h>
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+#include <linux/notifier.h>
+#include <plat/clock.h>
+
+#define OMAP_I2C_MASTER_CLOCK          96000000
+#define OMAP_I2C_DPLL_CLOCK            49152000
+#endif
+
 /* I2C controller revisions */
 #define OMAP_I2C_REV_2			0x20
 
@@ -155,6 +163,9 @@ enum {
 #define OMAP_I2C_SYSTEST_SDA_I		(1 << 1)	/* SDA line sense in */
 #define OMAP_I2C_SYSTEST_SDA_O		(1 << 0)	/* SDA line drive out */
 
+/* I2C System Status Register */
+#define OMAP_I2C_SYSS_RDONE		BIT(0)		/* Reset done */
+
 /* Errata definitions */
 #define I2C_OMAP_ERRATA_I207		(1 << 0)
 #define I2C_OMAP3_1P153			(1 << 1)
@@ -180,6 +191,7 @@ struct omap_i2c_dev {
 						 * if set, should be trsh+1
 						 */
 	u8			rev;
+	bool			shutdown;
 	unsigned		b_hw:1;		/* bad h/w fixes */
 	unsigned		idle:1;
 	u16			iestate;	/* Saved interrupt register */
@@ -189,6 +201,13 @@ struct omap_i2c_dev {
 	u16			bufstate;
 	u16			westate;
 	u16			errata;
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	struct notifier_block   nb;
+	int                     dpll_entry;
+	int                     dpll_exit;
+	unsigned long		i2c_fclk_rate;
+	spinlock_t		dpll_lock;
+#endif
 };
 
 const static u8 reg_map[] = {
@@ -288,6 +307,8 @@ static void omap_i2c_unidle(struct omap_i2c_dev *dev)
 	pm_runtime_get_sync(&pdev->dev);
 
 	if (cpu_is_omap34xx() || cpu_is_omap44xx()) {
+		unsigned long delay;
+
 		omap_i2c_write_reg(dev, OMAP_I2C_CON_REG, 0);
 		omap_i2c_write_reg(dev, OMAP_I2C_PSC_REG, dev->pscstate);
 		omap_i2c_write_reg(dev, OMAP_I2C_SCLL_REG, dev->scllstate);
@@ -295,6 +316,16 @@ static void omap_i2c_unidle(struct omap_i2c_dev *dev)
 		omap_i2c_write_reg(dev, OMAP_I2C_BUF_REG, dev->bufstate);
 		omap_i2c_write_reg(dev, OMAP_I2C_WE_REG, dev->westate);
 		omap_i2c_write_reg(dev, OMAP_I2C_CON_REG, OMAP_I2C_CON_EN);
+
+		delay = jiffies + OMAP_I2C_TIMEOUT;
+		while (!(omap_i2c_read_reg(dev, OMAP_I2C_SYSS_REG)
+				& OMAP_I2C_SYSS_RDONE)) {
+			if (time_after(jiffies, delay)) {
+				dev_err(dev->dev, "omap i2c unidle timeout\n");
+				return;
+			}
+			cpu_relax();
+		}
 	}
 	dev->idle = 0;
 
@@ -399,6 +430,9 @@ static int omap_i2c_init(struct omap_i2c_dev *dev)
 			internal_clk = 4000;
 		fclk = clk_get(dev->dev, "fck");
 		fclk_rate = clk_get_rate(fclk) / 1000;
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+		dev->i2c_fclk_rate = fclk_rate;
+#endif
 		clk_put(fclk);
 
 		/* Compute prescaler divisor */
@@ -503,6 +537,8 @@ static int omap_i2c_bus_clear(struct omap_i2c_dev *dev)
 	 * at least 9 clock pulses on SCL. Put the I2C in a test mode so it
 	 * will output a continuous clock on SCL.
 	 */
+	disable_irq(dev->irq);
+
 	w = omap_i2c_read_reg(dev, OMAP_I2C_SYSTEST_REG);
 	omap_i2c_write_reg(dev, OMAP_I2C_CON_REG, OMAP_I2C_CON_EN);
 	omap_i2c_write_reg(dev, OMAP_I2C_SYSTEST_REG,
@@ -512,6 +548,9 @@ static int omap_i2c_bus_clear(struct omap_i2c_dev *dev)
 	omap_i2c_write_reg(dev, OMAP_I2C_CON_REG, 0);
 	omap_i2c_reset(dev);
 	omap_i2c_init(dev);
+
+	enable_irq(dev->irq);
+
 	return omap_i2c_wait_for_bb(dev);
 }
 
@@ -622,6 +661,101 @@ static int omap_i2c_xfer_msg(struct i2c_adapter *adap,
 	return -EIO;
 }
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+static void omap_i2c_dpll_configure(struct omap_i2c_dev *dev,
+				    struct omap_i2c_bus_platform_data *pdata,
+				    unsigned long fclk_rate)
+{
+	unsigned long internal_clk;
+
+	u16 psc = 0, scll = 0, sclh = 0;
+	u16 fsscll = 0, fssclh = 0, hsscll = 0, hssclh = 0;
+
+	/*
+	* FIXME: check I2C_HAS_FASTMODE_PLUS feature
+	* when dev->speed > 1000
+	*/
+	if (dev->speed > 400)
+		internal_clk = 19200;
+	else if (dev->speed > 100)
+		internal_clk = 9600;
+	else
+		internal_clk = 4000;
+
+	psc = fclk_rate / internal_clk;
+	psc = psc - 1;
+
+	if (dev->speed > 400) {
+		unsigned long scl;
+
+		/* For first phase of HS mode */
+		scl = internal_clk / 400;
+		fsscll = scl - (scl / 3) - 7;
+		fssclh = (scl / 3) - 5;
+
+		/* For second phase of HS mode */
+		scl = fclk_rate / dev->speed;
+		hsscll = scl - (scl / 3) - 7;
+		hssclh = (scl / 3) - 5;
+	} else if (dev->speed > 100) {
+		unsigned long scl;
+
+		/* Fast mode */
+		scl = internal_clk / dev->speed;
+		fsscll = scl - (scl / 3) - 7;
+		fssclh = (scl / 3) - 5;
+	} else {
+		/* Standard mode */
+		fsscll = internal_clk / (dev->speed * 2) - 7;
+		fssclh = internal_clk / (dev->speed * 2) - 5;
+	}
+	scll = (hsscll << OMAP_I2C_SCLL_HSSCLL) | fsscll;
+	sclh = (hssclh << OMAP_I2C_SCLH_HSSCLH) | fssclh;
+
+	/* Setup clock prescaler to obtain approx 12MHz I2C module clock: */
+	omap_i2c_write_reg(dev, OMAP_I2C_PSC_REG, psc);
+
+	/* SCL low and high time values */
+	omap_i2c_write_reg(dev, OMAP_I2C_SCLL_REG, scll);
+	omap_i2c_write_reg(dev, OMAP_I2C_SCLH_REG, sclh);
+}
+
+static int omap_i2c_dpll_notifier(struct notifier_block *nb,
+					unsigned long val, void *data)
+{
+	struct omap_i2c_dev *dev = container_of(nb, struct omap_i2c_dev, nb);
+	struct clk_notifier_data *cnd = (struct clk_notifier_data *)data;
+	unsigned int count = 0;
+
+	spin_lock(&dev->dpll_lock);
+
+	if (val == CLK_POST_RATE_CHANGE &&
+		cnd->old_rate == OMAP_I2C_MASTER_CLOCK)
+		dev->dpll_entry = 1;
+	else if (val == CLK_PRE_RATE_CHANGE &&
+		cnd->old_rate == OMAP_I2C_DPLL_CLOCK) {
+		/*
+		 * If the device is not idle in the DPLL exit
+		 * wait for the bus to become free.
+		 */
+		if (0 == dev->idle) {
+			while (omap_i2c_read_reg(dev,
+				OMAP_I2C_STAT_REG) & OMAP_I2C_STAT_BB) {
+				if (count++ == 100) {
+					dev_warn(dev->dev,
+				"I2C is busy during DPLL cascading exit\n");
+					break;
+				}
+			}
+		}
+		dev->dpll_exit = 1;
+	}
+
+	spin_unlock(&dev->dpll_lock);
+
+	return 0;
+}
+#endif
 
 /*
  * Prepare controller for a transaction and call omap_i2c_xfer_msg
@@ -633,9 +767,21 @@ omap_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 	struct omap_i2c_dev *dev = i2c_get_adapdata(adap);
 	int i;
 	int r;
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	struct platform_device *pdev;
+	struct omap_i2c_bus_platform_data *pdata;
+#endif
 
 	if (dev == NULL)
 		return -EINVAL;
+
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	pdev = container_of(dev->dev, struct platform_device, dev);
+	pdata = pdev->dev.platform_data;
+#endif
+
+	if (dev->shutdown)
+		return -EPERM;
 
 	r = omap_i2c_hwspinlock_lock(dev);
 	/* To-Do: if we are unable to acquire the lock, we must
@@ -663,6 +809,26 @@ omap_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 	if (dev->pm_qos)
 		pm_qos_update_request(dev->pm_qos, dev->latency);
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	spin_lock(&dev->dpll_lock);
+	if (dev->dpll_entry == 1) {
+		dev->dpll_entry = 0;
+		/*
+		 * FIXME: Speed > 1000 can not be supported
+		 * in DPLL cascading mode.
+		 */
+		if (dev->speed > 1000) {
+			spin_unlock(&dev->dpll_lock);
+			return -1;
+		}
+		omap_i2c_dpll_configure(dev, pdata, OMAP_I2C_DPLL_CLOCK / 1000);
+
+	} else if (dev->dpll_exit == 1) {
+		dev->dpll_exit = 0;
+		omap_i2c_dpll_configure(dev, pdata, dev->i2c_fclk_rate);
+	}
+	spin_unlock(&dev->dpll_lock);
+#endif
 	for (i = 0; i < num; i++) {
 		r = omap_i2c_xfer_msg(adap, &msgs[i], (i == (num - 1)));
 		if (r != 0)
@@ -827,7 +993,7 @@ omap_i2c_isr(int this_irq, void *dev_id)
 	u16 stat, w;
 	int err, count = 0;
 
-	if (dev->idle)
+	if (dev->idle || dev->shutdown)
 		return IRQ_NONE;
 
 	while ((stat = (omap_i2c_read_reg(dev, OMAP_I2C_STAT_REG))) & dev->iestate) {
@@ -989,6 +1155,9 @@ omap_i2c_probe(struct platform_device *pdev)
 	irq_handler_t isr;
 	int r;
 	u32 speed = 0;
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	struct clk *fclks;
+#endif
 
 	/* NOTE: driver uses the static register mapping */
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -1090,6 +1259,16 @@ omap_i2c_probe(struct platform_device *pdev)
 				       (1000 * speed / 8);
 	}
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	/* Register notifiers to support DPLL cascading */
+	spin_lock_init(&dev->dpll_lock);
+	fclks = clk_get(dev->dev, "fck");
+	dev->nb.notifier_call = omap_i2c_dpll_notifier;
+	dev->nb.next = NULL;
+	clk_notifier_register(fclks, &dev->nb);
+	clk_put(fclks);
+#endif
+
 	/* reset ASAP, clearing any IRQs */
 	omap_i2c_init(dev);
 
@@ -1175,6 +1354,30 @@ omap_i2c_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#define PMIC_I2C_NAME "omap_i2c.1"
+static void
+omap_i2c_shutdown(struct platform_device *pdev)
+{
+	struct omap_i2c_dev	*dev = platform_get_drvdata(pdev);
+
+	/* Keep pmic i2c alive - for pm_power_off case */
+	if (!strcmp(dev_name(dev->dev), PMIC_I2C_NAME))
+			return;
+
+	/* Shutdown all other i2c controllers */
+	pm_runtime_get_sync(&pdev->dev);
+	omap_i2c_write_reg(dev, OMAP_I2C_CON_REG, 0);
+	/* Keep interrupts disabled */
+	free_irq(dev->irq, dev);
+	if (cpu_is_omap44xx() && dev->rev >= OMAP_I2C_REV_ON_4430)
+		omap_i2c_write_reg(dev, OMAP_I2C_IRQENABLE_CLR, 0x6FFF);
+	else
+		omap_i2c_write_reg(dev, OMAP_I2C_IE_REG, 0);
+	pm_runtime_put_sync(&pdev->dev);
+
+	dev->shutdown = true;
+}
+
 #ifdef CONFIG_SUSPEND
 static int omap_i2c_suspend(struct device *dev)
 {
@@ -1209,6 +1412,7 @@ static struct platform_driver omap_i2c_driver = {
 		.owner	= THIS_MODULE,
 		.pm	= OMAP_I2C_PM_OPS,
 	},
+	.shutdown	= omap_i2c_shutdown,
 };
 
 /* I2C may be needed to bring up other drivers */

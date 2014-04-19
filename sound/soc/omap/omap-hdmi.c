@@ -52,6 +52,7 @@ static int omap_hdmi_dai_startup(struct snd_pcm_substream *substream,
 	 * Make sure that the period bytes are multiple of the DMA packet size.
 	 * Largest packet size we use is 32 32-bit words = 128 bytes
 	 */
+	HDMI_AUDIO("ENTER \n");
 	err = snd_pcm_hw_constraint_step(substream->runtime, 0,
 				 SNDRV_PCM_HW_PARAM_PERIOD_BYTES, 128);
 	if (err < 0)
@@ -64,6 +65,7 @@ static int omap_hdmi_dai_startup(struct snd_pcm_substream *substream,
 static void omap_hdmi_dai_shutdown(struct snd_pcm_substream *substream,
 				    struct snd_soc_dai *dai)
 {
+	HDMI_AUDIO("ENTER \n");
 	hdmi_lib_stop_acr_wa();
 }
 
@@ -73,6 +75,8 @@ static int omap_hdmi_dai_hw_params(struct snd_pcm_substream *substream,
 				    struct snd_soc_dai *dai)
 {
 	int err = 0;
+
+	HDMI_AUDIO("PCM format : %d\n", params_format(params));
 
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
@@ -91,6 +95,8 @@ static int omap_hdmi_dai_hw_params(struct snd_pcm_substream *substream,
 				 &omap_hdmi_dai_dma_params);
 
 	err = hdmi_lib_start_acr_wa();
+	HDMI_AUDIO("error:%d \n", err);
+
 	if (err)
 		pr_warning("Failed to start ACR workaround[%d]]\n", err);
 

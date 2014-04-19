@@ -34,7 +34,7 @@ static struct {
 					OMAP4430_VDD_IVA_VOLT_MGR_RST_MASK |
 					OMAP4430_VDD_CORE_VOLT_MGR_RST_MASK },
 	{ "external warm ",		OMAP4430_EXTERNAL_WARM_RST_MASK },
-	{ "MPU Watchdog Timer ",	OMAP4430_MPU_WDT_RST_MASK },
+	{ "MPU software ",	OMAP4430_MPU_WDT_RST_MASK },
 	{ "warm software ",		OMAP4430_GLOBAL_WARM_SW_RST_MASK },
 	{ "cold ",			OMAP4430_GLOBAL_COLD_RST_MASK },
 };

@@ -116,6 +116,11 @@ extern int kptr_restrict;
 
 void log_buf_kexec_setup(void);
 void __init setup_log_buf(int early);
+#ifdef CONFIG_LGE_HANDLE_PANIC
+extern void set_crash_store_enable(void);
+extern void set_crash_store_disable(void);
+extern void store_crash_log(char *p);
+#endif
 #else
 static inline __attribute__ ((format (printf, 1, 0)))
 int vprintk(const char *s, va_list args)

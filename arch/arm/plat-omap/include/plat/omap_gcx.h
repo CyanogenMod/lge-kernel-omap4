@@ -20,7 +20,12 @@
 #define OMAP_GCX_H
 
 struct omap_gcx_platform_data {
-	u32 (*prcm_bb2d_idlest)(void);
+	void *regbase;
+	bool (*was_context_lost)(struct device *dev);
+	/* device scale */
+	int (*scale_dev)(struct device *dev, unsigned long freq);
+	/* bandwith */
+	int (*set_bw)(struct device *dev, unsigned long v);
 };
 
 #endif

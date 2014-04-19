@@ -356,7 +356,12 @@ void dss_select_dsi_clk_source(int dsi_module,
 		BUG();
 	}
 
-	REG_FLD_MOD(DSS_CONTROL, b, 1, 1);	/* DSI_CLK_SWITCH */
+/*                                                              */
+if(dsi_module==1)
+	REG_FLD_MOD(DSS_CONTROL, b, 10, 10);  /* DSI2_CLK_SWITCH */
+else
+/*                                                               */
+	REG_FLD_MOD(DSS_CONTROL, b, 1, 1);	/* DSI1_CLK_SWITCH */
 
 	dss.dsi_clk_source[dsi_module] = clk_src;
 }

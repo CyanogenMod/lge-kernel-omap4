@@ -330,6 +330,15 @@ static void txstate(struct musb *musb, struct musb_request *req)
 
 	musb_ep = req->ep;
 
+#if defined(CONFIG_MACH_LGE)
+	/* Check if EP is disabled */
+	if (!musb_ep->desc) {
+		dev_dbg(musb->controller, "ep:%s disabled - ignore request\n",
+						musb_ep->end_point.name);
+		return;
+	}
+#endif
+
 	/* we shouldn't get here while DMA is active ... but we do ... */
 	if (dma_channel_status(musb_ep->dma) == MUSB_DMA_STATUS_BUSY) {
 		dev_dbg(musb->controller, "dma pending...\n");
@@ -557,8 +566,7 @@ void musb_g_tx(struct musb *musb, u8 epnum)
 			&& (request->actual == request->length))
 #if defined(CONFIG_USB_INVENTRA_DMA) || defined(CONFIG_USB_UX500_DMA)
 			|| (is_dma && (!dma->desired_mode ||
-				(request->actual &
-					(musb_ep->packet_sz - 1))))
+				(request->actual % musb_ep->packet_sz)))
 #endif
 		) {
 			/*
@@ -570,14 +578,18 @@ void musb_g_tx(struct musb *musb, u8 epnum)
 
 			dev_dbg(musb->controller, "sending zero pkt\n");
 			musb_writew(epio, MUSB_TXCSR, MUSB_TXCSR_MODE
-					| MUSB_TXCSR_TXPKTRDY);
+					| MUSB_TXCSR_TXPKTRDY
+					| (csr & MUSB_TXCSR_P_ISO));
 			request->zero = 0;
+			/*
+			 * Return from here with the expectation of the endpoint
+			 * interrupt for further action.
+			 */
+			return;
 		}
 
 		if (request->actual == request->length) {
 			musb_g_giveback(musb_ep, request, 0);
-<<<<<<< HEAD
-=======
 			/*
 			 * In the giveback function the MUSB lock is
 			 * released and acquired after sometime. During
@@ -587,7 +599,6 @@ void musb_g_tx(struct musb *musb, u8 epnum)
 			 * we are reading/modifying the right registers
 			 */
 			musb_ep_select(mbase, epnum);
->>>>>>> 379ef79... Merge latest changes from google kernel/common.git
 			req = musb_ep->desc ? next_request(musb_ep) : NULL;
 			if (!req) {
 				dev_dbg(musb->controller, "%s idle now\n",
@@ -655,6 +666,15 @@ static void rxstate(struct musb *musb, struct musb_request *req)
 
 	len = musb_ep->packet_sz;
 
+#if defined(CONFIG_MACH_LGE)
+	/* Check if EP is disabled */
+	if (!musb_ep->desc) {
+		dev_dbg(musb->controller, "ep:%s disabled - ignore request\n",
+						musb_ep->end_point.name);
+		return;
+	}
+#endif
+
 	/* We shouldn't get here while DMA is active, but we do... */
 	if (dma_channel_status(musb_ep->dma) == MUSB_DMA_STATUS_BUSY) {
 		dev_dbg(musb->controller, "DMA pending...\n");
@@ -697,8 +717,23 @@ static void rxstate(struct musb *musb, struct musb_request *req)
 	if (csr & MUSB_RXCSR_RXPKTRDY) {
 		len = musb_readw(epio, MUSB_RXCOUNT);
 
+/* usb: musb: Enable DMA mode1 RX for transfers without short packets */
+/* This will result in a throughput performance gain of around 40% for USB mass-storage/mtp use cases */
+#if defined(CONFIG_MACH_LGE)
+		/*
+		 * Enable Mode 1 on RX transfers only when short_not_ok flag
+		 * is set. Currently short_not_ok flag is set only from
+		 * file_storage and f_mass_storage drivers
+		 */
+
+		if (request->short_not_ok && len == musb_ep->packet_sz)
+			use_mode_1 = 1;
+		else
+			use_mode_1 = 0;
+#else
 		 /* Disable mode1 rx dma */
 		use_mode_1 = 0;
+#endif
 
 		if (request->actual < request->length) {
 #ifdef CONFIG_USB_INVENTRA_DMA
@@ -721,7 +756,7 @@ static void rxstate(struct musb *musb, struct musb_request *req)
 	 * most these gadgets, end of is signified either by a short packet,
 	 * or filling the last byte of the buffer.  (Sending extra data in
 	 * that last pckate should trigger an overflow fault.)  But in mode 1,
-	 * we don't get DMA completion interrrupt for short packets.
+	 * we don't get DMA completion interrupt for short packets.
 	 *
 	 * Theoretically, we could enable DMAReq irq (MUSB_RXCSR_DMAMODE = 1),
 	 * to get endpoint interrupt on every DMA req, but that didn't seem
@@ -988,6 +1023,15 @@ void musb_g_rx(struct musb *musb, u8 epnum)
 		}
 #endif
 		musb_g_giveback(musb_ep, request, 0);
+		/*
+		 * In the giveback function the MUSB lock is
+		 * released and acquired after sometime. During
+		 * this time period the INDEX register could get
+		 * changed by the gadget_queue function especially
+		 * on SMP systems. Reselect the INDEX to be sure
+		 * we are reading/modifying the right registers
+		 */
+		musb_ep_select(mbase, epnum);
 
 		req = next_request(musb_ep);
 		if (!req)
@@ -1730,7 +1774,8 @@ static int musb_gadget_pullup(struct usb_gadget *gadget, int is_on)
 	}
 	spin_unlock_irqrestore(&musb->lock, flags);
 
-	pm_runtime_put(musb->controller);
+	pm_runtime_mark_last_busy(musb->controller);
+	pm_runtime_put_autosuspend(musb->controller);
 
 	return 0;
 }
@@ -1960,11 +2005,19 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 		}
 
 		hcd->self.uses_pio_for_control = 1;
+		hcd->self.dma_align = 1;
 	}
 
 	if ((musb->xceiv->last_event == USB_EVENT_NONE) ||
 			(musb->xceiv->last_event == USB_EVENT_CHARGER)) {
 		musb->xceiv->state = OTG_STATE_B_IDLE;
+		pm_runtime_put(musb->controller);
+	}
+
+	/*                                                          */
+	if (musb->xceiv->last_event !=  USB_EVENT_NONE) {
+		atomic_notifier_call_chain(&musb->xceiv->notifier,
+				musb->xceiv->last_event, NULL);
 		pm_runtime_put(musb->controller);
 	}
 
@@ -2160,7 +2213,12 @@ void musb_g_disconnect(struct musb *musb)
 	void __iomem	*mregs = musb->mregs;
 	u8	devctl = musb_readb(mregs, MUSB_DEVCTL);
 
+/*                                       */
+#if defined(CONFIG_MACH_LGE)
+	dev_info(musb->controller, "devctl %02x\n", devctl);
+#else
 	dev_dbg(musb->controller, "devctl %02x\n", devctl);
+#endif
 
 	/* clear HR */
 	musb_writeb(mregs, MUSB_DEVCTL, devctl & MUSB_DEVCTL_SESSION);

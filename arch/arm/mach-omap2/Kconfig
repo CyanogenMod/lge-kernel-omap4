@@ -45,8 +45,7 @@ config ARCH_OMAP4
 	select CPU_V7
 	select ARM_GIC
 	select LOCAL_TIMERS if SMP
-	select PL310_ERRATA_588369 if CONFIG_CACHE_L2X0
-	select PL310_ERRATA_727915 if CONFIG_CACHE_L2X0
+	select PL310_ERRATA_727915 if CACHE_L2X0
 	select ARM_ERRATA_720789
 	select ARCH_HAS_OPP
 	select PM_OPP if PM
@@ -185,6 +184,40 @@ config MACH_OMAP3EVM
 	depends on ARCH_OMAP3
 	default y
 	select OMAP_PACKAGE_CBB
+
+## LGE_SJIT_S 2011-08-25 [choongryeol.lee@lge.com]
+config WIFI_CONTROL_FUNC
+        bool "Enable WiFi control function abstraction"
+# 20110701 real-wifi@lge.com by wo0gi, Add CONFIG_MACH_LGE_HDK [START]
+	depends on MACH_OMAP_4430SDP || MACH_OMAP_ZOOM2 || MACH_OMAP_ZOOM3 || MACH_LGE
+# 20110701 real-wifi@lge.com by wo0gi, Add CONFIG_MACH_LGE_HDK [END]
+# 122011 x0136505@ti.com by Prakash for CDC driver support 
+# LGE can change this accordingly
+#        select WIRELESS_EXT
+#        select WEXT_CORE
+#        select WEXT_PROC
+#        select WEXT_PRIV
+	select CDC_TCXO
+        default Y
+        help
+           Enables Power/Reset/Carddetect function abstraction
+
+config TIWLAN_SDIO
+        bool "TI WLAN Enhanced SDIO Contoller support"
+        depends on MMC_OMAP || MMC_OMAP_MODULE || MMC_OMAP_HS || MMC_OMAP_HS_MODULE
+        help
+           Say Y here if you want to be able to use TI's WLAN device using the
+           SDIO interface. If unsure, say N.
+config TIWLAN_MMC_CONTROLLER
+        int "MMC Controller number that TI WLAN chip is connected to"
+        range 1 5
+        depends on TIWLAN_SDIO
+        default "5"
+        help
+          Choose the number of the MMC controller that TI WLAN chip is
+          connected to. TI WLAN has SDIO host controller that will control
+          this MMC port.
+## LGE_SJIT_S 2011-08-25 [choongryeol.lee@lge.com]
 
 config MACH_OMAP3517EVM
 	bool "OMAP3517/ AM3517 EVM board"
@@ -336,6 +369,8 @@ config MACH_OMAP_4430SDP
 	select TWL6030_GPADC
 	select OMAP_REBOOT_REASON
 	select OMAP_RAM_CONSOLE
+	select CDC_TCXO
+	select OMAP_RFKILL_STE_MODEM
 
 config MACH_OMAP_BLAZE
 	bool "OMAP 44xx Tablet2 Board"
@@ -344,6 +379,7 @@ config MACH_OMAP_BLAZE
 	select OMAP_PACKAGE_CBL
 	select OMAP_PACKAGE_CBS
 	select TOUCHSCREEN_QUANTUM_OBP
+	select TOUCHSCREEN_CYPRESS_TTSP
 	select LEDS_OMAP4430_SDP_DISPLAY
 	select LEDS_OMAP4430_SDP_KEYPAD
 	select INPUT_TSL2771
@@ -356,6 +392,7 @@ config MACH_OMAP_BLAZE
 	select TWL6040_VIB
 	select OMAP_REBOOT_REASON
 	select OMAP_RAM_CONSOLE
+	select CDC_TCXO
 
 config MACH_OMAP4_PANDA
 	bool "OMAP4 Panda Board"
@@ -400,6 +437,10 @@ config OMAP_ALLOW_OSWR
 	  Which means the Logic of power domains can be lost now
 	  unlike the CSWR wherein the logic is retained
 
+## LGE_SJIT_S 2011-08-25 [choongryeol.lee@lge.com] Port lghdk on K3.0
+source "arch/arm/mach-omap2/lge/Kconfig"
+## LGE_SJIT_E 2011-08-25 [choongryeol.lee@lge.com] Port lghdk on K3.0
+
 config OMAP_FIQ_DEBUGGER
 	bool "Enable the serial FIQ debugger on OMAP"
 	default y
@@ -411,6 +452,29 @@ config OMAP_REBOOT_REASON
 	depends on ARCH_OMAP4
 	bool
 
+config OMAP4_DPLL_CASCADING
+       bool  "Enable DPLL Cascading for OMAP4"
+       depends on ARCH_OMAP4
+       depends on PM
+       depends on HAS_EARLYSUSPEND
+       default y
+       help
+         Select this option to enable DPLL Cascading during Low power mp3
+         playback. It will enter DPLL cascade when :
+               - Head set is inserted.
+               - Display is Off.
+               - No USB.
+
+config OMAP4_ONLY_OMAP4430_DPLL_CASCADING
+       bool  "Enable DPLL Cascading for OMAP4430 only"
+       depends on OMAP4_DPLL_CASCADING
+       default y
+       help
+         Enables DPLL Cascading only for OMAP4430.
+	 Current DPLL cascading implementation is going to be used
+	 only on OMAP4430, where it provides significant power savings.
+	 Keeps DPLL cascading disabled for other OMAPs.
+
 config OMAP_RAM_CONSOLE
         bool "Enable OMAP support for Android RAM console"
         depends on ANDROID_RAM_CONSOLE
@@ -420,6 +484,25 @@ config OMAP_RAM_CONSOLE
           that after a kernel panic they can be viewed in the next kernel
           invocation, by accessing /proc/last_kmsg
           NOTE: Board file needs to invoke relevant api to enable the support
+
+
+config OMAP4_PPA_CPU1_ONLINE_BUG
+	bool "Enable Support for CPU1 ONLINE WA for OSWR/OFF"
+	depends on ARCH_OMAP4
+	depends on OMAP_ALLOW_OSWR
+	default y
+	help
+	  If an non GP OMAP4 device is used and PPA revision is < v1.7.3,
+	  the device does not perform the memory maintenance and TLB sync
+	  operations required before releasing CPU1 to HLOS. This results
+	  in crash while resuming from OFF mode.
+
+	  Disable this option *ONLY IF* you meet the minimum PPA version
+	  requirement.
+
+	  If, on the other hand, you do not understand the change, leave the
+	  default as enabled.
+
 
 config OMAP4_PPA_CPU1_ONLINE_BUG
 	bool "Enable Support for CPU1 ONLINE WA for OSWR/OFF"
@@ -468,11 +551,20 @@ config OMAP4_ARM_ERRATA_743622
 config OMAP4_HSOTG_ED_CORRECTION
 	bool "OMAP 44XX HSOTG Eye diagram correction"
 	depends on ARCH_OMAP4
-	default y
+	default n
 	help
 	  Select this option to overrive HSOTG PHY settings in
 	  order to improve Eye Diagramm. On 4430 CPUs this should
 	  improve Eye Diagram at least 8%.
+
+config OMAP_RFKILL_STE_MODEM
+	bool "Enable OMAP RFKILL driver for ST-E modem"
+	depends on RFKILL || !RFKILL
+	help
+	  Select this option to enable usage of RFKILL driver for ST-E modem on
+	  OMAP platforms. This will permit control of power on and off sequences
+	  of the modem as well as necessary dynamic pin muxing of AP/CP
+	  interfaces (platform data dependant)
 
 endmenu
 

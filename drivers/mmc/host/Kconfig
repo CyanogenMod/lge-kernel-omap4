@@ -233,6 +233,24 @@ config MMC_OMAP_HS
 
 	  If unsure, say N.
 
+# LGE_SJIT 2011-11-28 [dojip.kim@lge.com] moved it from card/Kconfig, renamed it
+# LGE_CHANGE_S [james.jang@lge.com] 2011-07-19
+config MMC_OMAP_HS_VMMC_AUTO_OFF
+	bool "VMMC AUTO OFF"
+	depends on MMC_OMAP_HS
+	default n
+	help
+	  Say Y here to enable host auto off by Card exist or not.
+# LGE_CHANGE_E [james.jang@lge.com] 2011-07-19
+
+# LGE_SJIT 2011-12-30 [dojip.kim@lge.com] Card HW detection
+config MMC_LGE_HW_DETECTION
+	  bool "LGE MMC Hardware detection support"
+	  depends on MMC_OMAP_HS
+	  default n
+	  help
+	    Select Y if the hardware has support to detect card insertion/removal.
+
 config MMC_WBSD
 	tristate "Winbond W83L51xD SD/MMC Card Interface support"
 	depends on ISA_DMA_API

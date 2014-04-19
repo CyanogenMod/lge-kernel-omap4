@@ -22,6 +22,13 @@ struct device;
  * LED Core
  */
 
+#if defined(CONFIG_MAX8971_CHARGER)&&  defined(CONFIG_MACH_LGE_P2_DCM)
+/*                                                   */
+#define PW_LED_ON       1
+#define PW_LED_OFF      0
+void set_pw_led_on_off(int value);
+/*                                                    */
+#endif
 enum led_brightness {
 	LED_OFF		= 0,
 	LED_HALF	= 127,
@@ -33,6 +40,9 @@ struct led_classdev {
 	int			 brightness;
 	int			 max_brightness;
 	int			 flags;
+	/*                                                                                 */
+	bool			 br_maintain_trigger;
+	/*                                                                               */
 
 	/* Lower 16 bits reflect status */
 #define LED_SUSPENDED		(1 << 0)

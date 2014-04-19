@@ -1119,8 +1119,17 @@ static struct twlreg_info twl_regs[] = {
 	TWL6032_ADJUSTABLE_SMPS(SMPS4, 0x10),
 	TWL6032_ADJUSTABLE_SMPS(VIO, 0x16),
 
+/*                                                  
+  
+                                                           
+ */
+#if defined(CONFIG_MACH_LGE)
+	TWL6030_FIXED_RESOURCE(REGEN1, 0x7D, 0),
+	TWL6030_FIXED_RESOURCE(REGEN2, 0x80, 0),
+#else
 	TWL6030_EXTERNAL_CONTROL_PIN(SYSEN, 0x83, 0),
 	TWL6030_EXTERNAL_CONTROL_PIN(REGEN1, 0x7d, 0),
+#endif
 };
 
 static u8 twl_get_smps_offset(void)

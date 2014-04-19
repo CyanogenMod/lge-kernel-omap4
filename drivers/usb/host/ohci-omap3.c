@@ -84,6 +84,7 @@ static int ohci_omap3_bus_resume(struct usb_hcd *hcd)
 	if (dev->parent)
 		pm_runtime_get_sync(dev->parent);
 
+
 	return ohci_bus_resume(hcd);
 }
 
@@ -173,12 +174,12 @@ static const struct hc_driver ohci_omap3_hc_driver = {
  */
 static int __devinit ohci_hcd_omap3_probe(struct platform_device *pdev)
 {
-	struct device		*dev = &pdev->dev;
-	struct usb_hcd		*hcd = NULL;
-	void __iomem		*regs = NULL;
-	struct resource		*res;
-	int			ret = -ENODEV;
-	int			irq;
+	struct device				*dev = &pdev->dev;
+	struct usb_hcd				*hcd = NULL;
+	void __iomem				*regs = NULL;
+	struct resource				*res;
+	int					ret = -ENODEV;
+	int					irq;
 
 	if (usb_disabled())
 		goto err_end;

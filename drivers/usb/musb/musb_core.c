@@ -102,6 +102,10 @@
 
 #include "musb_core.h"
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+#include <mach/omap4-common.h>
+#endif
+
 #define TA_WAIT_BCON(m) max_t(int, (m)->a_wait_bcon, OTG_TIME_A_WAIT_BCON)
 
 
@@ -120,6 +124,25 @@ MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:" MUSB_DRIVER_NAME);
 
+/*                   
+                                                          */
+#if defined(CONFIG_MACH_LGE)
+
+static struct wake_lock musb_wake_lock;
+
+/* 
+ * No USB disconnect irq(twl-usb) when USB is unpluged during USB mode change.
+ * Should unlock musb_wake_lock from MUIC disconnect evenr for no sleep issue.
+ */
+void musb_wake_unlock_from_muic(void)
+{
+	if(wake_lock_active(&musb_wake_lock)) {
+		pr_info("** %s enters **\n", __func__);
+		wake_lock_timeout(&musb_wake_lock, HZ / 2);
+	}
+}
+EXPORT_SYMBOL(musb_wake_unlock_from_muic);
+#endif
 
 /*-------------------------------------------------------------------------*/
 
@@ -400,6 +423,9 @@ static irqreturn_t musb_stage0_irq(struct musb *musb, u8 int_usb,
 {
 	irqreturn_t handled = IRQ_NONE;
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	musb->event = -1;
+#endif
 	dev_dbg(musb->controller, "<== Power=%02x, DevCtl=%02x, int_usb=0x%x\n", power, devctl,
 		int_usb);
 
@@ -662,6 +688,16 @@ static irqreturn_t musb_stage0_irq(struct musb *musb, u8 int_usb,
 
 		musb->ep0_stage = MUSB_EP0_START;
 
+/*                   
+                                                          */
+#if defined(CONFIG_MACH_LGE)
+		wake_lock(&musb_wake_lock);
+#endif
+
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+		musb->event = USB_EVENT_ID;
+#endif
+
 #ifdef CONFIG_USB_MUSB_OTG
 		/* flush endpoints when transitioning from Device Mode */
 		if (is_peripheral_active(musb)) {
@@ -727,6 +763,17 @@ b_host:
 				MUSB_MODE(musb), devctl);
 		handled = IRQ_HANDLED;
 
+/*                   
+                                                          */
+#if defined(CONFIG_MACH_LGE)
+		if(wake_lock_active(&musb_wake_lock)) {
+			wake_lock_timeout(&musb_wake_lock, HZ / 2);
+		}
+#endif
+
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+		musb->event = USB_EVENT_NONE;
+#endif
 		switch (musb->xceiv->state) {
 #ifdef CONFIG_USB_MUSB_HDRC_HCD
 		case OTG_STATE_A_HOST:
@@ -796,6 +843,16 @@ b_host:
 		} else if (is_peripheral_capable()) {
 			dev_dbg(musb->controller, "BUS RESET as %s\n",
 				otg_state_string(musb->xceiv->state));
+
+/*                   
+                                                          */
+#if defined(CONFIG_MACH_LGE)
+			wake_lock(&musb_wake_lock);
+#endif
+		
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+				musb->event = USB_EVENT_VBUS;
+#endif
 			switch (musb->xceiv->state) {
 #ifdef CONFIG_USB_OTG
 			case OTG_STATE_A_SUSPEND:
@@ -1808,6 +1865,14 @@ static void musb_irq_work(struct work_struct *data)
 		old_state = musb->xceiv->state;
 		sysfs_notify(&musb->controller->kobj, NULL, "mode");
 	}
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	if (USB_EVENT_VBUS == musb->event)
+		omap4_dpll_cascading_blocker_hold(musb->controller);
+	else if (USB_EVENT_ID == musb->event)
+		omap4_dpll_cascading_blocker_hold(musb->controller);
+	else if (USB_EVENT_NONE == musb->event)
+		omap4_dpll_cascading_blocker_release(musb->controller);
+#endif
 }
 
 /* --------------------------------------------------------------------------
@@ -2041,6 +2106,7 @@ musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 		status = usb_add_hcd(musb_to_hcd(musb), -1, 0);
 
 		hcd->self.uses_pio_for_control = 1;
+		hcd->self.dma_align = 1;
 		dev_dbg(musb->controller, "%s mode, status %d, devctl %02x %c\n",
 			"HOST", status,
 			musb_readb(musb->mregs, MUSB_DEVCTL),
@@ -2064,6 +2130,12 @@ musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 	if (is_otg_enabled(musb) || is_host_enabled(musb))
 		wake_lock_init(&musb->musb_wakelock, WAKE_LOCK_SUSPEND,
 						"musb_autosuspend_wake_lock");
+
+/*                   
+                                                          */
+#if defined(CONFIG_MACH_LGE)
+	wake_lock_init(&musb_wake_lock, WAKE_LOCK_SUSPEND, "musb_wake_lock");
+#endif
 
 	pm_runtime_put(musb->controller);
 
@@ -2102,6 +2174,12 @@ fail4:
 
 	if (is_otg_enabled(musb) || is_host_enabled(musb))
 		wake_lock_destroy(&musb->musb_wakelock);
+
+/*                   
+                                                          */
+#if defined(CONFIG_MACH_LGE)
+	wake_lock_destroy(&musb_wake_lock);
+#endif
 
 fail3:
 	if (musb->irq_wake)
@@ -2182,6 +2260,12 @@ static int __exit musb_remove(struct platform_device *pdev)
 #endif
 	if (is_otg_enabled(musb) || is_host_enabled(musb))
 		wake_lock_destroy(&musb->musb_wakelock);
+
+/*                   
+                                                          */
+#if defined(CONFIG_MACH_LGE)
+	wake_lock_destroy(&musb_wake_lock);
+#endif
 
 	return 0;
 }

@@ -24,6 +24,13 @@
 #include <linux/suspend.h>
 #include <linux/syscore_ops.h>
 #include <trace/events/power.h>
+#ifdef CONFIG_LGE_LOG_SERVICE
+#include <linux/rtc.h>
+#endif
+
+#ifdef CONFIG_MACH_LGE
+#include <../../arch/arm/mach-omap2/lge/include/lge/lge_blocking_monitor.h>
+#endif
 
 #include "power.h"
 
@@ -35,8 +42,15 @@ const char *const pm_states[PM_SUSPEND_MAX] = {
 	[PM_SUSPEND_MEM]	= "mem",
 };
 
+#ifdef CONFIG_LGE_LOG_SERVICE
+static int sleep_enter = 0;
+#endif
+
 static const struct platform_suspend_ops *suspend_ops;
 
+#ifdef CONFIG_MACH_LGE
+static int suspend_monitor_id;
+#endif
 /**
  *	suspend_set_ops - Set the global suspend method table.
  *	@ops:	Pointer to ops structure.
@@ -93,8 +107,11 @@ static int suspend_prepare(void)
 
 	if (!suspend_ops || !suspend_ops->enter)
 		return -EPERM;
-
+/*                                                                   */
+#ifndef CONFIG_FB_EARLYSUSPEND
 	pm_prepare_console();
+#endif
+/*                                                                   */
 
 	error = pm_notifier_call_chain(PM_SUSPEND_PREPARE);
 	if (error)
@@ -105,14 +122,21 @@ static int suspend_prepare(void)
 		goto Finish;
 
 	error = suspend_freeze_processes();
-	if (!error)
+	if (error) {
+		suspend_stats.failed_freeze++;
+		dpm_save_failed_step(SUSPEND_FREEZE);
+	} else
 		return 0;
 
 	suspend_thaw_processes();
 	usermodehelper_enable();
  Finish:
 	pm_notifier_call_chain(PM_POST_SUSPEND);
+/*                                                                   */
+#ifndef CONFIG_FB_EARLYSUSPEND	
 	pm_restore_console();
+#endif
+/*                                                                   */	
 	return error;
 }
 
@@ -173,6 +197,9 @@ static int suspend_enter(suspend_state_t state)
 			events_check_enabled = false;
 		}
 		syscore_resume();
+#ifdef CONFIG_LGE_LOG_SERVICE
+		sleep_enter = 1;
+#endif
 	}
 
 	arch_suspend_enable_irqs();
@@ -228,6 +255,18 @@ int suspend_devices_and_enter(suspend_state_t state)
  Resume_devices:
 	suspend_test_start();
 	dpm_resume_end(PMSG_RESUME);
+#ifdef CONFIG_LGE_LOG_SERVICE
+	if(sleep_enter == 1){
+		struct timespec ts;
+		struct rtc_time tm;
+		getnstimeofday(&ts);
+		rtc_time_to_tm(ts.tv_sec, &tm);
+		printk(KERN_UTC_WAKEUP "%d-%02d-%02d %02d:%02d:%02d.%06lu\n",
+				tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+				tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec/1000);
+		sleep_enter = 0;
+	}
+#endif
 	suspend_test_finish("resume devices");
 	resume_console();
  Close:
@@ -275,9 +314,9 @@ int enter_state(suspend_state_t state)
 
 	if (!mutex_trylock(&pm_mutex))
 		return -EBUSY;
-
+	
 	printk(KERN_INFO "PM: Syncing filesystems ... ");
-	sys_sync();
+	suspend_sys_sync_queue();
 	printk("done.\n");
 
 	pr_debug("PM: Preparing system for %s sleep\n", pm_states[state]);
@@ -295,7 +334,14 @@ int enter_state(suspend_state_t state)
 
  Finish:
 	pr_debug("PM: Finishing wakeup.\n");
+#ifdef CONFIG_MACH_LGE
+	start_monitor_blocking(suspend_monitor_id,
+		jiffies + usecs_to_jiffies(3000000));
+#endif
 	suspend_finish();
+#ifdef CONFIG_MACH_LGE
+	end_monitor_blocking(suspend_monitor_id);
+#endif
  Unlock:
 	mutex_unlock(&pm_mutex);
 	return error;
@@ -310,8 +356,30 @@ int enter_state(suspend_state_t state)
  */
 int pm_suspend(suspend_state_t state)
 {
-	if (state > PM_SUSPEND_ON && state < PM_SUSPEND_MAX)
-		return enter_state(state);
+	int ret;
+	if (state > PM_SUSPEND_ON && state <= PM_SUSPEND_MAX) {
+		ret = enter_state(state);
+		if (ret) {
+			suspend_stats.fail++;
+			dpm_save_failed_errno(ret);
+		} else
+			suspend_stats.success++;
+		return ret;
+	}
 	return -EINVAL;
 }
 EXPORT_SYMBOL(pm_suspend);
+
+#ifdef CONFIG_MACH_LGE
+static int __init create_suspend_blocking_monitor(void)
+{
+	suspend_monitor_id = create_blocking_monitor("suspend");
+
+	if (suspend_monitor_id < 0)
+		return suspend_monitor_id;
+
+	return 0;
+}
+
+late_initcall(create_suspend_blocking_monitor);
+#endif

@@ -1,0 +1,17 @@
+# drivers/lge/Kconfig
+
+menuconfig LGE_DRIVERS
+	bool "LGE Drivers"
+	depends on MACH_LGE
+	default y
+	help
+	  Support for LG specific drivers.
+
+if LGE_DRIVERS
+source "drivers/lge/fuelgauge/Kconfig"
+source "drivers/lge/subpmic/Kconfig"
+source "drivers/lge/misc/Kconfig"
+source "drivers/lge/mtc_eta/Kconfig"
+source "drivers/lge/mhl/Kconfig"
+source "drivers/lge/gps/Kconfig"
+endif

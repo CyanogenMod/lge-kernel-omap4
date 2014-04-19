@@ -124,9 +124,35 @@ config SND_OMAP_SOC_SDP4430
 	select SND_OMAP_SOC_DMIC
 	select SND_OMAP_SOC_ABE_DSP
 	select SND_OMAP_SOC_VXREC
+	select CDC_TCXO if (MACH_OMAP_4430SDP || MACH_OMAP4_TABLET)
 	help
 	  Say Y if you want to add support for SoC audio on Texas Instruments
 	  SDP4430 or PandaBoard.
+
+##LGE_SJIT 2011-11-17 [dojip.kim@lge.com] enable iff OMAP4 && LGE
+##LGE_SJIT_S 2011-09-27 [choongryeol.lee@lge.com]
+config SND_OMAP_SOC_LG
+	tristate "SoC Audio support for LGE OMAP4"
+	depends on TWL4030_CORE && (MACH_LGE && ARCH_OMAP4)
+	select SND_OMAP_SOC
+	select SND_OMAP_SOC_MCPDM
+	select SND_SOC_TWL6040
+	select SND_OMAP_SOC_ABE
+	select SND_OMAP_SOC_MCBSP
+	select SND_OMAP_SOC_ABE_DSP
+	select SND_OMAP_SOC_VXREC
+
+	help
+	  Say Y if you want to add support for SoC audio on LGE OMAP4.
+##LGE_SJIT_E 2011-09-27 [choongryeol.lee@lge.com]
+
+##LGE_SJIT 2011-12-09 [dojip.kim@lge.com] ear-jack for LGE
+config SND_OMAP_SOC_LGE_JACK
+	bool "support for 3.5MM ear jack for LGE OMAP4"
+	depends on SND_OMAP_SOC_LG
+	default n
+	help
+	  Say Y if you want to support for 3.5MM ear jack for LGE OMAP4
 
 config SND_OMAP_SOC_OMAP4_HDMI
 	tristate "SoC Audio support for Texas Instruments OMAP4 HDMI"
@@ -136,6 +162,14 @@ config SND_OMAP_SOC_OMAP4_HDMI
 	help
 	  Say Y if you want to add support for SoC HDMI audio on Texas Instruments
 	  OMAP4 chips
+
+config SND_OMAP_SOC_ABE_DL2
+	bool "Use ABE DL2 path"
+	depends on SND_OMAP_SOC && SND_OMAP_SOC_ABE_DSP
+	default n
+	help
+	  Say Y if you want to enable ABE DL2 path for PDM_DL2, otherwise it will be
+	  connected to DL1 path.
 
 config SND_OMAP4_ABE_USE_ALT_FW
 	bool "Use alternate ABE firmware configuration (DMIC support)"

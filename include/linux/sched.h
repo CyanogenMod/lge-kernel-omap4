@@ -44,6 +44,10 @@
 
 #ifdef __KERNEL__
 
+#ifdef CONFIG_CCSECURITY
+struct ccs_domain_info;
+#endif
+
 struct sched_param {
 	int sched_priority;
 };
@@ -1569,6 +1573,12 @@ struct task_struct {
 #endif
 #ifdef CONFIG_HAVE_HW_BREAKPOINT
 	atomic_t ptrace_bp_refcnt;
+#endif
+#ifdef CONFIG_CCSECURITY
+#if defined(CONFIG_CCSECURITY) && !defined(CONFIG_CCSECURITY_USE_EXTERNAL_TASK_SECURITY)
+	struct ccs_domain_info *ccs_domain_info;
+	u32 ccs_flags;
+#endif
 #endif
 };
 

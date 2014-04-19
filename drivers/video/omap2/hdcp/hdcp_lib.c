@@ -33,6 +33,7 @@ static void hdcp_lib_toggle_repeater_bit_in_tx(void);
 static int hdcp_lib_initiate_step1(void);
 static int hdcp_lib_check_ksv(uint8_t ksv[5]);
 
+extern int hdmi_out_off;
 /*-----------------------------------------------------------------------------
  * Function: hdcp_lib_read_an
  *-----------------------------------------------------------------------------
@@ -195,7 +196,7 @@ static int hdcp_lib_initiate_step1(void)
 	 *   6) DDC: Writes An, Aksv
 	 *   7) DDC: Write Bksv
 	 */
-	uint8_t an_ksv_data[8], an_bksv_data[8];
+	uint8_t an_ksv_data[8];
 	uint8_t rx_type;
 
 	DBG("hdcp_lib_initiate_step1()\n");
@@ -213,6 +214,14 @@ static int hdcp_lib_initiate_step1(void)
 
 	if (hdcp_lib_check_ksv(an_ksv_data)) {
 		DBG("BKSV error (number of 0 and 1)");
+		hdmi_out_off++;
+		if (hdmi_out_off==3)
+		{
+			//printk("Authentication step : dispc_hdmi_out_off\n");
+			//dispc_hdmi_out_off();
+			return -HDCP_CANCELLED_AUTH;
+		}
+		//return -HDCP_BKSV_ERROR;
 		return -HDCP_AUTH_FAILURE;
 	}
 
@@ -254,8 +263,8 @@ static int hdcp_lib_initiate_step1(void)
 			 "*************************\n");
 #endif
 	/* DDC: Read BKSV from RX */
-	if (hdcp_ddc_read(DDC_BKSV_LEN, DDC_BKSV_ADDR , an_bksv_data))
-		return -HDCP_DDC_ERROR;
+//	if (hdcp_ddc_read(DDC_BKSV_LEN, DDC_BKSV_ADDR , an_bksv_data))
+//		return -HDCP_DDC_ERROR;
 
 	/* Generate An */
 	hdcp_lib_generate_an(an_ksv_data);
@@ -282,22 +291,40 @@ static int hdcp_lib_initiate_step1(void)
 	}
 
 	if (hdcp.pending_disable)
+    {
+        printk(KERN_ERR "HDCP_CANCELLED_AUTH\n");
 		return -HDCP_CANCELLED_AUTH;
-
+    }
 	/* DDC: Write AKSV */
 	if (hdcp_ddc_write(DDC_AKSV_LEN, DDC_AKSV_ADDR, an_ksv_data))
+	{
+	    printk(KERN_ERR "HDCP_DDC_ERROR\n");
 		return -HDCP_DDC_ERROR;
+    }
 
 	if (hdcp.pending_disable)
+	{
+	    printk(KERN_ERR "HDCP_CANCELLED_AUTH\n");
 		return -HDCP_CANCELLED_AUTH;
+    }
+
+	/* DDC: Read BKSV from RX */
+	if (hdcp_ddc_read(DDC_BKSV_LEN, DDC_BKSV_ADDR , an_ksv_data))
+	{
+	    printk(KERN_ERR "HDCP_DDC_ERROR\n");
+		return -HDCP_DDC_ERROR;
+    }
 
 	/* Write Bksv to IP */
-	hdcp_lib_write_bksv(an_bksv_data);
+	hdcp_lib_write_bksv(an_ksv_data);
 
 	/* Check IP BKSV error */
 	if (RD_FIELD_32(hdcp.hdmi_wp_base_addr + HDMI_IP_CORE_SYSTEM,
 			HDMI_IP_CORE_SYSTEM__HDCP_CTRL, 5, 5))
+	{
+	    printk(KERN_ERR "HDCP_AUTH_FAILURE\n");
 		return -HDCP_AUTH_FAILURE;
+    }
 
 	/* Here BSKV should be checked against revokation list */
 
@@ -355,12 +382,12 @@ int hdcp_3des_load_key(uint32_t *deshdcp_encrypted_key)
 			  deshdcp_encrypted_key[counter + 1]);
 
 		/* Wait for output bit at '1' */
-		while (RD_FIELD_32(hdcp.deshdcp_base_addr,
+		while(
+			RD_FIELD_32(hdcp.deshdcp_base_addr,
 				    DESHDCP__DHDCP_CTRL,
 				    DESHDCP__DHDCP_CTRL__OUTPUT_READY_POS_F,
 				    DESHDCP__DHDCP_CTRL__OUTPUT_READY_POS_L
-			) != 0x1)
-			;
+			) != 0x1) {};
 
 		/* Dummy read (indeed data are transfered directly into
 		 * key memory)
@@ -425,12 +452,12 @@ void hdcp_3des_encrypt_key(struct hdcp_encrypt_control *enc_ctrl,
 			  enc_ctrl->in_key[counter + 1]);
 
 		/* Wait for output bit at '1' */
-		while (RD_FIELD_32(hdcp.deshdcp_base_addr,
+		while(
+			RD_FIELD_32(hdcp.deshdcp_base_addr,
 				    DESHDCP__DHDCP_CTRL,
 				    DESHDCP__DHDCP_CTRL__OUTPUT_READY_POS_F,
 				    DESHDCP__DHDCP_CTRL__OUTPUT_READY_POS_L
-			) != 0x1)
-			;
+			) != 0x1) {};
 
 		/* Read enrypted data */
 		out_key[counter]     = RD_REG_32(hdcp.deshdcp_base_addr,
@@ -482,8 +509,7 @@ void hdcp_lib_set_encryption(enum encryption_state enc_state)
 
 	pr_info("HDCP: Encryption state changed: %s hdcp_ctrl: %02x",
 				enc_state == HDCP_ENC_OFF ? "OFF" : "ON",
-				RD_REG_32(hdcp.hdmi_wp_base_addr +
-					  HDMI_IP_CORE_SYSTEM,
+				RD_REG_32(hdcp.hdmi_wp_base_addr + HDMI_IP_CORE_SYSTEM,
 					  HDMI_IP_CORE_SYSTEM__HDCP_CTRL));
 
 }
@@ -522,8 +548,7 @@ void hdcp_lib_set_av_mute(enum av_mute av_mute_state)
 		while (TimeOutCount--) {
 			/* Continue in this loop till CP_EN becomes 0,
 			 * prior to TimeOutCount becoming 0 */
-			if (!RD_FIELD_32(hdcp.hdmi_wp_base_addr +
-					 HDMI_CORE_AV_BASE,
+			if (!RD_FIELD_32(hdcp.hdmi_wp_base_addr + HDMI_CORE_AV_BASE,
 					 HDMI_CORE_AV_PB_CTRL2, 3, 3))
 				break;
 		}
@@ -652,6 +677,11 @@ int hdcp_lib_step1_start(void)
 	hdcp_lib_set_encryption(HDCP_ENC_OFF);
 
 	status = hdcp_lib_initiate_step1();
+
+	if(status == -HDCP_AUTH_FAILURE)
+	{
+		//hdcp_lib_set_encryption(HDCP_ENC_ON);
+	}
 
 	if (hdcp.pending_disable)
 		return -HDCP_CANCELLED_AUTH;

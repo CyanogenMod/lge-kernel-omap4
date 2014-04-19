@@ -739,7 +739,11 @@ int omap_dm_timer_set_match(struct omap_dm_timer *timer, int enable,
 		return -EINVAL;
 
 	spin_lock_irqsave(&timer->lock, flags);
-	__timer_enable(timer);
+	//                                                                                           
+	if(!timer->enabled)
+		__timer_enable(timer);
+	//                                               
+
 	l = omap_dm_timer_read_reg(timer, OMAP_TIMER_CTRL_REG);
 	if (enable)
 		l |= OMAP_TIMER_CTRL_CE;
@@ -747,7 +751,11 @@ int omap_dm_timer_set_match(struct omap_dm_timer *timer, int enable,
 		l &= ~OMAP_TIMER_CTRL_CE;
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_CTRL_REG, l);
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_MATCH_REG, match);
-	__timer_disable(timer);
+
+	//                                                                                                     
+	//__timer_disable(timer);
+	//                                               
+
 	spin_unlock_irqrestore(&timer->lock, flags);
 	return 0;
 }
@@ -763,7 +771,10 @@ int omap_dm_timer_set_pwm(struct omap_dm_timer *timer, int def_on,
 		return -EINVAL;
 
 	spin_lock_irqsave(&timer->lock, flags);
-	__timer_enable(timer);
+	//                                                                                           
+	if(!timer->enabled)
+		__timer_enable(timer);
+	//                                               
 	l = omap_dm_timer_read_reg(timer, OMAP_TIMER_CTRL_REG);
 	l &= ~(OMAP_TIMER_CTRL_GPOCFG | OMAP_TIMER_CTRL_SCPWM |
 	       OMAP_TIMER_CTRL_PT | (0x03 << 10));
@@ -773,7 +784,10 @@ int omap_dm_timer_set_pwm(struct omap_dm_timer *timer, int def_on,
 		l |= OMAP_TIMER_CTRL_PT;
 	l |= trigger << 10;
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_CTRL_REG, l);
-	__timer_disable(timer);
+	//                                                                                                     
+	//__timer_disable(timer);
+	//                                               
+
 	spin_unlock_irqrestore(&timer->lock, flags);
 	return 0;
 }

@@ -15,15 +15,18 @@
 #ifndef GCMAIN_H
 #define GCMAIN_H
 
+#include <linux/slab.h>
+#include <linux/module.h>
+#include <linux/dma-mapping.h>
+#include <linux/list.h>
 #include <linux/gcx.h>
 #include <linux/gcioctl.h>
-#include <linux/gcbv.h>
-#include <linux/module.h>
-#include <linux/slab.h>
 #include <linux/gccore.h>
-#include <linux/gcdebug.h>
+#include <linux/bltsville.h>
+#include <linux/bvinternal.h>
 
 #define GC_DEV_NAME	"gc2d"
+
 
 /*******************************************************************************
  * Miscellaneous macros.
@@ -35,18 +38,20 @@
 #define gcfree(ptr) \
 	kfree(ptr)
 
+
 /*******************************************************************************
  * Core driver API definitions.
  */
 
 #define gc_map_wrapper(gcmap) \
-	gc_map(gcmap)
+	gc_map(gcmap, false)
 
 #define gc_unmap_wrapper(gcmap) \
-	gc_unmap(gcmap)
+	gc_unmap(gcmap, false)
 
 #define gc_commit_wrapper(gccommit) \
 	gc_commit(gccommit, false)
+
 
 /*******************************************************************************
  * Floating point conversions.
@@ -54,11 +59,25 @@
 
 unsigned char gcfp2norm8(float value);
 
+
 /*******************************************************************************
- * BLTsville initialization/cleanup.
+ * Cache operation wrapper.
+ */
+
+enum bverror gcbvcacheop(int count, struct c2dmrgn rgn[],
+			 enum bvcacheop cacheop);
+
+
+/*******************************************************************************
+ * BLTsville API.
  */
 
 void bv_init(void);
 void bv_exit(void);
+
+enum bverror bv_map(struct bvbuffdesc *buffdesc);
+enum bverror bv_unmap(struct bvbuffdesc *buffdesc);
+enum bverror bv_blt(struct bvbltparams *bltparams);
+enum bverror bv_cache(struct bvcopparams *copparams);
 
 #endif

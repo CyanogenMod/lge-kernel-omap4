@@ -18,3 +18,14 @@ config DSSCOMP_DEBUG_LOG
 	  logs the last 128 entries (last few frames' worth) in a
 	  log buffer.  This is a separate menuconfig in case this is
 	  deemed an overhead.
+
+config DSSCOMP_COPY_FOR_ROT
+	bool "Rotation Support for Non 2D Tiler buffer in DSSCOMP (EXPERIMENTAL)"
+	default n
+	depends on DSSCOMP
+
+	help
+		When non 2D tiler buffer needs rotation, this will allocate 
+		2D tiler buffer and copy buffer to allocated 2D tiler buffer.
+		Using this feature, PVR will draw to VRAM.
+

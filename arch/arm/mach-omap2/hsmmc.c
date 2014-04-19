@@ -19,9 +19,26 @@
 #include <plat/mux.h>
 #include <plat/omap_device.h>
 
+/*                                                 */
+#ifdef CONFIG_TIWLAN_SDIO
+#include <linux/mmc/sdio_ids.h>
+#include <linux/mmc/sdio_func.h>
+#endif
+/*                                                 */
+
+#if defined(CONFIG_MMC_OMAP_HS_VMMC_AUTO_OFF)
+#include <linux/i2c/twl.h>
+#endif
+
 #include "mux.h"
 #include "hsmmc.h"
 #include "control.h"
+
+#if defined(CONFIG_LGE_BCM433X_PATCH)
+#define SDIO_VENDOR_ID_BROADCOM          0x2d0
+#define SDIO_DEVICE_ID_BROADCOM_4330     0x4330
+#endif
+
 
 #if defined(CONFIG_MMC_OMAP_HS) || defined(CONFIG_MMC_OMAP_HS_MODULE)
 
@@ -102,10 +119,22 @@ static void omap_hsmmc1_after_set_reg(struct device *dev, int slot,
 			reg |= OMAP2_PBIASLITEVMODE0;
 		omap_ctrl_writel(reg, control_pbias_offset);
 	} else {
+		/*                                                     
+                                                            
+    
+                                           
+   */
+#if defined(CONFIG_MMC_OMAP_HS_VMMC_AUTO_OFF)
+		reg = omap_ctrl_readl(control_pbias_offset);
+		reg &= ~(OMAP2_PBIASSPEEDCTRL0 | OMAP2_PBIASLITEPWRDNZ0 |
+			OMAP2_PBIASLITEVMODE0);
+		omap_ctrl_writel(reg, control_pbias_offset);
+#else
 		reg = omap_ctrl_readl(control_pbias_offset);
 		reg |= (OMAP2_PBIASSPEEDCTRL0 | OMAP2_PBIASLITEPWRDNZ0 |
 			OMAP2_PBIASLITEVMODE0);
 		omap_ctrl_writel(reg, control_pbias_offset);
+#endif
 	}
 }
 
@@ -137,6 +166,7 @@ static void omap4_hsmmc1_after_set_reg(struct device *dev, int slot,
 	unsigned long timeout;
 
 	if (power_on) {
+
 		reg = omap4_ctrl_pad_readl(control_pbias_offset);
 		reg |= OMAP4_MMC1_PBIASLITE_PWRDNZ_MASK;
 		if ((1 << vdd) <= MMC_VDD_165_195)
@@ -146,6 +176,7 @@ static void omap4_hsmmc1_after_set_reg(struct device *dev, int slot,
 		reg |= (OMAP4_MMC1_PBIASLITE_PWRDNZ_MASK |
 			OMAP4_MMC1_PWRDNZ_MASK);
 		omap4_ctrl_pad_writel(reg, control_pbias_offset);
+
 
 		timeout = jiffies + msecs_to_jiffies(5);
 		do {
@@ -190,13 +221,26 @@ static int nop_mmc_set_power(struct device *dev, int slot, int power_on,
 	return 0;
 }
 
+#if defined(CONFIG_MACH_LGE_U2_P760) || defined(CONFIG_MACH_LGE_U2_P768)
+	extern unsigned int system_rev;
+#endif
 static inline void omap_hsmmc_mux(struct omap_mmc_platform_data *mmc_controller,
 			int controller_nr)
 {
 	if ((mmc_controller->slots[0].switch_pin > 0) && \
 		(mmc_controller->slots[0].switch_pin < OMAP_MAX_GPIO_LINES))
+	#if defined(CONFIG_MACH_LGE_U2_P760) || defined(CONFIG_MACH_LGE_U2_P768)	
+		if (system_rev == 1/*         */){
+			omap_mux_init_gpio(mmc_controller->slots[0].switch_pin,
+						OMAP_PIN_INPUT_PULLDOWN);
+		}else if(system_rev == 2/*         */){
+			omap_mux_init_gpio(mmc_controller->slots[0].switch_pin,
+					OMAP_PIN_INPUT_PULLUP);
+		}		
+	#else
 		omap_mux_init_gpio(mmc_controller->slots[0].switch_pin,
 					OMAP_PIN_INPUT_PULLUP);
+	#endif
 	if ((mmc_controller->slots[0].gpio_wp > 0) && \
 		(mmc_controller->slots[0].gpio_wp < OMAP_MAX_GPIO_LINES))
 		omap_mux_init_gpio(mmc_controller->slots[0].gpio_wp,
@@ -271,6 +315,53 @@ static inline void omap_hsmmc_mux(struct omap_mmc_platform_data *mmc_controller,
 	}
 }
 
+/*                                                 */
+#ifdef CONFIG_TIWLAN_SDIO
+static struct sdio_embedded_func wifi_func_array[] = {
+        {
+                .f_class        = SDIO_CLASS_NONE,
+                .f_maxblksize   = 512,
+        },
+        {
+                .f_class        = SDIO_CLASS_WLAN,
+                .f_maxblksize   = 512,
+        },
+};
+
+static struct embedded_sdio_data omap_wifi_emb_data = {
+        .cis    = {
+#if defined(CONFIG_LGE_BCM433X_PATCH)    // CSC_
+                .vendor         = SDIO_VENDOR_ID_BROADCOM,      //0x2d0,        /* SDIO_VENDOR_ID_BRCM */
+                .device         = SDIO_DEVICE_ID_BROADCOM_4330,       /* SDIO_DEVICE_ID_BCM4330 */
+#else
+                .vendor         = SDIO_VENDOR_ID_TI,
+                .device         = SDIO_DEVICE_ID_TI_WL12xx,
+#endif
+                .blksize        = 512,
+#ifdef CONFIG_ARCH_OMAP3
+                .max_dtr        = 24000000,
+#else
+                .max_dtr        = 48000000,
+#endif
+        },
+        .cccr   = {
+                .multi_block    = 1,
+                .low_speed      = 0,
+                .wide_bus       = 1,
+                .high_power     = 0,
+#ifdef CONFIG_ARCH_OMAP3
+                .high_speed     = 0,
+#else
+                .high_speed     = 1,
+#endif
+                .disable_cd     = 1,
+        },
+        .funcs  = wifi_func_array,
+        .num_funcs = 2, 
+};
+#endif
+/*                                                 */
+
 static int __init omap_hsmmc_pdata_init(struct omap2_hsmmc_info *c,
 					struct omap_mmc_platform_data *mmc)
 {
@@ -289,6 +380,19 @@ static int __init omap_hsmmc_pdata_init(struct omap2_hsmmc_info *c,
 		snprintf(hc_name, (HSMMC_NAME_LEN + 1), "mmc%islot%i",
 								c->mmc, 1);
 	mmc->slots[0].name = hc_name;
+
+/*                                                 */
+#ifdef CONFIG_TIWLAN_SDIO
+    if (c->mmc == CONFIG_TIWLAN_MMC_CONTROLLER) {
+        mmc->slots[0].mmc_data.embedded_sdio = &omap_wifi_emb_data;
+        mmc->slots[0].mmc_data.register_status_notify =
+            &omap_wifi_status_register;
+		mmc->slots[0].mmc_data.built_in = 1; // Use the built-in device //PTEST
+        mmc->slots[0].card_detect = &omap_wifi_status;
+    }
+#endif
+/*                                                 */
+
 	mmc->nr_slots = 1;
 	mmc->slots[0].caps = c->caps;
 	mmc->slots[0].internal_clock = !c->ext_clock;
@@ -321,6 +425,12 @@ static int __init omap_hsmmc_pdata_init(struct omap2_hsmmc_info *c,
 
 	if (c->vcc_aux_disable_is_sleep)
 		mmc->slots[0].vcc_aux_disable_is_sleep = 1;
+
+	/*                                        
+                                                                
+  */
+	if (c->no_suspend)
+		mmc->slots[0].no_suspend = 1;
 
 	if (cpu_is_omap44xx()) {
 		if (omap_rev() > OMAP4430_REV_ES1_0)
@@ -394,9 +504,18 @@ static int __init omap_hsmmc_pdata_init(struct omap2_hsmmc_info *c,
 		}
 		break;
 	case 4:
-	case 5:
+	case 5:  /* CONFIG_TIWLAN_MMC_CONTROLLER */
 		mmc->slots[0].before_set_reg = NULL;
 		mmc->slots[0].after_set_reg = NULL;
+#ifdef CONFIG_TIWLAN_SDIO
+#if defined(CONFIG_LGE_BCM433X_PATCH)
+                        mmc->slots[0].ocr_mask  = MMC_VDD_30_31;
+#else
+                        if (machine_is_omap_4430sdp())
+                                mmc->slots[0].ocr_mask  = MMC_VDD_165_195;
+#endif
+#endif
+
 		break;
 	default:
 		pr_err("MMC%d configuration not supported!\n", c->mmc);
@@ -502,10 +621,25 @@ void __init omap2_hsmmc_init(struct omap2_hsmmc_info *controllers)
 			OMAP4_SDMMC1_PUSTRENGTH_GRP1_MASK);
 		reg &= ~(OMAP4_SDMMC1_PUSTRENGTH_GRP2_MASK |
 			OMAP4_SDMMC1_PUSTRENGTH_GRP3_MASK);
-		reg |= (OMAP4_USBC1_DR0_SPEEDCTRL_MASK|
+		/*                                        
+                                                          
+   */
+		reg |= (/*OMAP4_USBC1_DR0_SPEEDCTRL_MASK|*/
 			OMAP4_SDMMC1_DR1_SPEEDCTRL_MASK |
 			OMAP4_SDMMC1_DR2_SPEEDCTRL_MASK);
 		omap4_ctrl_pad_writel(reg, control_mmc1);
+		/*                                        
+                                                            
+    
+                                           
+   */
+#if defined(CONFIG_MMC_OMAP_HS_VMMC_AUTO_OFF)
+		reg = omap4_ctrl_pad_readl(control_pbias_offset);
+		reg &= ~(OMAP4_MMC1_PBIASLITE_PWRDNZ_MASK | \
+			 OMAP4_MMC1_PWRDNZ_MASK | \
+			 OMAP4_MMC1_PBIASLITE_VMODE_MASK);
+		omap4_ctrl_pad_writel(reg, control_pbias_offset);
+#endif
 	}
 
 	for (; controllers->mmc; controllers++)

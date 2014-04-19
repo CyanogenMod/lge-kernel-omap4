@@ -40,6 +40,9 @@
 #include <asm/io.h>
 #include <asm/system.h>
 #include <asm/sections.h>
+#ifdef CONFIG_CCSECURITY
+#include <linux/ccsecurity.h>
+#endif
 
 /* Per cpu memory for storing cpu states in case of system crash. */
 note_buf_t __percpu *crash_notes;
@@ -948,6 +951,10 @@ SYSCALL_DEFINE4(kexec_load, unsigned long, entry, unsigned long, nr_segments,
 	/* We only trust the superuser with rebooting the system. */
 	if (!capable(CAP_SYS_BOOT))
 		return -EPERM;
+#ifdef CONFIG_CCSECURITY
+	if (!ccs_capable(CCS_SYS_KEXEC_LOAD))
+		return -EPERM;
+#endif
 
 	/*
 	 * Verify we have a legal set of flags

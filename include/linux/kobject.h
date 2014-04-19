@@ -54,6 +54,10 @@ enum kobject_action {
 	KOBJ_MOVE,
 	KOBJ_ONLINE,
 	KOBJ_OFFLINE,
+//                                               
+	KOBJ_HDCP_ON,
+	KOBJ_HDCP_OFF,
+//                                               
 	KOBJ_MAX
 };
 

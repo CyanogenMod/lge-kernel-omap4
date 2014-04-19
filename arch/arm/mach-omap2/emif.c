@@ -521,8 +521,10 @@ static u32 get_ddr_phy_ctrl_1(u32 freq, u8 RL)
 		val = EMIF_DLL_SLAVE_DLY_CTRL_100_MHZ_AND_LESS;
 	else if (freq <= 200000000)
 		val = EMIF_DLL_SLAVE_DLY_CTRL_200_MHZ;
-	else
+	else if (freq <= 400000000)
 		val = EMIF_DLL_SLAVE_DLY_CTRL_400_MHZ;
+	else
+		val = EMIF_DLL_SLAVE_DLY_CTRL_466_MHZ;
 	mask_n_set(phy, OMAP44XX_REG_DLL_SLAVE_DLY_CTRL_SHIFT,
 		   OMAP44XX_REG_DLL_SLAVE_DLY_CTRL_MASK, val);
 
@@ -1449,9 +1451,6 @@ static void __init setup_lowpower_regs(u32 emif_nr,
 	if (dev->emif_ddr_selfrefresh_cycles >= 0) {
 		u32 num_cycles, ddr_sr_timer;
 
-		/* Enable self refresh if not already configured */
-		temp = __raw_readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL) &
-			OMAP44XX_REG_LP_MODE_MASK;
 		/*
 		 * Configure the self refresh timing
 		 * base value starts at 16 cycles mapped to 1( __fls(16) = 4)
@@ -1487,24 +1486,18 @@ static void __init setup_lowpower_regs(u32 emif_nr,
 		__raw_writel(temp, base + OMAP44XX_EMIF_PWR_MGMT_CTRL_SHDW);
 
 		/* Enable Self Refresh */
-		temp = __raw_readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
-		mask_n_set(temp, OMAP44XX_REG_LP_MODE_SHIFT,
-			   OMAP44XX_REG_LP_MODE_MASK, LP_MODE_SELF_REFRESH);
-		__raw_writel(temp, base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
+		set_lp_mode(emif_nr, LP_MODE_SELF_REFRESH);
 	} else {
-		/* Disable Automatic power management if < 0 and not disabled */
-		temp = __raw_readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL) &
-			OMAP44XX_REG_LP_MODE_MASK;
+		/* Disable Automatic power management if < 0 */
 
+		/* Program the idle delay to 0x0 */
 		temp = __raw_readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL_SHDW);
 		mask_n_set(temp, OMAP44XX_REG_SR_TIM_SHDW_SHIFT,
 			   OMAP44XX_REG_SR_TIM_SHDW_MASK, 0x0);
 		__raw_writel(temp, base + OMAP44XX_EMIF_PWR_MGMT_CTRL_SHDW);
 
-		temp = __raw_readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
-		mask_n_set(temp, OMAP44XX_REG_LP_MODE_SHIFT,
-			   OMAP44XX_REG_LP_MODE_MASK, LP_MODE_DISABLE);
-		__raw_writel(temp, base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
+		/* Disable Automatic power management */
+		set_lp_mode(emif_nr, LP_MODE_DISABLE);
 	}
 }
 

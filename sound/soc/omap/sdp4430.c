@@ -25,6 +25,7 @@
 #include <linux/i2c.h>
 #include <linux/i2c/twl.h>
 #include <linux/regulator/consumer.h>
+#include <linux/cdc_tcxo.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -151,6 +152,17 @@ static int sdp4430_mcpdm_startup(struct snd_pcm_substream *substream)
 	if (twl6040_power_mode) {
 		clk_id = TWL6040_HPPLL_ID;
 		freq = 38400000;
+
+		/*
+		 * TWL6040 requires MCLK to be active as long as
+		 * high-performance mode is in use. Glitch-free mux
+		 * cannot tolerate MCLK gating
+		 */
+		ret = cdc_tcxo_set_req_int(CDC_TCXO_CLK2, 1);
+		if (ret) {
+			printk(KERN_ERR "failed to enable twl6040 MCLK\n");
+			goto err;
+		}
 	} else {
 		clk_id = TWL6040_LPPLL_ID;
 		freq = 32768;
@@ -162,6 +174,13 @@ static int sdp4430_mcpdm_startup(struct snd_pcm_substream *substream)
 	if (ret) {
 		printk(KERN_ERR "can't set codec system clock\n");
 		goto err;
+	}
+
+	/* low-power mode uses 32k clock, MCLK is not required */
+	if (!twl6040_power_mode) {
+		ret = cdc_tcxo_set_req_int(CDC_TCXO_CLK2, 0);
+		if (ret)
+			printk(KERN_ERR "failed to disable twl6040 MCLK\n");
 	}
 
 	return 0;
@@ -266,13 +285,25 @@ static int sdp4430_dmic_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int ret = 0;
 
-	ret = snd_soc_dai_set_sysclk(cpu_dai, OMAP_DMIC_SYSCLK_PAD_CLKS,
-				     19200000, SND_SOC_CLOCK_IN);
+	if (!rtd->dai_link->no_pcm)
+		ret = snd_soc_dai_set_sysclk(cpu_dai,
+				OMAP_DMIC_SYSCLK_SYNC_MUX_CLKS, 24000000,
+				SND_SOC_CLOCK_IN);
+	else
+		ret = snd_soc_dai_set_sysclk(cpu_dai,
+				OMAP_DMIC_SYSCLK_PAD_CLKS, 19200000,
+				SND_SOC_CLOCK_IN);
+
 	if (ret < 0) {
 		printk(KERN_ERR "can't set DMIC cpu system clock\n");
 		return ret;
 	}
-	ret = snd_soc_dai_set_clkdiv(cpu_dai, OMAP_DMIC_CLKDIV, 8);
+
+	if (!rtd->dai_link->no_pcm)
+		ret = snd_soc_dai_set_clkdiv(cpu_dai, OMAP_DMIC_CLKDIV, 10);
+	else
+		ret = snd_soc_dai_set_clkdiv(cpu_dai, OMAP_DMIC_CLKDIV, 8);
+
 	if (ret < 0) {
 		printk(KERN_ERR "can't set DMIC cpu clock divider\n");
 		return ret;
@@ -309,9 +340,12 @@ static int dmic_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 {
 	struct snd_interval *rate = hw_param_interval(params,
 			SNDRV_PCM_HW_PARAM_RATE);
+	struct snd_interval *channels = hw_param_interval(params,
+			SNDRV_PCM_HW_PARAM_CHANNELS);
 
 	/* The ABE will covert the FE rate to 96k */
 	rate->min = rate->max = 96000;
+	channels->min = channels->max = 2;
 
 	snd_mask_set(&params->masks[SNDRV_PCM_HW_PARAM_FORMAT -
 	                            SNDRV_PCM_HW_PARAM_FIRST_MASK],
@@ -444,6 +478,10 @@ static int sdp4430_set_pdm_dl1_gains(struct snd_soc_dapm_context *dapm)
 		else
 			/* HSDACL in HP mode */
 			output = OMAP_ABE_DL1_HEADSET_HP;
+#if !defined(CONFIG_SND_OMAP_SOC_ABE_DL2)
+	} else if (snd_soc_dapm_get_pin_power(dapm, "Ext Spk")) {
+		output = OMAP_ABE_DL1_HANDSFREE;
+#endif
 	} else {
 		output = OMAP_ABE_DL1_NO_PDM;
 	}
@@ -1110,6 +1148,16 @@ static int __init sdp4430_soc_init(void)
 		goto err_dev;
 	}
 
+	/* Default mode is low-power, MCLK not required */
+	twl6040_power_mode = 0;
+	cdc_tcxo_set_req_int(CDC_TCXO_CLK2, 0);
+
+	/*
+	 * CDC CLK2 supplies TWL6040 MCLK, drive it from REQ2INT to
+	 * have full control of MCLK gating
+	 */
+	cdc_tcxo_set_req_prio(CDC_TCXO_CLK2, CDC_TCXO_PRIO_REQINT);
+
 	return ret;
 
 err_dev:
@@ -1123,6 +1171,8 @@ module_init(sdp4430_soc_init);
 static void __exit sdp4430_soc_exit(void)
 {
 	regulator_put(av_switch_reg);
+	cdc_tcxo_set_req_int(CDC_TCXO_CLK2, 0);
+	cdc_tcxo_set_req_prio(CDC_TCXO_CLK2, CDC_TCXO_PRIO_REQINT);
 	platform_device_unregister(sdp4430_snd_device);
 	snd_soc_unregister_dais(&sdp4430_snd_device->dev, ARRAY_SIZE(dai));
 }

@@ -540,6 +540,18 @@ ppa_cp15_cpu1_configure:
 	LM_CALL_PPA_SERVICE_PA
 	isb
 	dsb
+#if 1 // DebugLog
+	mov	r0, #PPA_SERVICE_DEFAULT_POR_NS_SMP
+	adr	r3, ppa_zero_params		@ Pointer to parameters
+	LM_CALL_PPA_SERVICE_PA
+	isb
+	dsb
+	mov	r0, #PPA_SERVICE_DEFAULT_POR_NS_SMP
+	adr	r3, ppa_zero_params		@ Pointer to parameters
+	LM_CALL_PPA_SERVICE_PA
+	isb
+	dsb
+#endif
 	cmp	r0, #0x0			@ API returns 0 on success.
 	bne	ppa_cp15_cpu1_configure		@ retry if we did not succeed
 	/* HS device cp15 done, jump to continue_boot */
@@ -596,6 +608,11 @@ continue_boot:
 	beq	skip_l2en			@ Skip if already enabled
 
 check_por:
+#if 1
+	nop
+	nop
+	nop
+#endif
 	ldr	r0, =OMAP44XX_SAR_RAM_BASE  @ Check DEVICE type
 	ldr	r1, [r0, #OMAP_TYPE_OFFSET]
 	cmp	r1, #0x1                   @ Check for HS device

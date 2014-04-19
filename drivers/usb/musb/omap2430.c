@@ -323,7 +323,10 @@ static void musb_otg_notifier_work(struct work_struct *data_notifier_work)
 		}
 
 #endif
+		pm_runtime_get_sync(dev->parent);
 		otg_init(musb->xceiv);
+		pm_runtime_mark_last_busy(dev->parent);
+		pm_runtime_put_autosuspend(dev->parent);
 		break;
 
 	case USB_EVENT_NONE:
@@ -342,12 +345,21 @@ static void musb_otg_notifier_work(struct work_struct *data_notifier_work)
 			if (musb->xceiv->set_vbus)
 				otg_set_vbus(musb->xceiv, 0);
 		}
+/* OMAP4:MUSB:Disconnect interrupt serviced on a Disconnect Event */
+#if !defined(CONFIG_MACH_LGE)
 		otg_shutdown(musb->xceiv);
+#endif
 		otg_set_suspend(musb->xceiv, 1);
 
 		val = musb_readl(musb->mregs, OTG_INTERFSEL);
 		val |= ULPI_12PIN;
 		musb_writel(musb->mregs, OTG_INTERFSEL, val);
+
+/* OMAP4:MUSB:Disconnect interrupt serviced on a Disconnect Event */
+#if defined(CONFIG_MACH_LGE)
+		otg_set_suspend(musb->xceiv, 0);
+		otg_shutdown(musb->xceiv);
+#endif
 		pm_runtime_mark_last_busy(musb->controller);
 		pm_runtime_put_autosuspend(musb->controller);
 
@@ -414,6 +426,12 @@ static int omap2430_musb_init(struct musb *musb)
 		dev_dbg(musb->controller, "notification register failed\n");
 
 	setup_timer(&musb_idle_timer, musb_do_idle, (unsigned long) musb);
+
+	/*                                                          */
+	if (musb->xceiv->last_event !=  USB_EVENT_NONE) {
+		atomic_notifier_call_chain(&musb->xceiv->notifier,
+				musb->xceiv->last_event, NULL);
+	}
 
 	return 0;
 
@@ -551,21 +569,13 @@ static int __init omap2430_probe(struct platform_device *pdev)
 		goto err2;
 	}
 
-<<<<<<< HEAD
-=======
 	pm_runtime_enable(&pdev->dev);
 
->>>>>>> 379ef79... Merge latest changes from google kernel/common.git
 	ret = platform_device_add(musb);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to register musb device\n");
 		goto err2;
 	}
-<<<<<<< HEAD
-
-	pm_runtime_enable(&pdev->dev);
-=======
->>>>>>> 379ef79... Merge latest changes from google kernel/common.git
 
 	return 0;
 
@@ -599,11 +609,13 @@ static int omap2430_runtime_suspend(struct device *dev)
 	struct omap2430_glue		*glue = dev_get_drvdata(dev);
 	struct musb			*musb = glue_to_musb(glue);
 
-	musb->context.otg_interfsel = musb_readl(musb->mregs,
-						OTG_INTERFSEL);
+	if (musb) {
+		musb->context.otg_interfsel = musb_readl(musb->mregs,
+							OTG_INTERFSEL);
 
-	omap2430_low_level_exit(musb);
-	otg_set_suspend(musb->xceiv, 1);
+		omap2430_low_level_exit(musb);
+		otg_set_suspend(musb->xceiv, 1);
+	}
 
 	return 0;
 }
@@ -613,11 +625,13 @@ static int omap2430_runtime_resume(struct device *dev)
 	struct omap2430_glue		*glue = dev_get_drvdata(dev);
 	struct musb			*musb = glue_to_musb(glue);
 
-	omap2430_low_level_init(musb);
-	musb_writel(musb->mregs, OTG_INTERFSEL,
-					musb->context.otg_interfsel);
+	if (musb) {
+		omap2430_low_level_init(musb);
+		musb_writel(musb->mregs, OTG_INTERFSEL,
+						musb->context.otg_interfsel);
 
-	otg_set_suspend(musb->xceiv, 0);
+		otg_set_suspend(musb->xceiv, 0);
+	}
 
 	return 0;
 }

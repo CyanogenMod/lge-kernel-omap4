@@ -232,6 +232,18 @@ config CHARGER_MAX8903
 	  pins based on the status of charger connections with interrupt
 	  handlers.
 
+config MAX8971_CHARGER
+	bool "MAX8971 charger driver"
+	default n
+	help
+	  Support for MAX8971 charger driver. 
+
+config CHARGER_RT9524
+	bool "RT9524_CHARGER"
+	default n
+	help
+	  Support for RT9524_CHARGER driver. 
+
 config CHARGER_TWL4030
 	tristate "OMAP TWL4030 BCI charger driver"
 	depends on TWL4030_CORE

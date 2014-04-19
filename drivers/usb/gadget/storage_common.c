@@ -704,6 +704,14 @@ static ssize_t fsg_show_file(struct device *dev, struct device_attribute *attr,
 	return rc;
 }
 
+/*                                                                 */
+static ssize_t fsg_show_cdrom(struct device *dev, struct device_attribute *attr,
+                           char *buf)
+{
+        struct fsg_lun  *curlun = fsg_lun_from_dev(dev);
+        return sprintf(buf, "%d\n", curlun->cdrom); 
+}
+/*                                                                 */
 
 static ssize_t fsg_store_ro(struct device *dev, struct device_attribute *attr,
 			    const char *buf, size_t count)
@@ -795,3 +803,22 @@ static ssize_t fsg_store_file(struct device *dev, struct device_attribute *attr,
 	up_write(filesem);
 	return (rc < 0 ? rc : count);
 }
+
+/*                                                                 */
+static ssize_t fsg_store_cdrom(struct device *dev,
+                               struct device_attribute *attr,
+                               const char *buf, size_t count)
+{
+        struct fsg_lun  *curlun = fsg_lun_from_dev(dev);
+        unsigned        cdrom;
+        int             ret;
+
+        ret = kstrtouint(buf, 2, &cdrom);
+        if (ret)
+                return ret;
+	/* Needs to be configured before function enable */
+        curlun->cdrom = cdrom;
+
+        return count;
+}
+/*                                                                 */

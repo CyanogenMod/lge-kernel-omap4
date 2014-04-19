@@ -68,6 +68,7 @@
 			(RX_MAX_QUEUE_MEMORY/(dev)->rx_urb_size) : 4)
 #define	TX_QLEN(dev) (((dev)->udev->speed == USB_SPEED_HIGH) ? \
 			(RX_MAX_QUEUE_MEMORY/(dev)->hard_mtu) : 4)
+#define	DONE_QLEN(dev) (RX_QLEN(dev) + TX_QLEN(dev))
 
 // reawaken network queue this soon after stopping; else watchdog barks
 #define TX_TIMEOUT_JIFFIES	(5*HZ)
@@ -323,14 +324,27 @@ static int rx_submit (struct usbnet *dev, struct urb *urb, gfp_t flags)
 	int			retval = 0;
 	unsigned long		lockflags;
 	size_t			size = dev->rx_urb_size;
+	size_t			net_ip_align = NET_IP_ALIGN;
 
-	if ((skb = alloc_skb (size + NET_IP_ALIGN, flags)) == NULL) {
+	if (dev->udev && dev->udev->bus && dev->udev->bus->uses_dma &&
+			dev->udev->bus->dma_align)
+		net_ip_align = 0;
+
+	if (dev->rxq.qlen >= RX_QLEN(dev)) {
+		netif_dbg(dev, rx_err, dev->net, "rx queue full\n");
+		usbnet_defer_kevent (dev, EVENT_RX_MEMORY);
+		usb_free_urb (urb);
+		return -ENOMEM;
+	}
+
+	if ((skb = alloc_skb (size + net_ip_align, flags)) == NULL) {
 		netif_dbg(dev, rx_err, dev->net, "no rx skb\n");
 		usbnet_defer_kevent (dev, EVENT_RX_MEMORY);
 		usb_free_urb (urb);
 		return -ENOMEM;
 	}
-	skb_reserve (skb, NET_IP_ALIGN);
+	if (net_ip_align)
+		skb_reserve (skb, net_ip_align);
 
 	entry = (struct skb_data *) skb->cb;
 	entry->urb = urb;
@@ -487,7 +501,8 @@ block:
 
 	if (urb) {
 		if (netif_running (dev->net) &&
-		    !test_bit (EVENT_RX_HALT, &dev->flags)) {
+				!test_bit (EVENT_RX_HALT, &dev->flags) &&
+				(dev->done.qlen < DONE_QLEN(dev))) {
 			rx_submit (dev, urb, GFP_ATOMIC);
 			return;
 		}

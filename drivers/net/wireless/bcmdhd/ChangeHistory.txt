@@ -1,0 +1,13 @@
+BCM4330/BCM4334 DHD 1.28.19.8
+
+DHD version upgrade
+   - Fixed kernel panic when netdev register failed case
+   - Fixed Kernel panic during interface down
+   - Fixed Bad chanspec during create P2P-GO
+   - Fixed invalid chanspec list parsing
+   
+BCM4330/BCM4334 DHD 1.28.19.9
+DHD version upgrade
+   - Removed workaround code for p2p inteface up
+   - Fixed invalid F2 block size during SoftAP running
+

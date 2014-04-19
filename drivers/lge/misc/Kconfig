@@ -1,0 +1,71 @@
+config LGE_VIBRATOR
+	bool "OMAP PWM Vibrator"
+	default n
+	help
+	  Vibrator driver with OMAP-PWM
+
+config SENSORS_APDS9900
+	bool "Avago APDS9900 sensor"
+	default n
+    depends on MACH_LGE_P2
+	help
+	  If you say Y here you get support for the Avago APDS9900
+	  ambient light + proximity sensor.
+
+config SENSORS_APDS9190
+	bool "Avago APDS9190 sensor"
+	default n
+    depends on MACH_LGE_U2
+	help
+	  If you say Y here you get support for the Avago APDS9190
+	  proximity sensor.
+
+config BACKLIGHT_LM3528
+	bool "Backlight Driver for LM3528"
+	depends on BACKLIGHT_CLASS_DEVICE
+	select SUBPMIC_LM3528
+	help
+	  If you have a LCD backlight connected to the MAIN and(or)
+	  SUB/FB output of LM3528, say Y here to enable this driver.
+	  To compile this driver as a module, choose M here: the module
+	  will be called lm3528_bl
+
+config BACKLIGHT_LM3530
+	bool "Backlight Driver for LM3530"
+	depends on BACKLIGHT_CLASS_DEVICE
+	select SUBPMIC_LM3530
+	help
+	  If you have a LCD backlight connected to the MAIN and(or)
+	  SUB/FB output of LM3530, say Y here to enable this driver.
+	  To compile this driver as a module, choose M here: the module
+	  will be called lm3530_bl
+
+config BACKLIGHT_LM3533
+	bool "Backlight Driver for LM3530"
+	depends on BACKLIGHT_CLASS_DEVICE
+	select SUBPMIC_LM3533
+	help
+	  If you have a LCD backlight connected to the MAIN and(or)
+	  SUB/FB output of LM3533, say Y here to enable this driver.
+	  To compile this driver as a module, choose M here: the module
+	  will be called lm3533_bl
+
+config CAMERAFLASH_LM3559
+	bool "Camera flash driver for LM3559"
+	default n
+	help
+	  This is a camera flash driver for LM3559
+
+config KEYPAD_LEDS_GPIO
+	bool "Keypad led driver controlled by GPIO"
+	select NEW_LEDS
+	select LEDS_CLASS
+	help
+	  If you say Y here get driver support for the keypad backlight
+	  controlled by GPIO
+
+config LGE_GPIO_CONTROL
+	bool "GPIO control support"
+	default n
+	help
+	  If you want to change GPIO control, say Y

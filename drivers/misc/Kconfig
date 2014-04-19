@@ -398,6 +398,21 @@ config SENSORS_AK8975
 	help
 	  If you say yes here you get support for Asahi Kasei's
 	  orientation sensor AK8975.
+#+++LG_BRCM_BTDRV hseok.kim@lge.com (2011-06-14): 
+config LBEE9QMB_RFKILL
+	tristate "Bluetooth power control driver for Murata lbee9qmb"
+	depends on RFKILL
+	default n
+	---help---
+	 Creates an rfkill entry in sysfs for power control of
+	 Murata lbee9qmbc Bluetooth+WiFi chips.
+
+config BD_ADDRESS
+	bool "BD Read / Write Driver"
+	default n
+	help
+	  LGE added: It supports Bluetooth address Read / Write functionality on user mode.	  
+#---
 
 config EP93XX_PWM
 	tristate "EP93xx PWM support"
@@ -509,7 +524,18 @@ config WL127X_RFKILL
 	---help---
 	 Creates an rfkill entry in sysfs for power control of Bluetooth
 	 TI wl127x chips.
-
+#LGE_CHANGE_S [seungmoon.lee@lge.com] 2011-08-18
+config TSPDRV
+	bool "Immersion haptic tspdrv"
+	default y
+	help
+	  Immersion haptic driver
+#LGE_SJIT 2011-11-30 [dojip.kim@lge.com] support for timed_output
+config TSPDRV_TIMED_OUTPUT
+	bool "Support for Android timed output class driver"
+	depends on TSPDRV
+	default n
+#LGE_CHANGE_E [seungmoon.lee@lge.com] 2011-08-18
 config APANIC
 	bool "Android kernel panic diagnostics driver"
 	default n
@@ -537,15 +563,37 @@ config TWL6040_VIB
 	depends on TWL6040_CODEC && ANDROID_TIMED_OUTPUT
 	default n
 
+config CDC_TCXO
+	tristate "Texas Instruments CDC TCXO"
+	depends on I2C
+	default n
+	help
+	  Enable support for Texas Instruments CDC TCXO CDC3S04
+
+# RIP-12331 : handling CP Crash of RIL Recovery
+config LGE_MODEM_WATCHER
+	bool "LGE Modem Watcher"
+	depends on MACH_LGE
+	default n
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
 source "drivers/misc/iwmc3200top/Kconfig"
+# LGE_CHANGE [younglae.kim@lge.com] 2012-03-26 mpu3050 will be used for P2
+# LGE_SJIT 2011-11-24 [dojip.kim@lge.com] will use inv_mpu instead of this
+# LGE_CHANGE [eugene.goh] 2011-07-01
+source "drivers/misc/mpu3050/Kconfig"
+#source "drivers/misc/inv_mpu/Kconfig"
+# LGE_CHANGE [younglae.kim@lge.com] 2012-04-18 bmc050 will be used for U2
+source "drivers/misc/bmc050/Kconfig"
 source "drivers/misc/ti-st/Kconfig"
 source "drivers/misc/lis3lv02d/Kconfig"
 source "drivers/misc/carma/Kconfig"
 source "drivers/misc/gcx/gccore/Kconfig"
 source "drivers/misc/gcx/gcioctl/Kconfig"
 source "drivers/misc/gcx/gcbv/Kconfig"
+source "drivers/misc/ts0710mux/Kconfig"
+source "drivers/misc/cache-2dmanager/Kconfig"
 
 endif # MISC_DEVICES

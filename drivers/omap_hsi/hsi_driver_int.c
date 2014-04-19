@@ -20,6 +20,15 @@
 
 #include "hsi_driver.h"
 #include <linux/delay.h>
+#if defined(CONFIG_MACH_LGE_P2) || defined(CONFIG_MACH_LGE_U2)
+#include <linux/wakelock.h>
+
+static struct wake_lock cawake_wake_lock;
+#endif //                  
+
+//                                             
+extern char simple_hsi_log_debug_enable;
+//                                           
 
 void hsi_reset_ch_read(struct hsi_channel *ch)
 {
@@ -112,6 +121,7 @@ bool hsi_is_channel_busy(struct hsi_channel *ch)
 }
 
 /* Check if a HSI port is busy :
+ * - ACWAKE is high
  * - data transfer (Write) is ongoing for a given HSI channel
  * - CAWAKE is high
  * - CAWAKE is not used (receiver in 3-wires mode)
@@ -141,7 +151,7 @@ bool hsi_is_hsi_port_busy(struct hsi_port *pport)
 		return true;
 	}
 
-	if (cur_cawake) {
+	if (cur_cawake || pport->acwake_status) {
 		dev_dbg(hsi_ctrl->dev, "Port %d: WAKE status: acwake_status %d,"
 			"cur_cawake %d", pport->port_number,
 			pport->acwake_status, cur_cawake);
@@ -355,6 +365,7 @@ int hsi_driver_cancel_read_interrupt(struct hsi_channel *ch)
 
 	status_reg = hsi_inl(base,
 			HSI_SYS_MPU_ENABLE_CH_REG(port, p->n_irq, channel));
+
 	if (!(status_reg & HSI_HSR_DATAAVAILABLE(channel))) {
 		dev_dbg(&ch->dev->device, "Read cancel on not "
 			"enabled channel %d ENABLE REG 0x%08X", channel,
@@ -540,16 +551,30 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 
 	/* Check CAWAKE line status */
 	if (cawake_status) {
-		dev_dbg(hsi_ctrl->dev, "CAWAKE rising edge detected\n");
+//                                                
+#if 0 /* ORIGINAL CODE */
+        dev_dbg(hsi_ctrl->dev, "CAWAKE rising edge detected\n");
+#else /* DYNAMIC LOG CONFIG */
+    if (simple_hsi_log_debug_enable == '1')
+        printk("CAWAKE rising edge detected\n");
+    else
+        dev_dbg(hsi_ctrl->dev, "CAWAKE rising edge detected\n");
+#endif /* DYNAMIC LOG CONFIG */
+//                                              
+#if defined(CONFIG_MACH_LGE_P2) || defined(CONFIG_MACH_LGE_U2)
+		wake_lock(&cawake_wake_lock);
+#endif //                  
 
 		/* Check for possible mismatch (race condition) */
 		if (unlikely(pport->cawake_status)) {
 			dev_warn(hsi_ctrl->dev,
 				"Missed previous CAWAKE falling edge...\n");
-			spin_unlock(&hsi_ctrl->lock);
-			hsi_port_event_handler(pport, HSI_EVENT_CAWAKE_DOWN,
-						NULL);
-			spin_lock(&hsi_ctrl->lock);
+/*                                                            */
+			//spin_unlock(&hsi_ctrl->lock);
+			//hsi_port_event_handler(pport, HSI_EVENT_CAWAKE_DOWN,
+			//			NULL);
+			//spin_lock(&hsi_ctrl->lock);
+/*                                                           */
 
 			/* In case another CAWAKE interrupt occured and caused
 			 * a race condition, clear CAWAKE backup interrupt to
@@ -562,9 +587,11 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 		/* Allow data reception */
 		hsi_hsr_resume(hsi_ctrl);
 
-		spin_unlock(&hsi_ctrl->lock);
-		hsi_port_event_handler(pport, HSI_EVENT_CAWAKE_UP, NULL);
-		spin_lock(&hsi_ctrl->lock);
+/*                                                            */
+		//spin_unlock(&hsi_ctrl->lock);
+		//hsi_port_event_handler(pport, HSI_EVENT_CAWAKE_UP, NULL);
+		//spin_lock(&hsi_ctrl->lock);
+/*                                                           */
 
 		/*
 		* HSI - OMAP4430-2.2BUG00055: i702
@@ -573,9 +600,21 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 		*/
 		if (is_hsi_errata(hsi_ctrl, HSI_ERRATUM_i702_PM_HSI_SWAKEUP))
 			omap_pm_clear_dsp_wake_up();
-
 	} else {
-		dev_dbg(hsi_ctrl->dev, "CAWAKE falling edge detected\n");
+//                                                
+#if 0 /* ORIGINAL CODE */
+        dev_dbg(hsi_ctrl->dev, "CAWAKE falling edge detected\n")
+#else /* DYNAMIC LOG CONFIG */
+        if (simple_hsi_log_debug_enable == '1')
+            printk("CAWAKE falling edge detected\n");
+        else
+            dev_dbg(hsi_ctrl->dev, "CAWAKE falling edge detected\n");
+#endif /* DYNAMIC LOG CONFIG */
+//                                              
+
+#if defined(CONFIG_MACH_LGE_P2) || defined(CONFIG_MACH_LGE_U2)
+		wake_unlock(&cawake_wake_lock);
+#endif
 
 		/* Check for pending DMA interrupt */
 		if (hsi_is_dma_read_int_pending(hsi_ctrl)) {
@@ -584,13 +623,16 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 					       "Interrupt tasklet.\n");
 			return -EAGAIN;
 		}
+
 		if (unlikely(!pport->cawake_status)) {
 			dev_warn(hsi_ctrl->dev,
 				"Missed previous CAWAKE rising edge...\n");
-			spin_unlock(&hsi_ctrl->lock);
-			hsi_port_event_handler(pport, HSI_EVENT_CAWAKE_UP,
-						NULL);
-			spin_lock(&hsi_ctrl->lock);
+/*                                                            */
+			//spin_unlock(&hsi_ctrl->lock);
+			//hsi_port_event_handler(pport, HSI_EVENT_CAWAKE_UP,
+			//			NULL);
+			//spin_lock(&hsi_ctrl->lock);
+/*                                                           */
 
 			/* In case another CAWAKE interrupt occured and caused
 			 * a race condition, clear CAWAKE backup interrupt to
@@ -603,9 +645,11 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 		/* Forbid data reception */
 		hsi_hsr_suspend(hsi_ctrl);
 
-		spin_unlock(&hsi_ctrl->lock);
-		hsi_port_event_handler(pport, HSI_EVENT_CAWAKE_DOWN, NULL);
-		spin_lock(&hsi_ctrl->lock);
+/*                                                            */
+		//spin_unlock(&hsi_ctrl->lock);
+		//hsi_port_event_handler(pport, HSI_EVENT_CAWAKE_DOWN, NULL);
+		//spin_lock(&hsi_ctrl->lock);
+/*                                                           */
 	}
 
 	return 0;
@@ -651,7 +695,7 @@ static u32 hsi_driver_int_proc(struct hsi_port *pport,
 	} else if (!status_reg) {
 		dev_dbg(hsi_ctrl->dev, "Channels [%d,%d] : no event, exit.\n",
 			start, stop);
-			return 0;
+		return 0;
 	} else {
 		dev_dbg(hsi_ctrl->dev, "Channels [%d,%d] : Events 0x%08x\n",
 			start, stop, status_reg);
@@ -721,6 +765,7 @@ static u32 hsi_driver_int_proc(struct hsi_port *pport,
 		channels_served |= HSI_CAWAKEDETECTED;
 		pport->cawake_off_event = false;
 	}
+
 proc_done:
 	/* Reset status bits */
 	hsi_outl(channels_served, base, status_offset);
@@ -814,13 +859,17 @@ int __init hsi_mpu_init(struct hsi_port *hsi_p, const char *irq_name)
 	dev_info(hsi_p->hsi_controller->dev, "Registering IRQ %s (%d)\n",
 						irq_name, hsi_p->irq);
 	err = request_irq(hsi_p->irq, hsi_mpu_handler,
-			IRQF_NO_SUSPEND | IRQF_TRIGGER_HIGH,
-			irq_name, hsi_p);
+				IRQF_NO_SUSPEND | IRQF_TRIGGER_HIGH,
+				irq_name, hsi_p);
 	if (err < 0) {
 		dev_err(hsi_p->hsi_controller->dev, "FAILED to MPU request"
 			" IRQ (%d) on port %d", hsi_p->irq, hsi_p->port_number);
 		return -EBUSY;
 	}
+
+#if defined(CONFIG_MACH_LGE_P2) || defined(CONFIG_MACH_LGE_U2)
+	wake_lock_init(&cawake_wake_lock, WAKE_LOCK_SUSPEND, "cawake");
+#endif //                  
 
 	return 0;
 }

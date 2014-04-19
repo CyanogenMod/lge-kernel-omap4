@@ -43,7 +43,26 @@
 #define HSI_RESETDONE_NORMAL_RETRIES	1 /* Reset should complete in 1 R/W */
 					  /* cycle */
 
+//                                                  
+#if defined(CONFIG_MACH_LGE_COSMO_REV_D) || defined(CONFIG_MACH_LGE_COSMO_DOMASTIC)
+/* Notify active/sleep status of AP to CP*/
+#define MODEM_SEND 		121 /* MODEM_SEND gpio_121 */
+#endif
+//                                                
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+struct hsi_dpll_cascading_blocker {
+	bool lock_dpll_cascading;
+	struct device *dev;
+	struct work_struct dpll_blocker_work;
+};
+
+static struct hsi_dpll_cascading_blocker dpll_blocker = {
+	.lock_dpll_cascading = true,
+};
+#endif
+
+struct device *hsi_temp_ptr; /*                                                                                          */
 void hsi_hsr_suspend(struct hsi_dev *hsi_ctrl)
 {
 	struct hsi_platform_data *pdata = hsi_ctrl->dev->platform_data;
@@ -289,7 +308,7 @@ void hsi_set_pm_force_hsi_on(struct hsi_dev *hsi_ctrl)
 	/* SIdleAck and MStandby are never asserted */
 	hsi_outl((HSI_AUTOIDLE | HSI_SIDLEMODE_NO |
 				 HSI_MIDLEMODE_NO),
-		hsi_ctrl->base, HSI_SYS_SYSCONFIG_REG);
+		 hsi_ctrl->base, HSI_SYS_SYSCONFIG_REG);
 	hsi_outl(HSI_CLK_AUTOGATING_ON, hsi_ctrl->base, HSI_GDD_GCR_REG);
 
 	/* HSI_TODO : use the HWMOD API : omap_hwmod_set_slave_idlemode() */
@@ -648,6 +667,22 @@ static int __init hsi_init_gdd_chan_count(struct hsi_dev *hsi_ctrl)
 	return 0;
 }
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+static void hsi_dpll_cascading_blocker_work(struct work_struct *work)
+{
+	struct hsi_dpll_cascading_blocker *dpll_blocker;
+
+	dpll_blocker = container_of(work,
+			struct hsi_dpll_cascading_blocker,
+			dpll_blocker_work);
+
+	if (dpll_blocker->lock_dpll_cascading)
+		omap4_dpll_cascading_blocker_hold(dpll_blocker->dev);
+	else
+		omap4_dpll_cascading_blocker_release(dpll_blocker->dev);
+}
+#endif
+
 /**
 * hsi_clocks_disable_channel - virtual wrapper for disabling HSI clocks for
 * a given channel
@@ -682,12 +717,18 @@ void hsi_clocks_disable_channel(struct device *dev, u8 channel_number,
 	}
 
 	if (hsi_is_hst_controller_busy(hsi_ctrl))
+//                                                  
+/* MIPI Unstable Downlink Throughput : Disable log ( dev_warn = >  dev_dbg) */
+#if 1
 		dev_dbg(dev, "Disabling clocks with HST FSM not IDLE !\n");
+#endif
+//                                                  
 
-#ifdef K3_0_PORTING_HSI_MISSING_FEATURE
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
 	/* Allow Fclk to change */
-	if (dpll_cascading_blocker_release(dev) < 0)
-		dev_warn(dev, "Error releasing DPLL cascading constraint\n");
+	dpll_blocker.lock_dpll_cascading = false;
+	dpll_blocker.dev = dev;
+	schedule_work(&dpll_blocker.dpll_blocker_work);
 #endif
 
 	pm_runtime_put_sync_suspend(dev);
@@ -725,10 +766,11 @@ int hsi_clocks_enable_channel(struct device *dev, u8 channel_number,
 		return -EEXIST;
 	}
 
-#ifdef K3_0_PORTING_HSI_MISSING_FEATURE
-	/* Prevent Fclk change */
-	if (dpll_cascading_blocker_hold(dev) < 0)
-		dev_warn(dev, "Error holding DPLL cascading constraint\n");
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	/* Prevent Fclk to change */
+	dpll_blocker.lock_dpll_cascading = true;
+	dpll_blocker.dev = dev;
+	schedule_work(&dpll_blocker.dpll_blocker_work);
 #endif
 
 	return pm_runtime_get_sync(dev);
@@ -810,6 +852,23 @@ static void hsi_controller_exit(struct hsi_dev *hsi_ctrl)
 	hsi_gdd_exit(hsi_ctrl);
 	hsi_ports_exit(hsi_ctrl, hsi_ctrl->max_p);
 }
+
+//                                                  
+/* Notify active/sleep status of AP to CP*/
+#if defined(CONFIG_MACH_LGE_COSMO_REV_D) || defined(CONFIG_MACH_LGE_COSMO_DOMASTIC)
+static void ifx_init_modem_send(void)
+{
+	int ret = 0;			
+	ret = gpio_request(MODEM_SEND, "MODEM_SEND");
+	if (ret < 0) {
+		printk(KERN_ERR "%s: Failed to request GPIO_%d for MODEM_SEND\n", __func__, MODEM_SEND);
+		return;
+	}
+	
+	gpio_direction_output(MODEM_SEND, 1);
+}
+#endif
+//                                                
 
 /* HSI Platform Device probing & hsi_device registration */
 static int __init hsi_platform_device_probe(struct platform_device *pd)
@@ -909,6 +968,23 @@ static int __init hsi_platform_device_probe(struct platform_device *pd)
 	/* From here no need for HSI HW access */
 	hsi_clocks_disable(hsi_ctrl->dev, __func__);
 
+//                                                  
+#if defined(CONFIG_MACH_LGE_COSMOPOLITAN)
+	/* Set IMC CP core dump */
+	IFX_CP_CRASH_DUMP_INIT();
+#endif
+
+#if defined(CONFIG_MACH_LGE_COSMO_REV_D) || defined(CONFIG_MACH_LGE_COSMO_DOMASTIC)
+	/* Notify active/sleep status of AP to CP*/
+	ifx_init_modem_send();
+#endif
+//                                                
+
+/*                                                                                                  */
+    hsi_temp_ptr = hsi_ctrl->dev;
+    dev_info(hsi_temp_ptr,"hsi_driver:[%s] hsi_temp_ptr indicate hsi_ctrl->dev \n",__func__);
+/*                                                                                                */
+
 	return 0;
 
 rollback3:
@@ -980,6 +1056,15 @@ static int hsi_pm_suspend(struct device *dev)
 		return -EBUSY;
 	}
 
+//                                                  
+/* Notify active/sleep status of AP to CP */
+#if defined(CONFIG_MACH_LGE_COSMO_REV_D) || defined(CONFIG_MACH_LGE_COSMO_DOMASTIC)
+	/* set sleep status of AP */
+	dev_info(dev, "%s\n", __func__);
+	gpio_set_value(MODEM_SEND, 0);
+#endif
+//                                                
+
 	/* Perform HSI board specific action before platform suspend */
 	if (pdata->board_suspend)
 		for (i = 0; i < hsi_ctrl->max_p; i++)
@@ -1032,6 +1117,15 @@ static int hsi_pm_resume(struct device *dev)
 		for (i = 0; i < hsi_ctrl->max_p; i++)
 			pdata->board_resume(hsi_ctrl->hsi_port[i].port_number,
 					    device_may_wakeup(dev));
+
+//                                                  
+/* Notify active/sleep status of AP to CP*/
+#if defined(CONFIG_MACH_LGE_COSMO_REV_D) || defined(CONFIG_MACH_LGE_COSMO_DOMASTIC)
+	/* set sleep status of AP */
+	dev_info(dev, "%s\n", __func__);
+	gpio_set_value(MODEM_SEND, 1);
+#endif
+	//                                                
 
 	return 0;
 }
@@ -1191,6 +1285,11 @@ static int __init hsi_driver_init(void)
 		goto rback1;
 	}
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	INIT_WORK(&dpll_blocker.dpll_blocker_work,
+			hsi_dpll_cascading_blocker_work);
+#endif
+
 	/* Register the HSI platform driver */
 	err = platform_driver_probe(&hsi_pdriver, hsi_platform_device_probe);
 	if (err < 0) {
@@ -1208,6 +1307,9 @@ rback1:
 
 static void __exit hsi_driver_exit(void)
 {
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	flush_work_sync(&dpll_blocker.dpll_blocker_work);
+#endif
 	platform_driver_unregister(&hsi_pdriver);
 	hsi_debug_exit();
 	hsi_bus_exit();
@@ -1215,7 +1317,8 @@ static void __exit hsi_driver_exit(void)
 	pr_info(LOG_NAME "HSI DRIVER removed\n");
 }
 
-module_init(hsi_driver_init);
+late_initcall(hsi_driver_init);  //hyungsun.seo_111213 added for ICS
+//module_init(hsi_driver_init);
 module_exit(hsi_driver_exit);
 
 MODULE_ALIAS("platform:" HSI_MODULENAME);

@@ -1,0 +1,49 @@
+# drivers/lge/Kconfig
+
+config SUBPMIC_AAT2862
+	bool "Backlight driver for AAT2862 using OLED"
+	default n
+	help
+	  If you have a LCD backlight connected to the MAIN and(or)
+	  SUB/FB output of AAT2862, say Y here to enable this driver.
+	  To Compile this driver as a module, choose M here: the module
+	  will be called aat2862_bl.
+
+config SUBPMIC_LM3528
+	bool "Backlight driver for LM3528 using OLED"
+	default n
+	help
+	  If you have a LCD backlight connected to the MAIN and(or)
+	  SUB/FB output of LM3528, say Y here to enable this driver.
+	  To Compile this driver as a module, choose M here: the module
+	  will be called lm3528_bl.
+
+config SUBPMIC_LM3530
+	bool "Backlight driver for LM3530 using OLED"
+	default n
+	help
+	  If you have a LCD backlight connected to the MAIN and(or)
+	  SUB/FB output of LM3530, say Y here to enable this driver.
+	  To Compile this driver as a module, choose M here: the module
+	  will be called lm3530_bl.
+
+config SUBPMIC_LM3533
+	bool "Backlight driver for LM3533 using OLED"
+	default n
+	help
+	  If you have a LCD backlight connected to the MAIN and(or)
+	  SUB/FB output of LM3533, say Y here to enable this driver.
+	  To Compile this driver as a module, choose M here: the module
+	  will be called lm3533_bl.
+
+config SUBPMIC_RT8053
+	bool "SUB PMIC RT8053"
+	default n
+	help
+	  Support for RT8053 SUB PMIC driver.
+
+config SUBPMIC_LP8720
+	bool "SUB PMIC LP8720"
+	default n
+	help
+	  Support for LP8720 SUB PMIC driver.

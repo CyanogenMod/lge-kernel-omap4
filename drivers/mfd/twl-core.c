@@ -58,6 +58,10 @@
  * (and associated registers).
  */
 
+/*                                        
+                              
+ */
+//#define CONFIG_TWL6030_BCI_BATTERY
 #define DRIVER_NAME			"twl"
 
 #if defined(CONFIG_KEYBOARD_TWL4030) || defined(CONFIG_KEYBOARD_TWL4030_MODULE)
@@ -676,7 +680,8 @@ add_regulator(int num, struct regulator_init_data *pdata,
  */
 
 static int
-add_children(struct twl4030_platform_data *pdata, unsigned long features)
+add_children(struct twl4030_platform_data *pdata, unsigned long features,
+		unsigned long errata)
 {
 	struct device	*child;
 	unsigned sub_chip_id;
@@ -700,6 +705,7 @@ add_children(struct twl4030_platform_data *pdata, unsigned long features)
 	}
 	if (twl_has_bci() && pdata->bci) {
 		pdata->bci->features = features;
+		pdata->bci->errata = errata;
 		child = add_child(1, "twl6030_bci",
 				pdata->bci, sizeof(*pdata->bci),
 				false,
@@ -1094,15 +1100,33 @@ add_children(struct twl4030_platform_data *pdata, unsigned long features)
 		if (IS_ERR(child))
 			return PTR_ERR(child);
 
+#if !defined(CONFIG_MACH_LGE)
 		child = add_regulator(TWL6030_REG_SYSEN,
 				pdata->sysen, features);
 		if (IS_ERR(child))
 			return PTR_ERR(child);
+#endif
 
+		/*                                                  
+    
+                                                             
+   */
+#if defined(CONFIG_MACH_LGE)
+		child = add_regulator(TWL6030_REG_REGEN1, pdata->regen1,
+					features);
+#else
 		child = add_regulator(TWL6030_REG_REGEN1,
 				pdata->sysen, features);
+#endif
 		if (IS_ERR(child))
 			return PTR_ERR(child);
+
+#if defined(CONFIG_MACH_LGE)
+		child = add_regulator(TWL6030_REG_REGEN2, pdata->regen2,
+					features);
+		if (IS_ERR(child))
+			return PTR_ERR(child);
+#endif
 	}
 
 	/* twl6032 regulators */
@@ -1319,6 +1343,8 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	struct twl4030_platform_data	*pdata = client->dev.platform_data;
 	u8 temp;
 	int ret = 0, features;
+	unsigned long errata = 0;
+	u8 twlrev;
 
 	if (!pdata) {
 		dev_dbg(&client->dev, "no platform data?\n");
@@ -1349,7 +1375,14 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 				dev_err(&client->dev,
 					"can't attach client %d\n", i);
 				status = -ENOMEM;
+				/*                                        
+                       
+     */
+#ifdef CONFIG_MACH_LGE
+				goto err_i2c_register_device;
+#else
 				goto fail;
+#endif
 			}
 		}
 		mutex_init(&twl->xfer_lock);
@@ -1377,6 +1410,18 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		twl_i2c_read_u8(TWL_MODULE_USB, &temp, USB_PRODUCT_ID_LSB);
 		if (temp == 0x32)
 			features |= TWL6032_SUBCLASS;
+
+		twl_i2c_read_u8(TWL6030_MODULE_ID2, &twlrev,
+				TWL6030_REG_JTAGVERNUM);
+
+		/*
+		 * Check for the errata implementation
+		 * Errata ProDB00119490 present only in the TWL6032 ES1.1
+		 */
+		if (features & TWL6032_SUBCLASS) {
+			if (twlrev == 1)
+				errata |= TWL6032_ERRATA_DB00119490;
+		}
 	}
 
 	/* load power event scripts */
@@ -1401,7 +1446,14 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		}
 
 		if (status < 0)
+			/*                                        
+                      
+    */
+#ifdef CONFIG_MACH_LGE
+			goto err_init_irq;
+#else
 			goto fail;
+#endif
 	}
 
 	/* Disable TWL4030/TWL5030 I2C Pull-up on I2C1 and I2C4(SR) interface.
@@ -1416,11 +1468,39 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		twl_i2c_write_u8(TWL4030_MODULE_INTBR, temp, REG_GPPUPDCTR1);
 	}
 
-	status = add_children(pdata, features);
+	status = add_children(pdata, features, errata);
+
+	/*                                        
+                    
+  */
+#ifdef CONFIG_MACH_LGE
+	if (status < 0)
+		goto err_add_children;
+
+	return 0;
+err_add_children:
+	if (twl_class_is_4030())
+		twl4030_exit_irq();
+	else
+		twl6030_exit_irq();
+err_init_irq:
+	for (i = TWL_NUM_SLAVES-1; i > 0; i--) {
+		struct twl_client *twl = &twl_modules[i];
+		if (twl->client)
+			i2c_unregister_device(twl->client);
+		twl->client = NULL;
+err_i2c_register_device:
+		;
+	}
+	twl_modules[0].client = NULL;
+
+	return status;
+#else
 fail:
 	if (status < 0)
 		twl_remove(client);
 	return status;
+#endif
 }
 
 static const struct i2c_device_id twl_ids[] = {

@@ -15,35 +15,15 @@
 #ifndef GCMAIN_H
 #define GCMAIN_H
 
+#include <linux/gcx.h>
 #include <linux/gccore.h>
+#include "gcmmu.h"
 
 #define GC_DEV_NAME	"gccore"
 
-/*
- * Register access.
- */
 
-unsigned int gc_read_reg(unsigned int address);
-void gc_write_reg(unsigned int address, unsigned int data);
-
-/*
- * Paged memory allocator.
- */
-
-struct gcpage {
-	unsigned int order;
-	unsigned int size;
-	struct page *pages;
-	unsigned int physical;
-	unsigned int *logical;
-};
-
-enum gcerror gc_alloc_pages(struct gcpage *p, unsigned int size);
-void gc_free_pages(struct gcpage *p);
-void gc_flush_pages(struct gcpage *p);
-
-/*
- * Power management.
+/*******************************************************************************
+ * Power management modes.
  */
 
 enum gcpower {
@@ -53,14 +33,70 @@ enum gcpower {
 	GCPWR_OFF
 };
 
-enum gcerror gc_set_power(enum gcpower gcpower);
-enum gcerror gc_get_power(void);
 
-/*
- * Interrupt.
+/*******************************************************************************
+ * Driver context.
  */
 
-void gc_wait_interrupt(void);
-unsigned int gc_get_interrupt_data(void);
+struct omap_gcx_platform_data;
+
+struct gccorecontext {
+	/* GPU IRQ line. */
+	int irqline;
+
+	/* Virtual pointer to the GPU register bank. */
+	void *regbase;
+
+	/* Platform driver install flag. */
+	bool platdriver;
+	struct omap_gcx_platform_data *plat;
+
+	/* Pointers to the gccore and BB2D devices. */
+	struct device *device;
+	struct device *bb2ddevice;
+
+	/* Current power mode. */
+	enum gcpower gcpower;
+	GCLOCK_TYPE powerlock;
+	GCLOCK_TYPE resetlock;
+
+	/* Current graphics pipe. */
+	enum gcpipe gcpipe;
+
+	/* Power mode flags. */
+	bool clockenabled;
+	bool pulseskipping;
+
+	/* MMU and command buffer managers. */
+	struct gcmmu gcmmu;
+	struct gcqueue gcqueue;
+
+	/* MMU context lists. */
+	struct list_head mmuctxlist;
+	struct list_head mmuctxvac;
+	GCLOCK_TYPE mmucontextlock;
+
+	/* Device frequency scaling. */
+	int opp_count;
+	unsigned long *opp_freqs;
+	unsigned long  cur_freq;
+};
+
+
+/*******************************************************************************
+ * Register access.
+ */
+
+unsigned int gc_read_reg(unsigned int address);
+void gc_write_reg(unsigned int address, unsigned int data);
+
+
+/*******************************************************************************
+ * Power management.
+ */
+
+enum gcpower gcpwr_get(void);
+void gcpwr_set(struct gccorecontext *gccorecontext, enum gcpower gcpower);
+void gcpwr_reset(struct gccorecontext *gccorecontext);
 
 #endif
