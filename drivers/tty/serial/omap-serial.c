@@ -1940,54 +1940,34 @@ static void omap_uart_restore_context(struct uart_omap_port *up)
 static int omap_serial_runtime_suspend(struct device *dev)
 {
 	struct uart_omap_port *up = dev_get_drvdata(dev);
+/*                                                       */
+	struct omap_device *od;
+/*                                            */
 
 	if (!up)
 		goto done;
+
+/*                                                       */
+/* when use dma, the uart port cannot go to sleep. So reset RTR, when goer to suspend
+     this problem is from GB */
+	/* HACK to reset UART module if DMA is enabled
+	* For some reason if DMA is enabled the module is
+	* stuck in transition state.
+	 */
+	if (up->use_dma && cpu_is_omap44xx()) {
+		/* NO TX_DMA WAKEUP SO KEEP IN NO IDLE MODE */
+		od = to_omap_device(up->pdev);
+		omap_hwmod_set_slave_idlemode(od->hwmods[0],
+					HWMOD_IDLEMODE_FORCE);
+		serial_out(up, UART_OMAP_SYSC, 0x2);
+	}
+/*                                            */
 
 	if (up->rts_mux_driver_control) {
 		omap_rts_mux_write(MUX_PULL_UP, up->port.line);
 		/* wait a few bytes to allow current transmission to complete */
 		udelay(300);
 	}
-	
-	if (up->use_dma) {
-		u32 iscr, ifcr, ilsr;
-		struct omap_device *od;
-
-		/* Stop baud clock */
-		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
-		serial_out(up, UART_DLL, 0);
-		serial_out(up, UART_DLM, 0);
-
-		/* A DMA disabling sequence for DMA mode 1 set by FCR[3] = 1, SCR[0] = 0 */
-		iscr = serial_in(up, UART_OMAP_SCR) & UART_OMAP_SCR_DMA_MODE_MASK;
-		serial_out(up, UART_OMAP_SCR, iscr | 0x02);
-		serial_out(up, UART_OMAP_SCR, iscr | 0x03);
-		ifcr = up->fcr & ~UART_FCR_DMA_SELECT;
-		serial_out(up, UART_FCR, ifcr);
-		ilsr = serial_in(up, UART_LSR);
-		while ((ilsr & 0x01) == 1) {
-			serial_in(up, UART_RX);
-			ilsr = serial_in(up, UART_LSR);
-		}
-		serial_out(up, UART_FCR, ifcr | UART_FCR_CLEAR_RCVR | UART_FCR_CLEAR_XMIT);
-		iscr = serial_in(up, UART_OMAP_SCR) & UART_OMAP_SCR_DMA_MODE_MASK;
-		serial_out(up, UART_OMAP_SCR, iscr | 0x04);
-		serial_out(up, UART_FCR, ifcr | UART_FCR_CLEAR_RCVR | UART_FCR_CLEAR_XMIT);
-		iscr = serial_in(up, UART_OMAP_SCR) & UART_OMAP_SCR_DMA_MODE_MASK;
-		serial_out(up, UART_OMAP_SCR, iscr);
-
-		/* Restart baud clock */
-		serial_out(up, UART_DLL, up->dll);	/* LS of divisor */
-		serial_out(up, UART_DLM, up->dlh);	/* MS of divisor */
-		serial_out(up, UART_LCR, up->lcr);
-
-		/* ENABLE IDLE MODE */
-		od = to_omap_device(up->pdev);
-		omap_hwmod_set_slave_idlemode(od->hwmods[0],
-					HWMOD_IDLEMODE_SMART);
-	}
-
 	if (device_may_wakeup(dev))
 		up->enable_wakeup(up->pdev, true);
 	else
@@ -2010,20 +1990,6 @@ static int omap_serial_runtime_resume(struct device *dev)
 			od = to_omap_device(up->pdev);
 			omap_hwmod_set_slave_idlemode(od->hwmods[0],
 						HWMOD_IDLEMODE_NO);
-
-			/* Stop baud clock */
-			serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
-			serial_out(up, UART_DLL, 0);
-			serial_out(up, UART_DLM, 0);
-
-			/* re-enable DMA */
-			serial_out(up, UART_OMAP_SCR, up->scr);
-			serial_out(up, UART_FCR,      up->fcr);
-
-			/* re-start baud clock */
-			serial_out(up, UART_DLL, up->dll);	/* LS of divisor */
-			serial_out(up, UART_DLM, up->dlh);	/* MS of divisor */
-			serial_out(up, UART_LCR, up->lcr);
 		}
 		if (up->rts_mux_driver_control && (!up->rts_pullup_in_suspend))
 			omap_rts_mux_write(0, up->port.line);

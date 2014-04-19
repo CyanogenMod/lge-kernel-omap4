@@ -520,14 +520,19 @@ static void muic_tsu5611_set_mode(struct i2c_client *client, u8 int_status1_val)
 		 */
 		case MUIC_AP_UART :
 		case MUIC_CP_UART :
-			dev_info(&client->dev, "%s: UART is removed\n", __func__);
+			 if((int_status1_val & VBUS) == 0) {
+				dev_info(&client->dev, "%s: UART is removed\n", __func__);
 
-			/* TODO: Why set OPEN???? */
-			muic_i2c_write_byte(client, SW_CONTROL, OPEN);
+				/* TODO: Why set OPEN???? */
+				muic_i2c_write_byte(client, SW_CONTROL, OPEN);
 #if defined(CONFIG_MAX8971_CHARGER)
-			muic_set_mode_in_retain(MUIC_NONE);
+				muic_set_mode_in_retain(MUIC_NONE);
 #endif
-			muic_set_mode(MUIC_NONE);
+				muic_set_mode(MUIC_NONE);
+			}
+			 else {
+			 	dev_err(&client->dev, "%s: UART is not removed\n", __func__);
+			}
 			break;
 
 		case MUIC_NA_TA :

@@ -601,7 +601,7 @@ int device_control_off(void)
 	device_power_control("touch_power", off);
 //	device_power_control("vmmc", off);
 //	device_power_control("vpp", off);
-	device_power_control("vana", off);
+//	device_power_control("vana", off);
 	device_power_control("hdmi_vref", off);
 //	device_power_control("vaux1", off);
 //	device_power_control("vaux2", off);
@@ -2444,7 +2444,7 @@ static void twl6030_bci_battery_work(struct work_struct *work)
 		}
 
 		charger_schedule_delayed_work(&di->twl6030_bci_monitor_work,
-				msecs_to_jiffies(10000 * di->monitoring_interval));
+				msecs_to_jiffies(5000 * di->monitoring_interval));
 	}else{
 
 		charger_schedule_delayed_work(&di->twl6030_bci_monitor_work,
