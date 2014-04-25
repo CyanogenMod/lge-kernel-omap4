@@ -29,7 +29,6 @@ struct cmdline_parameter {
 static struct cmdline_parameter cmdline_parameters[] __initdata = {
 	{"mem", "1G@0x80000000", 0},
 	{"androidboot.hardware", "u2", 1},
-	{"androidboot.selinux", "permissive", 1},
 };
 
 #ifdef NO_CONSOLE_SUSPEND
