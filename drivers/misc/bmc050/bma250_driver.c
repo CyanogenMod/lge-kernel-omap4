@@ -706,8 +706,13 @@ static ssize_t bma250_value_show(struct device *dev,
 	struct bma250_data *bma250 = input_get_drvdata(input);
 	int err;
 
-	err = sprintf(buf, "%d %d %d\n", bma250->value.x, bma250->value.y,
-			bma250->value.z);
+	err = sprintf(buf, "%d %d %d\n", bma250->value.x,
+#ifdef CONFIG_MACH_LGE_U2_P769
+                                         bma250->value.y * -1,
+#else
+                                         bma250->value.y,
+#endif
+			                 bma250->value.z);
 
 	return err;
 }
