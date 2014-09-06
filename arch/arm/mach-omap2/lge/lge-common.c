@@ -391,8 +391,7 @@ static struct omap_device_pad uart2_pads[] __initdata = {
 	},
 	{
 		.name	= "uart2_rx.uart2_rx",
-		.flags = OMAP_DEVICE_PAD_WAKEUP,
-		.enable	= OMAP_PIN_INPUT | OMAP_MUX_MODE0,
+		.enable	= OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE0,
 	},
 };
 
@@ -428,11 +427,14 @@ static struct omap_device_pad uart4_pads[] __initdata = {
 };
 
 static struct omap_uart_port_info uart2_info __initdata = {
-	.use_dma	= 1,
+	.use_dma	= 0,
 	.dma_rx_buf_size = DEFAULT_RXDMA_BUFSIZE,
 	.dma_rx_poll_rate = DEFAULT_RXDMA_POLLRATE,
 	.dma_rx_timeout = DEFAULT_RXDMA_TIMEOUT,
-	.auto_sus_timeout = DEFAULT_AUTOSUSPEND_DELAY,
+	.auto_sus_timeout = 0,
+#if defined(CONFIG_BRCM_LPM)
+	.wake_peer	= bcm_bt_lpm_exit_lpm_locked,
+#endif
 	.rts_mux_driver_control = 1,
 };
 

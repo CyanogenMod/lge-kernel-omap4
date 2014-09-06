@@ -31,63 +31,6 @@
 #if defined(CONFIG_GPS)
 #include <linux/lge/gps_gpio.h>
 #endif /* CONFIG_GPS */
-//+++LG_BTDRV:
-#include <linux/lbee9qmb-rfkill.h>
-//---
-
-// BT UART Enable
-#define BT_UART_DEV_NAME "/dev/ttyO1"
-
-static bool uart_req;
-/* Call the uart disable of serial driver */
-static int plat_bt_uart_disable(void)
-{
-        int port_id = 0;
-        int err = 0;
-        if (uart_req) {
-                sscanf(BT_UART_DEV_NAME, "/dev/ttyO%d", &port_id);
-                err = omap_serial_ext_uart_disable(port_id);
-                if (!err)
-                        uart_req = false;
-        }
-        return err;
-}
-
-/* Call the uart enable of serial driver */
-static int plat_bt_uart_enable(void)
-{
-        int port_id = 0;
-        int err = 0;
-        if (!uart_req) {
-                sscanf(BT_UART_DEV_NAME, "/dev/ttyO%d", &port_id);
-                err = omap_serial_ext_uart_enable(port_id);
-                if (!err)
-                        uart_req = true;
-        }
-        return err;
-}
-
-//+++LG_BTDRV: gpio_reset=BT_EN(166), gpio_hostwake=BT_HOST_WAKEUP(160), gpio_btwake=BT_WAKEUP(23)
-static struct lbee9qmb_platform_data lbee9qmb_platform = {
-	.gpio_reset = GPIO_BT_RESET,
-#ifdef CONFIG_BRCM_BT_WAKE
-	.gpio_btwake = GPIO_BT_WAKE,
-#endif
-#ifdef CONFIG_BRCM_HOST_WAKE
-	.gpio_hostwake = GPIO_BT_HOST_WAKE,
-#endif
-	.active_low = 1,
-	.delay = 10,
-        .chip_enable = plat_bt_uart_enable,
-        .chip_disable = plat_bt_uart_disable,
-};
-
-static struct platform_device bcm4330_device = {
-	.name = "lbee9qmb-rfkill",
-	.dev = {
-		.platform_data = &lbee9qmb_platform,
-	},
-};
 
 #if defined(CONFIG_INPUT_HALLEFFECT_BU52031NVX)
 static struct bu52031nvx_platform_data bu52031nvx_platform_data = {
@@ -407,6 +350,11 @@ static struct platform_device gkpd_dev = {
 	},
 };
 
+static struct platform_device bcm4330_bluetooth_device = {
+	.name = "bcm4330_bluetooth",
+	.id = -1,
+};
+
 static struct platform_device *pdevs[] __initdata = {
 #if defined(CONFIG_GPS)
         &gps_gpio,
@@ -418,8 +366,8 @@ static struct platform_device *pdevs[] __initdata = {
 	&vib,
 	&keypad_led,
 	&charger_device,
-	&bcm4330_device,
 	&bd_address_device,
+	&bcm4330_bluetooth_device,
 	&u2_mdm_watcher_device,
 #ifdef CONFIG_LGE_HANDLE_PANIC
 	&panic_handler_device,
