@@ -13,4 +13,5 @@ obj-y += u2.o \
 		 u2_display.o \
 		 u2_keypad.o \
 		 u2_cmdline.o \
-		 u2_misc.o
+		 u2_misc.o \
+		 u2_bluetooth.o

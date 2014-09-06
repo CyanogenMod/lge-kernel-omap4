@@ -111,4 +111,6 @@ void lge_set_reboot_reason(unsigned int reason);
 extern struct sii9244_platform_data sii9244_pdata;
 #endif
 
+extern void bcm_bt_lpm_exit_lpm_locked(struct uart_port *uport);
+
 #endif /*                  */
