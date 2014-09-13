@@ -236,7 +236,7 @@ static int bcm4330_bluetooth_probe(struct platform_device *pdev)
 		return rc;
 	}
 
-	gpio_direction_output(GPIO_BT_RESET, 1);
+	gpio_direction_output(GPIO_BT_RESET, 0);
 
 	bt_rfkill = rfkill_alloc("bcm4330 Bluetooth", &pdev->dev,
 				RFKILL_TYPE_BLUETOOTH, &bcm4330_bt_rfkill_ops,
