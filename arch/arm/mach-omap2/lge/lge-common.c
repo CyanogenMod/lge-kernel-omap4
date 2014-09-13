@@ -531,12 +531,12 @@ void __init lge_common_init(void)
 	//blaze_sensor_init();
 	//blaze_touch_init();
 	omap4_register_ion();
+
+	board_serial_init();
 	
 	if (lge_machine_data.pdevs != NULL)
 		platform_add_devices(lge_machine_data.pdevs,
 				lge_machine_data.pdev_len);
-
-	board_serial_init();
 
 	if (lge_machine_data.hsmmc_info != NULL)
 		omap4_twl6030_hsmmc_init(lge_machine_data.hsmmc_info);
